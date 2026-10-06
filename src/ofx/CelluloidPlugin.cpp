@@ -48,6 +48,7 @@
 #include "../engine/Engine.h"
 #include "../license/License.h"
 #include "../texture/Texture.h"
+#include "../texture/TextureDesign.h"   // grainFormatAmplitude()
 #if defined(CEL_HAVE_GPU_API) && CEL_HAVE_GPU_API
 #  include "../gpu/GpuBackends.h"
 #  define CEL_GPU_EXTRAS 1
@@ -451,6 +452,10 @@ engine::FrameSettings CelluloidEffect::frameSettingsAt(double t, int fullWidthPx
     tp.grainAnimated = flag(id::grainAnimated, t);
     tp.grainSeed = int(std::lround(num(id::grainSeed, t)));
     tp.grainMonochrome = mono;
+    // The grain field is unit variance per pixel for every format (cel::tex); visible granularity
+    // grows with the enlargement of the gate, so the density amplitude carries the per-format
+    // factor (Super 8 ~2x ... 65 mm ~0.7x of Super 35). Applied here, exactly once.
+    if (tp.grainEnabled) fs.look.grainAmount *= tex::grainFormatAmplitude(tp.grainFormat);
 
     if (fs.mode == core::Mode::ColorOnly) {   // colour pipeline only: exactly what a LUT contains
         tp.grainEnabled = false;
@@ -873,8 +878,19 @@ void CelluloidEffect::deactivateLicense() {
         return;
     }
     refreshLicenseStatus();
-    sendMessage(OFX::Message::eMessageMessage, "",
-                "The license was removed from this computer. Celluloid Pro now runs as a trial (watermarked renders).");
+    // removeKey() succeeds but fills err with a note when another license (machine-wide file or
+    // CELLULOID_LICENSE_KEY) still applies after the per-user key is gone: show that note.
+    const lic::LicenseInfo cur = lic::current();
+    if (!lic::needsWatermark(cur)) {
+        sendMessage(OFX::Message::eMessageMessage, "",
+                    err.empty() ? "Your license key was removed, but another license on this computer still applies: " +
+                                      cur.message
+                                : err);
+        return;
+    }
+    std::string msg = "The license was removed from this computer. Celluloid Pro now runs as a trial (watermarked renders).";
+    if (!err.empty()) msg += "\n" + err;
+    sendMessage(OFX::Message::eMessageMessage, "", msg);
 }
 
 void CelluloidEffect::exportLut(double t) {

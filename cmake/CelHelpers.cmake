@@ -20,9 +20,8 @@ function(cel_set_warnings target)
 endfunction()
 
 # cel_collect_sources(<out-var> COMPONENT <name> DIRS <dir>...)
-#   Collects *.cpp / *.c (and *.mm on Apple) from the given directories. When none exist and
-#   CEL_STUBS_DIR is set, falls back to ${CEL_STUBS_DIR}/<name>/ (development builds while a
-#   component is still being written). Fails if there is nothing to build.
+#   Collects *.cpp / *.c (and *.mm on Apple) from the given directories. Fails if there is
+#   nothing to build.
 function(cel_collect_sources out)
   cmake_parse_arguments(A "" "COMPONENT" "DIRS" ${ARGN})
   set(globs "")
@@ -35,12 +34,6 @@ function(cel_collect_sources out)
   set(srcs "")
   if(globs)
     file(GLOB srcs CONFIGURE_DEPENDS ${globs})
-  endif()
-  if(NOT srcs AND CEL_STUBS_DIR AND IS_DIRECTORY "${CEL_STUBS_DIR}/${A_COMPONENT}")
-    file(GLOB srcs CONFIGURE_DEPENDS "${CEL_STUBS_DIR}/${A_COMPONENT}/*.cpp")
-    if(srcs)
-      message(WARNING "Celluloid: component '${A_COMPONENT}' uses DEVELOPMENT STUBS from ${CEL_STUBS_DIR}/${A_COMPONENT}")
-    endif()
   endif()
   if(NOT srcs)
     message(FATAL_ERROR "Celluloid: no sources for component '${A_COMPONENT}' (looked in ${A_DIRS})")

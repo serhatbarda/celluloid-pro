@@ -9,8 +9,8 @@
 #     CEL_ENABLE_CUDA     OFF  CUDA backend (needs the CUDA toolkit / nvcc)
 #     CEL_ENABLE_METAL    ON on Apple, OFF elsewhere (Apple only)
 #     CEL_CUDA_ARCHITECTURES   default derived from the nvcc version (see below)
-#     CEL_GPU_KERNEL_INCLUDE_DIRS  extra search dirs for kernel headers missing from src/kernels
-#                              (development stubs only; empty for real builds)
+#     CEL_GPU_KERNEL_INCLUDE_DIRS  extra search dirs for kernel headers (searched after
+#                              src/kernels; empty for product builds)
 # See src/gpu/README.md.
 cmake_minimum_required(VERSION 3.20)
 
@@ -22,7 +22,7 @@ else()
   set(CEL_ENABLE_METAL OFF CACHE BOOL "Build the Metal GPU backend (Apple only)" FORCE)
 endif()
 set(CEL_GPU_KERNEL_INCLUDE_DIRS "" CACHE STRING
-    "Extra include dirs for kernel headers (development stubs only)")
+    "Extra include dirs for kernel headers (searched after src/kernels; empty for product builds)")
 
 get_filename_component(CEL_GPU_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)          # src/
 get_filename_component(CEL_GPU_REPO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)      # repo root
@@ -42,13 +42,13 @@ set_target_properties(celgpu PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON)
 if(MSVC)
-  target_compile_options(celgpu PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4>)
+  target_compile_options(celgpu PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/W4;/wd4100>")
   target_compile_definitions(celgpu PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
 else()
-  target_compile_options(celgpu PRIVATE $<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-Wall -Wextra>)
+  target_compile_options(celgpu PRIVATE "$<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-Wall;-Wextra>")
 endif()
 if(CEL_GPU_KERNEL_INCLUDE_DIRS)
-  # C++ TUs that include the kernels (probe reference) see the same stubs as the device sources
+  # C++ TUs that include the kernels (probe reference) see the same headers as the device sources
   target_include_directories(celgpu PRIVATE ${CEL_GPU_KERNEL_INCLUDE_DIRS})
 endif()
 

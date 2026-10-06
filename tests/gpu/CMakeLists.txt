@@ -5,7 +5,7 @@
 #   gpu_flatten        cmake/FlattenKernels.cmake fixture test
 #   gpu_abi            backends vs the reference executor on the ABI test kernel set (+ production
 #                      self tests: builds the production kernels and runs the probe)
-#   gpu_opencl_syntax  clang OpenCL C syntax check of the flattened sources (when clang exists)
+#   gpu_opencl_syntax  clang OpenCL C syntax check of the flattened sources (when clang exists; linux-only)
 #   gpu_metal_shim     clang++ + address-space shim check of the flattened MSL (non-Apple, clang)
 #   gpu_metal_objc_mock clang++ -fobjc-arc syntax check of the .mm files against mock headers (non-Apple)
 #   gpu_metal_xcrun    `xcrun metal` compile of the flattened MSL (Apple only)
@@ -56,10 +56,12 @@ target_link_libraries(test_gpu_abi PRIVATE celgpu)
 target_include_directories(test_gpu_abi PRIVATE ${CEL_GPU_KERNEL_INCLUDE_DIRS})
 find_package(Threads REQUIRED)
 target_link_libraries(test_gpu_abi PRIVATE Threads::Threads)
+# Host-compiler warning flags are gated by language: nvcc would read a bare /W4 as an input file.
+# C4100 / -Wunused-parameter: every kernel has the uniform ABI signature (see cel_set_warnings).
 if(MSVC)
-  target_compile_options(test_gpu_abi PRIVATE /W4)
+  target_compile_options(test_gpu_abi PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/W4;/wd4100>")
 else()
-  target_compile_options(test_gpu_abi PRIVATE -Wall -Wextra -Wno-unused-parameter)
+  target_compile_options(test_gpu_abi PRIVATE "$<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-Wall;-Wextra;-Wno-unused-parameter>")
 endif()
 if(CEL_ENABLE_OPENCL)
   target_sources(test_gpu_abi PRIVATE "${_gen}/AbiOpenCLSource.cpp")
@@ -104,6 +106,8 @@ if(CEL_CLANG AND CEL_ENABLE_OPENCL)
   add_test(NAME gpu_opencl_syntax
     COMMAND "${CMAKE_COMMAND}" -DCLANG=${CEL_CLANG} "-DFILES=${_flat_cl}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/check_opencl_syntax.cmake")
+  # needs a clang with OpenCL C support (Linux workbench); runner toolchains vary
+  set_tests_properties(gpu_opencl_syntax PROPERTIES LABELS "linux-only")
 endif()
 if(APPLE)
   add_test(NAME gpu_metal_xcrun
@@ -131,9 +135,9 @@ if((TARGET celcore AND TARGET celtex) OR CEL_GPU_PARITY_EXTRA_SOURCES)
   endif()
   target_include_directories(test_gpu_parity PRIVATE ${CEL_GPU_KERNEL_INCLUDE_DIRS} "${CEL_GPU_TEST_REPO}/src")
   if(MSVC)
-    target_compile_options(test_gpu_parity PRIVATE /W4 /wd4100)
+    target_compile_options(test_gpu_parity PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/W4;/wd4100>")
   else()
-    target_compile_options(test_gpu_parity PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    target_compile_options(test_gpu_parity PRIVATE "$<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-Wall;-Wextra;-Wno-unused-parameter>")
   endif()
   if(CEL_ENABLE_OPENCL)
     target_compile_definitions(test_gpu_parity PRIVATE CEL_TEST_HAVE_OPENCL=1 CEL_HAVE_KHRONOS_CL_HEADERS=1)

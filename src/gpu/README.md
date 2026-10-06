@@ -22,7 +22,7 @@ add_subdirectory(tests/gpu)                   # optional: tests (see below)
 | public include dir | `src/` (`#include "gpu/GpuBackends.h"`) |
 | flattened sources target | `celgpu_kernel_sources` → `<build>/src/gpu/generated/celluloid_production.{cl,metal}` |
 | cache variables (read-only) | `CEL_GPU_OPENCL_FLAT_SOURCE`, `CEL_GPU_METAL_FLAT_SOURCE`, `CEL_GPU_OPENCL_INCLUDE_DIR` |
-| options | `CEL_ENABLE_OPENCL`, `CEL_ENABLE_CUDA`, `CEL_ENABLE_METAL`, `CEL_CUDA_ARCHITECTURES`, `CEL_OPENCL_HEADERS_DIR`, `CEL_GPU_KERNEL_INCLUDE_DIRS` (dev stubs only; empty in real builds) |
+| options | `CEL_ENABLE_OPENCL`, `CEL_ENABLE_CUDA`, `CEL_ENABLE_METAL`, `CEL_CUDA_ARCHITECTURES`, `CEL_OPENCL_HEADERS_DIR`, `CEL_GPU_KERNEL_INCLUDE_DIRS` (extra kernel header dirs; empty for product builds) |
 | compile definitions (private) | `CEL_GPU_HAVE_OPENCL/CUDA/METAL=1` for the compiled-in APIs |
 
 `engine::openclBackend()/cudaBackend()/metalBackend()` are always defined by `celgpu` and return

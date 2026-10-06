@@ -22,6 +22,12 @@ cmake_policy(SET CMP0091 NEW)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "MSVC runtime")
 
 project(CelluloidPro VERSION 1.0.0 LANGUAGES C CXX)
+# Languages must be enabled in the top-level directory: CMake generates the per-language rules
+# (e.g. CMAKE_OBJCXX_COMPILE_OBJECT) only for languages enabled here, so an enable_language()
+# inside src/gpu or tests/gpu alone breaks the generate step on macOS.
+if(APPLE)
+  enable_language(OBJCXX)   # Metal backend (src/gpu/metal/*.mm) and its test environment
+endif()
 
 set(CEL_PRODUCT_NAME "Celluloid Pro")
 set(CEL_PLUGIN_IDENTIFIER "de.serhatbarda.CelluloidPro")
@@ -46,8 +52,6 @@ endif()
 option(CEL_DEV_LICENSE "Accept the DEVELOPMENT license key pair (tests only, never for releases)" OFF)
 option(CEL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors in our own code" OFF)
 set(CEL_BUILD_ID "" CACHE STRING "Build identifier shown in the About group (default: git commit)")
-set(CEL_STUBS_DIR "" CACHE PATH
-    "Development only: directory with stand-in implementations (<dir>/{core,engine,license,gpu,kernels}) used for components whose sources are not present yet")
 
 if(CEL_ENABLE_METAL AND NOT APPLE)
   message(FATAL_ERROR "CEL_ENABLE_METAL requires an Apple platform")
@@ -90,25 +94,14 @@ include(CelOpenFX)        # OpenFX sources (pinned) + cel_ofxsupport
 
 set(CEL_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-# Development stubs for kernel headers that do not exist yet (searched after src/kernels).
-set(CEL_STUB_KERNEL_INCLUDE "")
-if(CEL_STUBS_DIR)
-  foreach(_h ColorKernels.h TextureKernels.h LicenseKernels.h)
-    if(NOT EXISTS "${CEL_SRC}/kernels/${_h}")
-      if(EXISTS "${CEL_STUBS_DIR}/kernels/${_h}")
-        set(CEL_STUB_KERNEL_INCLUDE "${CEL_STUBS_DIR}/kernels")
-        message(WARNING "Celluloid: using DEVELOPMENT STUB kernels/${_h} from ${CEL_STUBS_DIR}")
-      endif()
-    endif()
-  endforeach()
+if(MSVC)
+  # UTF-8 sources for every C/C++ target (tests and tools included); never passed to nvcc.
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/utf-8>")
 endif()
 
 # Common include interface for all libraries: "core/Core.h", "../kernels/..." style includes.
 add_library(cel_includes INTERFACE)
 target_include_directories(cel_includes INTERFACE "${CEL_SRC}" "${CEL_SRC}/kernels")
-if(CEL_STUB_KERNEL_INCLUDE)
-  target_include_directories(cel_includes INTERFACE "${CEL_STUB_KERNEL_INCLUDE}")
-endif()
 target_compile_features(cel_includes INTERFACE cxx_std_17)
 if(MSVC)
   # UTF-8 sources, standard conformance, no min/max macros, no CRT "secure" deprecation noise
@@ -167,22 +160,9 @@ if(CEL_DEV_LICENSE)
 endif()
 
 # ---- celgpu: GPU backends (src/gpu, owned by the GPU engineer; see src/gpu/README.md) --------------
-set(CEL_HAVE_GPU_API OFF)
-if(EXISTS "${CEL_SRC}/gpu/CMakeLists.txt")
-  if(CEL_STUB_KERNEL_INCLUDE)
-    set(CEL_GPU_KERNEL_INCLUDE_DIRS "${CEL_STUB_KERNEL_INCLUDE}" CACHE STRING "Extra include dirs for kernel headers (development stubs only)" FORCE)
-  endif()
-  add_subdirectory(src/gpu)
-  cel_require_target(celgpu)
-  target_link_libraries(celgpu PUBLIC cel_includes)
-  set(CEL_HAVE_GPU_API ON)
-else()
-  # No GPU module in this tree: engine::openclBackend()/cudaBackend()/metalBackend() come from the
-  # development stubs (they return nullptr, i.e. CPU only).
-  cel_collect_sources(CEL_GPU_SOURCES COMPONENT gpu DIRS "${CEL_SRC}/gpu/__none__")
-  add_library(celgpu STATIC ${CEL_GPU_SOURCES})
-  target_link_libraries(celgpu PUBLIC cel_includes)
-endif()
+add_subdirectory(src/gpu)
+cel_require_target(celgpu)
+target_link_libraries(celgpu PUBLIC cel_includes)
 # our warning policy on every first-party library (components may add their own flags)
 foreach(_t celcore celtex cellic celgpu)
   cel_set_warnings(${_t})
@@ -214,6 +194,6 @@ endif()
 # ---- summary -------------------------------------------------------------------------------------------
 message(STATUS "Celluloid Pro ${PROJECT_VERSION} (build ${CEL_BUILD_ID}) - ${CMAKE_SYSTEM_NAME} ${CMAKE_OSX_ARCHITECTURES}")
 message(STATUS "  OpenFX:  ${CEL_OPENFX_DIR}")
-message(STATUS "  GPU:     OpenCL=${CEL_ENABLE_OPENCL} CUDA=${CEL_ENABLE_CUDA} Metal=${CEL_ENABLE_METAL} (src/gpu module: ${CEL_HAVE_GPU_API})")
+message(STATUS "  GPU:     OpenCL=${CEL_ENABLE_OPENCL} CUDA=${CEL_ENABLE_CUDA} Metal=${CEL_ENABLE_METAL} ")
 message(STATUS "  Tests:   ${CEL_BUILD_TESTS}  Dev license: ${CEL_DEV_LICENSE}")
 message(STATUS "  Bundle:  ${CEL_BUNDLE_DIR}")
