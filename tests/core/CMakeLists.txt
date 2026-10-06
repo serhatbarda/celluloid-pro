@@ -1,0 +1,17 @@
+# Celluloid Pro - core unit tests. Use via add_subdirectory(tests/core) (needs target celcore,
+# which is created here from src/core if the parent project has not defined it).
+cmake_minimum_required(VERSION 3.20)
+get_filename_component(CEL_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+if(NOT TARGET celcore)
+  add_subdirectory(${CEL_ROOT_DIR}/src/core ${CMAKE_CURRENT_BINARY_DIR}/celcore)
+endif()
+add_executable(test_core test_core.cpp)
+target_link_libraries(test_core PRIVATE celcore)
+target_include_directories(test_core PRIVATE ${CEL_ROOT_DIR}/src)
+target_compile_definitions(test_core PRIVATE CEL_REFERENCE_DIR="${CEL_ROOT_DIR}/reference")
+if(NOT MSVC)
+  target_compile_options(test_core PRIVATE -Wall -Wextra)
+endif()
+if(COMMAND add_test)
+  add_test(NAME core COMMAND test_core --tmp ${CMAKE_CURRENT_BINARY_DIR})
+endif()

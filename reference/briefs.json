@@ -1,0 +1,393 @@
+{
+ "_doc": "Design briefs for reference/optimize.py (rendered through P1, Rec.709). saturation = target chroma ratio (exposure-normalised Lab) for natural colours; skin_* for the skin set; ramp_tint_ab = target CIELAB a,b of the neutral ramp at -6..+6 stops (13 entries; the optimiser interpolates if fewer are given as [stop, a, b] anchors).",
+ "negatives": {
+  "CN 50D Fine Daylight": {
+   "saturation": 1.28,
+   "skin_hue": 0.0,
+   "skin_saturation": 1.08,
+   "sat_saturated": 1.0,
+   "hue_rules": [
+    [
+     250,
+     30,
+     -6
+    ],
+    [
+     140,
+     30,
+     -6
+    ],
+    [
+     200,
+     30,
+     -4
+    ]
+   ],
+   "ramp_anchors": [
+    [
+     -6,
+     -0.5,
+     -2.0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     6,
+     -0.4,
+     -1.8
+    ]
+   ]
+  },
+  "CN 200T Studio Tungsten": {
+   "saturation": 1.06,
+   "skin_hue": 0.0,
+   "skin_saturation": 1.0,
+   "ramp_anchors": [
+    [
+     -6,
+     -0.3,
+     -0.8
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     0.2,
+     1.0
+    ],
+    [
+     6,
+     0.3,
+     1.2
+    ]
+   ]
+  },
+  "CN 250D Soft Daylight": {
+   "saturation": 0.8,
+   "skin_hue": -1.0,
+   "skin_saturation": 0.85,
+   "sat_saturated": 0.68,
+   "hue_rules": [
+    [
+     140,
+     35,
+     -8
+    ],
+    [
+     60,
+     30,
+     -5
+    ]
+   ],
+   "ramp_anchors": [
+    [
+     -6,
+     -1.0,
+     -1.5
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     -0.5,
+     -1.2
+    ],
+    [
+     6,
+     -0.6,
+     -1.5
+    ]
+   ]
+  },
+  "CN 500T High Speed": {
+   "saturation": 0.84,
+   "skin_hue": 5.0,
+   "skin_saturation": 0.92,
+   "sat_saturated": 0.7,
+   "hue_rules": [
+    [
+     250,
+     35,
+     -12
+    ],
+    [
+     200,
+     30,
+     -10
+    ],
+    [
+     140,
+     30,
+     -6
+    ]
+   ],
+   "ramp_anchors": [
+    [
+     -6,
+     -4.5,
+     -4.5
+    ],
+    [
+     -2,
+     -2.0,
+     -2.0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     1.2,
+     4.0
+    ],
+    [
+     6,
+     1.2,
+     4.5
+    ]
+   ]
+  },
+  "CN 800T No-Backing": {
+   "saturation": 0.86,
+   "skin_hue": -2.0,
+   "skin_saturation": 1.0,
+   "sat_saturated": 0.78,
+   "hue_rules": [
+    [
+     30,
+     25,
+     -6
+    ],
+    [
+     350,
+     25,
+     -6
+    ],
+    [
+     200,
+     40,
+     -9
+    ],
+    [
+     140,
+     30,
+     -8
+    ]
+   ],
+   "ramp_anchors": [
+    [
+     -6,
+     -6.0,
+     -4.0
+    ],
+    [
+     -2,
+     -2.6,
+     -1.8
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     1.0,
+     0.6
+    ],
+    [
+     6,
+     1.6,
+     1.0
+    ]
+   ]
+  },
+  "CN Vintage 85": {
+   "saturation": 0.7,
+   "skin_hue": 6.0,
+   "skin_saturation": 0.82,
+   "sat_saturated": 0.58,
+   "hue_rules": [
+    [
+     135,
+     35,
+     14
+    ],
+    [
+     250,
+     30,
+     -10
+    ],
+    [
+     30,
+     25,
+     5
+    ]
+   ],
+   "ramp_anchors": [
+    [
+     -6,
+     -3.5,
+     -1.0
+    ],
+    [
+     -2,
+     -1.4,
+     -0.4
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     1.8,
+     5.0
+    ],
+    [
+     6,
+     2.5,
+     7.5
+    ]
+   ]
+  },
+  "C41 Portrait 400": {
+   "saturation": 1.0,
+   "skin_hue": 6.0,
+   "skin_saturation": 0.95,
+   "sat_saturated": 0.8,
+   "hue_rules": [
+    [
+     140,
+     35,
+     8
+    ],
+    [
+     350,
+     30,
+     6
+    ],
+    [
+     250,
+     30,
+     6
+    ]
+   ],
+   "ramp_anchors": [
+    [
+     -6,
+     1.8,
+     0.3
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     1.4,
+     2.0
+    ],
+    [
+     6,
+     1.6,
+     2.6
+    ]
+   ]
+  },
+  "C41 Consumer 200": {
+   "saturation": 1.38,
+   "skin_hue": 3.0,
+   "skin_saturation": 1.12,
+   "sat_saturated": 1.05,
+   "hue_rules": [
+    [
+     135,
+     30,
+     12
+    ],
+    [
+     35,
+     25,
+     6
+    ],
+    [
+     260,
+     30,
+     6
+    ]
+   ],
+   "ramp_anchors": [
+    [
+     -6,
+     2.0,
+     -0.5
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     0.8,
+     3.5
+    ],
+    [
+     6,
+     0.8,
+     4.5
+    ]
+   ]
+  },
+  "RV 100 Slide": {
+   "saturation": 1.38,
+   "skin_hue": 0.0,
+   "skin_saturation": 1.15,
+   "sat_saturated": 1.05,
+   "hue_rules": [
+    [
+     260,
+     30,
+     5
+    ],
+    [
+     140,
+     30,
+     -4
+    ]
+   ],
+   "ramp_anchors": [
+    [
+     -6,
+     0,
+     -1.5
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     6,
+     -0.3,
+     -1.0
+    ]
+   ]
+  }
+ },
+ "prints": {}
+}
