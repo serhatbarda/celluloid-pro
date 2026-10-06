@@ -128,7 +128,7 @@ endif()
 # provide them (e.g. src/engine/*.cpp, src/texture/*.cpp and a core stub).
 set(CEL_GPU_PARITY_EXTRA_SOURCES "" CACHE STRING "Development only: sources providing core/engine for test_gpu_parity")
 if((TARGET celcore AND TARGET celtex) OR CEL_GPU_PARITY_EXTRA_SOURCES)
-  add_executable(test_gpu_parity test_gpu_parity.cpp test_env_opencl.cpp test_env_cuda.cpp ${CEL_GPU_PARITY_EXTRA_SOURCES})
+  add_executable(test_gpu_parity test_gpu_parity.cpp PerturbedKernels.cpp PerturbedKernels.h test_env_opencl.cpp test_env_cuda.cpp ${CEL_GPU_PARITY_EXTRA_SOURCES})
   target_link_libraries(test_gpu_parity PRIVATE celgpu Threads::Threads)
   if(TARGET celcore AND TARGET celtex)
     target_link_libraries(test_gpu_parity PRIVATE celtex celcore)
@@ -156,4 +156,7 @@ if((TARGET celcore AND TARGET celtex) OR CEL_GPU_PARITY_EXTRA_SOURCES)
   endif()
   add_test(NAME gpu_parity COMMAND test_gpu_parity)
   set_tests_properties(gpu_parity PROPERTIES LABELS "gpu-device" SKIP_RETURN_CODE 77)
+  # no device needed (runs in CI): CPU vs reference and the worst-case GPU math model
+  # (PerturbedKernels.cpp) on every parity case
+  add_test(NAME gpu_math_tolerance COMMAND test_gpu_parity --model)
 endif()

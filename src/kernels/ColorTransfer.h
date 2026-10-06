@@ -154,9 +154,26 @@ CEL_DEVICE float celc_pq_enc(float nits) {
     float p = cel_pow(y, 0.1593017578125f);
     return cel_pow((0.8359375f + 18.8515625f * p) / (1.0f + 18.6875f * p), 78.84375f);
 }
+/* exp(x) - 1 without cancellation near 0 (Kahan's trick: (u - 1) / log(u) is a well-conditioned
+ * function of u = exp(x), so a few-ulp error of exp/log - allowed on every GPU API - stays a few
+ * ulp in the result instead of being amplified by 1 / |x|). */
+CEL_DEVICE float celc_expm1(float x) {
+    float u = cel_exp(x);
+    if (!(cel_fabs(x) < 0.5f)) return u - 1.0f;    /* also +-Inf / NaN */
+    if (u == 1.0f) return x;
+    return (u - 1.0f) * x / cel_log(u);
+}
+/* ST 2084 EOTF. Written with q = 1 - v^(1/m2) computed directly (expm1): the textbook form
+ * (p - c1) / (c2 - c3 p) cancels catastrophically for bright code values (c2 - c3 = 0.164), which
+ * amplified a 1-ulp error of pow() about 700x (6.5e-5 relative at 5000 nits) and made GPU and CPU
+ * builds disagree. Note 1 - c1 = c2 - c3 = 0.1640625 exactly. */
 CEL_DEVICE float celc_pq_dec(float v) {
-    float p = cel_pow(cel_clamp(v, 0.0f, 1.0f), 1.0f / 78.84375f);
-    return 10000.0f * cel_pow(cel_fmax(p - 0.8359375f, 0.0f) / (18.8515625f - 18.6875f * p), 1.0f / 0.1593017578125f);
+    v = cel_clamp(v, 0.0f, 1.0f);
+    if (!(v > 0.0f)) return 0.0f;
+    float q = -celc_expm1(cel_log(v) * (1.0f / 78.84375f));            /* 1 - p, in [0, 1) */
+    float num = cel_fmax(0.1640625f - q, 0.0f);                       /* p - c1 */
+    float den = 0.1640625f + 18.6875f * q;                            /* c2 - c3 p */
+    return 10000.0f * cel_pow(num / den, 1.0f / 0.1593017578125f);
 }
 /* ITU-R BT.2100 HLG OETF */
 CEL_DEVICE float celc_hlg_oetf(float e) {

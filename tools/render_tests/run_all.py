@@ -985,6 +985,13 @@ class Suite:
                 cfgs.append(("preset%02d" % i, "natural", {"mode": full}, {"time_": 1, "post": [("lookPreset", ("index", i))]}))
             for i in range(len(self.outputs)):
                 cfgs.append(("out%02d" % i, "natural", {"mode": full, "outputSpace": ("index", i)}, {"time_": 1}))
+                # Texture Only decodes the display encoding: PQ/HLG highlights are numerically the
+                # most sensitive path (pseudo-scene expansion), so every output is checked there too
+                cfgs.append(("tex_out%02d" % i, "display", {"mode": ("index", self.ix["texture"]), "outputSpace": ("index", i),
+                                                            "halationAmount": 1.5, "bloomAmount": 1.0}, {"time_": 1}))
+            # the chart's torture patches (NaN/Inf/negative/huge) through every texture pass
+            cfgs.append(("chart_full_all", "chart", {"mode": full, "halationAmount": 1.5, "bloomAmount": 1.0, "grainAmount": 2.0,
+                                                     "acutanceAmount": 1.0, "weaveAmount": 1.5, "vignette": 0.6}, {"time_": 4}))
         L = []
         for name, sc, ov, kw in cfgs:
             L.append(self.line("cpu_" + name, sc, ov, **kw))

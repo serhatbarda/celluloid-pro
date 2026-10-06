@@ -6,6 +6,7 @@
 #include <chrono>
 #include <climits>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <set>
 
@@ -21,6 +22,15 @@ const char* apiName(Api api) {
 }
 
 namespace detail {
+
+double laneIdleReleaseMs() {
+    static const double ms = [] {
+        const char* e = std::getenv("CEL_GPU_LANE_IDLE_MS");
+        const double v = e ? std::atof(e) : 0.0;
+        return v > 0.0 ? v : 10000.0;
+    }();
+    return ms;
+}
 
 double nowMs() {
     using namespace std::chrono;
@@ -284,6 +294,10 @@ void GpuBackendBase::noteStateUpload() {
     std::lock_guard<std::mutex> l(m_statsMutex);
     m_stats.stateUploads++;
 }
+void GpuBackendBase::noteLanes(size_t n) {
+    std::lock_guard<std::mutex> l(m_statsMutex);
+    m_stats.lanes = n;
+}
 void GpuBackendBase::noteDevice(const std::string& d) {
     std::lock_guard<std::mutex> l(m_statsMutex);
     m_stats.lastDevice = d;
@@ -417,6 +431,10 @@ bool backendStats(const engine::Backend* backend, BackendStats* out) {
 
 void setDebugCapture(engine::Backend* backend, bool on) {
     if (auto* b = dynamic_cast<detail::GpuBackendBase*>(backend)) b->setDebugCapture(on);
+}
+
+void setDebugPoison(engine::Backend* backend, bool on) {
+    if (auto* b = dynamic_cast<detail::GpuBackendBase*>(backend)) b->setDebugPoison(on);
 }
 
 bool debugCapturedBuffer(const engine::Backend* backend, int bufferIndex, std::vector<float>* out, int* w,

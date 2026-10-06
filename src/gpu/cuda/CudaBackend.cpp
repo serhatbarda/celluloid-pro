@@ -77,12 +77,15 @@ private:
         std::vector<Staging> staging;
         std::vector<int> block;          // per kernel: block.y (block.x = 32); 0 = not queried
         uint64_t frame = 0;
-        double lastUseMs = 0.0;
+        std::atomic<double> lastUseMs{0.0};   // set when the lane is taken from the map
+        cudaEvent_t done = nullptr;      // recorded after the last pass of every frame
+        bool retired = false;            // released by trimIdleLanes (under m); take a new lane
     };
     bool deviceAlloc(Lane& l, size_t bytes, void** out, std::string* err);
     void deviceFree(Lane& l, void* p);
     bool uploadState(Lane& l, const std::vector<float>& st, std::string* err);
     void releaseLane(Lane& l);
+    void trimIdleLanes(Lane* current, int dev);
     const DeviceInfo& deviceInfo(int dev);
 
     std::mutex m_mapMutex;
@@ -189,7 +192,12 @@ bool CudaBackend::uploadState(Lane& l, const std::vector<float>& st, std::string
 void CudaBackend::releaseLane(Lane& l) {
     int prev = 0;
     cudaGetDevice(&prev);
-    cudaSetDevice(l.device);
+    if (prev != l.device) cudaSetDevice(l.device);
+    if (l.done) {
+        cudaEventSynchronize(l.done);   // the stream may be gone; its last frame must have finished
+        cudaEventDestroy(l.done);
+        l.done = nullptr;
+    }
     for (auto& s : l.staging) {
         if (s.ev) { cudaEventSynchronize(s.ev); cudaEventDestroy(s.ev); }
         if (s.host) cudaFreeHost(s.host);
@@ -201,15 +209,49 @@ void CudaBackend::releaseLane(Lane& l) {
     l.stateBytes = 0;
     l.stateKey = StateKey();
     l.block.clear();
-    cudaSetDevice(prev);
+    if (prev != l.device) cudaSetDevice(prev);
     cudaGetLastError();
+}
+
+void CudaBackend::trimIdleLanes(Lane* current, int dev) {
+    // Lanes (device, stream) that have not rendered for laneIdleReleaseMs() are released: the host
+    // may have destroyed the stream. Only lanes of the current device are touched (no context
+    // switch on the host's render thread), and only once their last frame has completed (event),
+    // so the stream-ordered frees below cannot race with work of that stream. The frees are then
+    // ordered on the CURRENT lane's stream, which is known to be alive.
+    const double now = nowMs();
+    std::vector<std::shared_ptr<Lane>> lanes;
+    {
+        std::lock_guard<std::mutex> lk(m_mapMutex);
+        for (auto it = m_lanes.begin(); it != m_lanes.end();) {
+            Lane& l = *it->second;
+            const bool idle = it->second.get() != current && l.device == dev && now - l.lastUseMs > laneIdleReleaseMs() &&
+                              (!l.done || cudaEventQuery(l.done) == cudaSuccess);
+            if (idle) {
+                lanes.push_back(it->second);
+                it = m_lanes.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        noteLanes(m_lanes.size());
+        cudaGetLastError();   // cudaErrorNotReady from cudaEventQuery is not an error
+    }
+    for (auto& lp : lanes) {
+        std::lock_guard<std::mutex> ll(lp->m);
+        lp->stream = current ? current->stream : nullptr;   // order the frees on a live stream
+        releaseLane(*lp);
+        lp->retired = true;
+    }
 }
 
 void CudaBackend::releaseResources() {
     std::lock_guard<std::mutex> lk(m_mapMutex);
     for (auto& kv : m_lanes) {
         std::lock_guard<std::mutex> ll(kv.second->m);
-        releaseLane(*kv.second);
+        kv.second->stream = nullptr;   // the host's stream may be gone at unload; releaseLane waits
+        releaseLane(*kv.second);       // for the lane's last frame, then frees on the legacy stream
+        kv.second->retired = true;
     }
     m_lanes.clear();
 }
@@ -256,23 +298,27 @@ bool CudaBackend::executeImpl(const engine::Plan& plan, const std::vector<float>
 
     const DeviceInfo& di = deviceInfo(dev);
     std::shared_ptr<Lane> lane;
-    {
-        std::lock_guard<std::mutex> lk(m_mapMutex);
-        auto& slot = m_lanes[std::make_pair(dev, stream)];
-        if (!slot) {
-            slot = std::make_shared<Lane>();
-            slot->device = dev;
-            slot->stream = stream;
-            slot->memPools = di.memPools;
-            noteDevice(di.name);
+    std::unique_lock<std::mutex> laneLock;
+    for (;;) {   // retry if trimIdleLanes retired the lane between the lookup and the lock
+        {
+            std::lock_guard<std::mutex> lk(m_mapMutex);
+            auto& slot = m_lanes[std::make_pair(dev, stream)];
+            if (!slot) {
+                slot = std::make_shared<Lane>();
+                slot->device = dev;
+                slot->stream = stream;
+                slot->memPools = di.memPools;
+                noteDevice(di.name);
+            }
+            slot->lastUseMs = nowMs();
+            lane = slot;
         }
-        lane = slot;
+        laneLock = std::unique_lock<std::mutex>(lane->m);
+        if (!lane->retired) break;
+        laneLock.unlock();
     }
-
-    std::lock_guard<std::mutex> ll(lane->m);
     Lane& l = *lane;
     l.frame++;
-    l.lastUseMs = nowMs();
     if (l.block.empty()) l.block.assign(size_t(m_ks.count) + 1, 0);
 
     // launch configuration per kernel: 32 x N threads within the kernel's register budget
@@ -311,6 +357,13 @@ bool CudaBackend::executeImpl(const engine::Plan& plan, const std::vector<float>
         noteStateUpload();
     }
 
+    if (debugPoison()) {   // test hook: NaN in every internal buffer before the first pass
+        for (size_t s = 0; s < slots.size(); ++s) {
+            e = cudaMemsetAsync(slots[s], 0xFF, fs.slotBytes[s], stream);
+            if (e != cudaSuccess) return fail(err, cuErr("cudaMemsetAsync(poison)", e));
+        }
+    }
+
     auto ptrOf = [&](int b) -> void* {
         if (b == engine::BUF_SRC) return src.data;
         if (b == engine::BUF_DST) return dst.data;
@@ -335,6 +388,11 @@ bool CudaBackend::executeImpl(const engine::Plan& plan, const std::vector<float>
                                  std::to_string(args.outW) + "x" + std::to_string(args.outH) + ")");
         }
     }
+    if (!l.done && cudaEventCreateWithFlags(&l.done, cudaEventDisableTiming) != cudaSuccess) {
+        cudaGetLastError();
+        l.done = nullptr;
+    }
+    if (l.done) cudaEventRecord(l.done, stream);   // lets trimIdleLanes know the lane went quiet
     if (!stream) {
         // no host stream: OFX requires the work to be complete when render returns
         e = cudaStreamSynchronize(nullptr);
@@ -362,6 +420,9 @@ bool CudaBackend::executeImpl(const engine::Plan& plan, const std::vector<float>
     }
     l.pool.trim(l.frame, kPoolMaxIdleFrames, freeFn);
     noteFrame(l.pool.bytes());
+    l.lastUseMs = nowMs();
+    laneLock.unlock();
+    trimIdleLanes(lane.get(), dev);
     return true;
 }
 

@@ -10,6 +10,8 @@ typedef signed char BOOL;
 #define nil ((id)0)
 typedef unsigned long NSUInteger;
 typedef long NSInteger;
+typedef struct _NSRange { NSUInteger location; NSUInteger length; } NSRange;
+static inline NSRange NSMakeRange(NSUInteger loc, NSUInteger len) { NSRange r; r.location = loc; r.length = len; return r; }
 #define NS_ASSUME_NONNULL_BEGIN
 #define NS_ASSUME_NONNULL_END
 #define __MAC_OS_X_VERSION_MAX_ALLOWED 150000

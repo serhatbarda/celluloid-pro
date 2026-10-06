@@ -99,6 +99,14 @@ jobs:
       - name: Unit tests
         run: ctest --test-dir build -C ${BUILD_TYPE} --output-on-failure --timeout 900 -LE "gpu-device|linux-only"
 
+      # Runs the GPU backends on the runner's own GPU when it exposes one (Metal and Apple's
+      # OpenCL on the Apple-silicon VM): backend ABI tests, production self tests and CPU vs GPU
+      # parity of every plan. Without a usable device the tests report SKIP (exit 77).
+      - name: GPU device tests (Metal / OpenCL, skipped without a device)
+        run: |
+          system_profiler SPDisplaysDataType 2>/dev/null | sed -n '1,20p' || true
+          ctest --test-dir build -C ${BUILD_TYPE} --output-on-failure --timeout 1200 -L gpu-device
+
       - name: Import signing certificates
         if: env.MACOS_CERT_P12 != ''
         run: |
@@ -208,6 +216,11 @@ jobs:
 
       - name: Unit tests
         run: ctest --test-dir build --output-on-failure --timeout 900 -LE "gpu-device|linux-only"
+
+      # The hosted runner has no GPU: this proves that the CUDA/OpenCL runtimes are probed
+      # gracefully (self tests report "not usable", tests SKIP) and runs them if a device appears.
+      - name: GPU device tests (CUDA / OpenCL, skipped without a device)
+        run: ctest --test-dir build --output-on-failure --timeout 1200 -L gpu-device
 
       - name: Inno Setup
         shell: pwsh

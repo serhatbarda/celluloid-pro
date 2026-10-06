@@ -139,18 +139,28 @@ CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_sample_bspline_h(CEL_GLOBAL const float*
  *            pseudo scene can never push an SDR output out of range. Display values >= 1 map to
  *            the finite x of Y = 1 - 1e-6 (super-whites are compressed into range). */
 #define CEL_TX_SDR_TOP 0.999999f
+/* exp(x) - 1 without cancellation near 0 (Kahan's trick, see celc_expm1 in ColorTransfer.h) */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_expm1(float x) {
+    float u = cel_exp(x);
+    if (!(cel_fabs(x) < 0.5f)) return u - 1.0f;
+    if (u == 1.0f) return x;
+    return (u - 1.0f) * x / cel_log(u);
+}
+/* Numerics: both branches avoid 1 - (number close to 1). With v = Y^(1/2.4) = e^w,
+ * v / (1 - v) = 1 / expm1(-w); and 1 - u = (1 - Y) / (1 - Yk) (1 - Y is exact for Y >= 0.5).
+ * The naive forms amplified a 1-ulp error of pow() up to ~30x near Yk and ~1e4x near display
+ * white, which the following blurs spread and the GPU/CPU parity test caught. */
 CEL_DEVICE CEL_TXH_INLINE float cel_txh_d2s(float Y, float x0, float p, float Yk, float xk, float slope, float sdr) {
     if (Y <= 0.0f) return Y;
     if (Y >= Yk) {
         if (sdr != 0.0f) {
             float L = (1.0f - Yk) * slope;
-            float u = (cel_txh_min(Y, CEL_TX_SDR_TOP) - Yk) / (1.0f - Yk);
-            return xk - L * cel_log(1.0f - u);
+            return xk - L * cel_log((1.0f - cel_txh_min(Y, CEL_TX_SDR_TOP)) / (1.0f - Yk));
         }
         return xk + (Y - Yk) * slope;
     }
-    float v = cel_pow(Y, 1.0f / 2.4f);
-    return x0 * cel_pow(v / (1.0f - v), 1.0f / p);
+    float r = cel_txh_expm1(cel_log(Y) * (-1.0f / 2.4f));   /* (1 - v) / v > 0 */
+    return x0 * cel_pow(r, -1.0f / p);
 }
 CEL_DEVICE CEL_TXH_INLINE float cel_txh_s2d(float x, float x0, float p, float Yk, float xk, float slope, float sdr) {
     if (x <= 0.0f) return x;

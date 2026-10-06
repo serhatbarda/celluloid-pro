@@ -119,7 +119,8 @@ private:
         size_t argsBytes = 0;
         std::vector<std::unique_ptr<Pending>> pending;
         uint64_t frame = 0;
-        double lastUseMs = 0.0;
+        std::atomic<double> lastUseMs{0.0};   // set when the lane is taken from the map
+        bool retired = false;                 // released by trimIdleLanes (under m); take a new lane
     };
 
     std::shared_ptr<Program> program(cl_context ctx, cl_device_id dev);
@@ -315,6 +316,7 @@ void OpenCLBackend::releaseResources() {
     for (auto& kv : m_lanes) {
         std::lock_guard<std::mutex> ll(kv.second->m);
         releaseLane(*kv.second);
+        kv.second->retired = true;
     }
     m_lanes.clear();
     for (auto& kv : m_programs)
@@ -323,23 +325,28 @@ void OpenCLBackend::releaseResources() {
 }
 
 void OpenCLBackend::trimIdleLanes(Lane* current) {
-    // Pools of queues that have not rendered for a while are released (e.g. the host switched
-    // devices); called with no lane lock held.
+    // Lanes of queues that have not rendered for laneIdleReleaseMs() are released completely (the
+    // host may have destroyed the queue or switched devices); called with no lane lock held.
+    // Releasing is safe even while the queue still executes: OpenCL objects are reference counted
+    // and destroyed by the runtime once the commands using them have completed.
     const double now = nowMs();
     std::vector<std::shared_ptr<Lane>> lanes;
     {
         std::lock_guard<std::mutex> lk(m_mapMutex);
-        for (auto& kv : m_lanes)
-            if (kv.second.get() != current) lanes.push_back(kv.second);
-    }
-    const auto& a = cl::api();
-    for (auto& l : lanes) {
-        std::unique_lock<std::mutex> ll(l->m, std::try_to_lock);
-        if (!ll.owns_lock()) continue;
-        if (now - l->lastUseMs > 10000.0 && l->pool.size() > 0) {
-            reap(*l, false);
-            l->pool.clear([&](cl_mem m) { a.clReleaseMemObject(m); });
+        for (auto it = m_lanes.begin(); it != m_lanes.end();) {
+            if (it->second.get() != current && now - it->second->lastUseMs > laneIdleReleaseMs()) {
+                lanes.push_back(it->second);
+                it = m_lanes.erase(it);   // nobody can take it from the map any more
+            } else {
+                ++it;
+            }
         }
+        noteLanes(m_lanes.size());
+    }
+    for (auto& l : lanes) {   // a thread that took it just before the erase sees `retired` and retries
+        std::lock_guard<std::mutex> ll(l->m);
+        releaseLane(*l);
+        l->retired = true;
     }
 }
 
@@ -385,35 +392,43 @@ bool OpenCLBackend::executeImpl(const engine::Plan& plan, const std::vector<floa
                                  std::to_string(msz) + " bytes, image needs " + std::to_string(need));
     }
 
-    // lane for this queue (recreated if the handle now names a different context/device)
-    std::shared_ptr<Lane> lane;
-    {
-        std::lock_guard<std::mutex> lk(m_mapMutex);
-        auto& slot = m_lanes[q];
-        if (slot && (slot->ctx != ctx || slot->dev != dev)) {
-            std::lock_guard<std::mutex> ll(slot->m);
-            releaseLane(*slot);
-            slot.reset();
-        }
-        if (!slot) {
-            slot = std::make_shared<Lane>();
-            slot->q = q;
-            slot->ctx = ctx;
-            slot->dev = dev;
-        }
-        lane = slot;
-    }
     std::shared_ptr<Program> prog = program(ctx, dev);
     if (!build(*prog, &serr)) return fail(err, serr);
 
+    // lane for this queue (recreated if the handle now names a different context/device, or if
+    // trimIdleLanes retired it between the lookup and the lock)
+    std::shared_ptr<Lane> lane;
+    std::unique_lock<std::mutex> laneLock;
+    for (;;) {
+        {
+            std::lock_guard<std::mutex> lk(m_mapMutex);
+            auto& slot = m_lanes[q];
+            if (slot && (slot->ctx != ctx || slot->dev != dev)) {
+                std::lock_guard<std::mutex> ll(slot->m);
+                releaseLane(*slot);
+                slot->retired = true;
+                slot.reset();
+            }
+            if (!slot) {
+                slot = std::make_shared<Lane>();
+                slot->q = q;
+                slot->ctx = ctx;
+                slot->dev = dev;
+            }
+            slot->lastUseMs = nowMs();
+            lane = slot;
+        }
+        laneLock = std::unique_lock<std::mutex>(lane->m);
+        if (!lane->retired) break;
+        laneLock.unlock();
+    }
+
     bool ok = true;
     {
-        std::lock_guard<std::mutex> ll(lane->m);
         Lane& l = *lane;
         l.prog = prog;
         l.outOfOrder = (props & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) != 0;
         l.frame++;
-        l.lastUseMs = nowMs();
         reap(l, false);
 
         for (int kid : fs.usedKernels)
@@ -498,6 +513,16 @@ bool OpenCLBackend::executeImpl(const engine::Plan& plan, const std::vector<floa
             }
         }
 
+        if (debugPoison()) {   // test hook: NaN in every internal buffer before the first pass
+            for (size_t s = 0; s < slots.size(); ++s) {
+                const std::vector<unsigned char> nanBytes(fs.slotBytes[s], 0xFF);
+                if (!upload(l, slots[s], nanBytes.data(), nanBytes.size(), &chain, &serr)) {
+                    releaseChain();
+                    return fail(err, "poison: " + serr);
+                }
+            }
+        }
+
         auto memOf = [&](int b) -> cl_mem {
             if (b == engine::BUF_SRC) return srcMem;
             if (b == engine::BUF_DST) return dstMem;
@@ -566,7 +591,9 @@ bool OpenCLBackend::executeImpl(const engine::Plan& plan, const std::vector<floa
         }
         l.pool.trim(l.frame, kPoolMaxIdleFrames, freeFn);
         noteFrame(l.pool.bytes());
+        l.lastUseMs = nowMs();
     }
+    laneLock.unlock();
     trimIdleLanes(lane.get());
     return true;
 }

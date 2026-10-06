@@ -89,7 +89,18 @@ private:
         id<MTLBuffer> dummy = nil;
         std::shared_ptr<AsyncError> asyncError = std::make_shared<AsyncError>();
         uint64_t frame = 0;
+        std::atomic<double> lastUseMs{0.0};   // set when the lane is taken from the map
+        bool retired = false;                 // released by trimIdleLanes (under m); take a new lane
     };
+    static void releaseLane(Lane& l) {        // ARC frees; in-flight command buffers retain theirs
+        l.pool.clear([](id<MTLBuffer>) {});
+        l.state = nil;
+        l.dummy = nil;
+        l.stateBytes = 0;
+        l.stateKey = StateKey();
+        l.retired = true;
+    }
+    void trimIdleLanes(Lane* current);
 
     std::shared_ptr<Library> library(id<MTLDevice> device);
     bool build(Library& L, std::string* err);
@@ -179,13 +190,34 @@ void MetalBackend::releaseResources() {
     std::lock_guard<std::mutex> lk(m_mapMutex);
     for (auto& kv : m_lanes) {
         std::lock_guard<std::mutex> ll(kv.second->m);
-        kv.second->pool.clear([](id<MTLBuffer>) {});
-        kv.second->state = nil;
-        kv.second->dummy = nil;
-        kv.second->stateKey = StateKey();
+        releaseLane(*kv.second);
     }
     m_lanes.clear();
     m_libs.clear();   // ARC releases libraries, pipelines and devices
+}
+
+void MetalBackend::trimIdleLanes(Lane* current) {
+    // Lanes of queues that have not rendered for laneIdleReleaseMs() are dropped (the host may have
+    // released the queue; a new queue could even reuse its address). Command buffers still in flight
+    // keep their own references to the buffers, so dropping ours is always safe.
+    const double now = nowMs();
+    std::vector<std::shared_ptr<Lane>> lanes;
+    {
+        std::lock_guard<std::mutex> lk(m_mapMutex);
+        for (auto it = m_lanes.begin(); it != m_lanes.end();) {
+            if (it->second.get() != current && now - it->second->lastUseMs > laneIdleReleaseMs()) {
+                lanes.push_back(it->second);
+                it = m_lanes.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        noteLanes(m_lanes.size());
+    }
+    for (auto& l : lanes) {
+        std::lock_guard<std::mutex> ll(l->m);
+        releaseLane(*l);
+    }
 }
 
 bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float>& stateBuf,
@@ -225,18 +257,23 @@ bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float
     }
 
     std::shared_ptr<Lane> lane;
-    {
-        std::lock_guard<std::mutex> lk(m_mapMutex);
-        auto& slot = m_lanes[(__bridge void*)queue];
-        if (slot && slot->device != device) slot.reset();   // handle reused for another device
-        if (!slot) {
-            slot = std::make_shared<Lane>();
-            slot->device = device;
+    std::unique_lock<std::mutex> laneLock;
+    for (;;) {   // retry if trimIdleLanes retired the lane between the lookup and the lock
+        {
+            std::lock_guard<std::mutex> lk(m_mapMutex);
+            auto& slot = m_lanes[(__bridge void*)queue];
+            if (slot && slot->device != device) slot.reset();   // handle reused for another device
+            if (!slot) {
+                slot = std::make_shared<Lane>();
+                slot->device = device;
+            }
+            slot->lastUseMs = nowMs();
+            lane = slot;
         }
-        lane = slot;
+        laneLock = std::unique_lock<std::mutex>(lane->m);
+        if (!lane->retired) break;
+        laneLock.unlock();
     }
-
-    std::lock_guard<std::mutex> ll(lane->m);
     Lane& l = *lane;
     {
         std::lock_guard<std::mutex> el(l.asyncError->m);
@@ -292,6 +329,12 @@ bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float
         if (b == engine::BUF_DST) return dstBuf;
         return slots[size_t(fs.bufferSlot[size_t(b)])];
     };
+    if (debugPoison() && !slots.empty()) {   // test hook: NaN in every internal buffer before the first pass
+        id<MTLBlitCommandEncoder> pb = [cb blitCommandEncoder];
+        for (size_t s = 0; s < slots.size(); ++s)
+            [pb fillBuffer:slots[s] range:NSMakeRange(0, NSUInteger(fs.slotBytes[s])) value:0xFF];
+        [pb endEncoding];
+    }
     id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];   // serial dispatch type
     if (!enc) return fail(err, "could not create a compute command encoder");
     enc.label = @"Celluloid Pro passes";
@@ -348,6 +391,9 @@ bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float
     }
     l.pool.trim(l.frame, kPoolMaxIdleFrames, freeFn);
     noteFrame(l.pool.bytes());
+    l.lastUseMs = nowMs();
+    laneLock.unlock();
+    trimIdleLanes(lane.get());
     return true;
 }
 

@@ -146,6 +146,11 @@ private:
 
 // Frames a pooled buffer may stay unused before it is released.
 constexpr uint64_t kPoolMaxIdleFrames = 4;
+// A lane (per host queue/stream) that has not rendered for this long (10 s) is released completely
+// (pool, state buffer, per-queue objects) by the next frame on another lane: hosts may destroy
+// queues/streams or switch devices, and a stale lane would otherwise keep a UHD pool alive.
+// Tests may shorten it with the environment variable CEL_GPU_LANE_IDLE_MS (read once).
+double laneIdleReleaseMs();
 
 // --------------------------------------------------------------------------------------------
 class GpuBackendBase : public engine::Backend {
@@ -156,6 +161,8 @@ public:
     BackendStats stats() const;
     void setDebugCapture(bool on) { std::lock_guard<std::mutex> l(m_statsMutex); m_debugCapture = on; }
     bool debugCapture() const { std::lock_guard<std::mutex> l(m_statsMutex); return m_debugCapture; }
+    void setDebugPoison(bool on) { std::lock_guard<std::mutex> l(m_statsMutex); m_debugPoison = on; }
+    bool debugPoison() const { std::lock_guard<std::mutex> l(m_statsMutex); return m_debugPoison; }
     bool captured(int idx, std::vector<float>* out, int* w, int* h) const;
     virtual void releaseResources() = 0;
 
@@ -166,6 +173,7 @@ protected:
     void noteBuild(double ms);
     void noteStateUpload();
     void noteDevice(const std::string& d);
+    void noteLanes(size_t n);
     void notePool(const BackendStats& delta);   // bufferAllocs/bufferReuses deltas
     void storeCapture(int idx, std::vector<float>&& data, int w, int h);
     void clearCapture();
@@ -174,6 +182,7 @@ protected:
     mutable std::mutex m_statsMutex;
     BackendStats m_stats;
     bool m_debugCapture = false;
+    bool m_debugPoison = false;
     struct Captured { std::vector<float> data; int w = 0, h = 0; };
     std::map<int, Captured> m_captured;
 };

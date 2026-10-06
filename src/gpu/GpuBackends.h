@@ -81,7 +81,8 @@ struct BackendStats {
     uint64_t stateUploads = 0;       // state buffer uploads (stateVersion changes)
     uint64_t bufferAllocs = 0;       // pooled buffer allocations
     uint64_t bufferReuses = 0;       // pooled buffer reuses
-    uint64_t bytesPooled = 0;        // bytes currently held by pools
+    uint64_t bytesPooled = 0;        // bytes held by the pool of the lane that rendered last
+    uint64_t lanes = 0;              // live per-queue/stream lanes (after idle trimming)
     double   lastBuildMs = 0.0;
     std::string lastError;
     std::string lastDevice;
@@ -93,6 +94,10 @@ bool backendStats(const engine::Backend* backend, BackendStats* out);
 // Test hook: when enabled, execute() additionally reads back every internal buffer after the
 // frame (blocking) and keeps them for debugCapturedBuffer(). Per backend instance. Only for tests.
 void setDebugCapture(engine::Backend* backend, bool on);
+// Test hook: when enabled, execute() fills every internal buffer it hands to the passes (pooled,
+// possibly holding a previous frame) with NaN (all bits set) before the first pass, so a kernel that
+// reads memory no pass wrote shows up as NaN in the output. Per backend instance. Only for tests.
+void setDebugPoison(engine::Backend* backend, bool on);
 bool debugCapturedBuffer(const engine::Backend* backend, int bufferIndex, std::vector<float>* out,
                          int* w, int* h);
 

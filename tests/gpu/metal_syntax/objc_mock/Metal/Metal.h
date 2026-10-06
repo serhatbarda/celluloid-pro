@@ -45,6 +45,7 @@ enum { MTLCommandBufferStatusNotEnqueued = 0, MTLCommandBufferStatusCompleted = 
 @end
 @protocol MTLBlitCommandEncoder <MTLCommandEncoder>
 - (void)copyFromBuffer:(id<MTLBuffer>)sourceBuffer sourceOffset:(NSUInteger)sourceOffset toBuffer:(id<MTLBuffer>)destinationBuffer destinationOffset:(NSUInteger)destinationOffset size:(NSUInteger)size;
+- (void)fillBuffer:(id<MTLBuffer>)buffer range:(NSRange)range value:(uint8_t)value;
 @end
 typedef void (^MTLCommandBufferHandler)(id<MTLCommandBuffer>);
 @protocol MTLCommandBuffer <NSObject>

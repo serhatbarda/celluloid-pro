@@ -11,6 +11,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <thread>
 
@@ -435,6 +436,44 @@ void testTwoQueues(Env& env, cel::engine::Backend& be) {
     CHECK(bad == 0, "concurrent rendering on two queues produced %d bad frames", bad.load());
 }
 
+// Lanes of queues/streams that stopped rendering are released by later frames on other lanes
+// (CEL_GPU_LANE_IDLE_MS is shortened to 150 ms in main), and a retired lane is recreated
+// transparently when its queue renders again.
+void testIdleLanes(Env& env, cel::engine::Backend& be) {
+    if (!env.makeSecondQueue()) return;
+    const int w = 64, h = 48;
+    Plan plan = chainPlan(w, h);
+    HostImg src(w, h, w * 4), r(w, h, w * 4);
+    src.fillPattern(11, -1, 2);
+    RefBackend ref = makeRef();
+    std::string err;
+    ref.execute(plan, {}, 1, src.host(), r.host(), cel::engine::GpuContext(), &err);
+    auto frame = [&](cel::engine::GpuContext ctx, const char* what) {
+        HostImg g(w, h, w * 4);
+        void* ds = env.upload(src);
+        void* dd = env.allocLike(g);
+        cel::engine::HostImage hs = src.host(), hd = g.host();
+        hs.data = ds; hd.data = dd;
+        std::string e;
+        const bool ok = be.execute(plan, {}, 1, hs, hd, ctx, &e);
+        env.finish();
+        env.download(dd, g);
+        env.release(ds);
+        env.release(dd);
+        CHECK(ok, "%s: %s", what, e.c_str());
+        if (ok) expectClose(what, r, g, 1e-5);
+    };
+    auto lanes = [&]() { cel::gpu::BackendStats st; cel::gpu::backendStats(&be, &st); return st.lanes; };
+    frame(env.context(), "idle lanes: queue 1");
+    frame(env.secondContext(), "idle lanes: queue 2");
+    std::this_thread::sleep_for(std::chrono::milliseconds(400));
+    frame(env.context(), "idle lanes: queue 1 after idle");          // retires queue 2's lane
+    const uint64_t afterTrim = lanes();
+    frame(env.secondContext(), "idle lanes: queue 2 recreated");    // new lane for queue 2
+    std::printf("    idle lanes: %llu live lane(s) after the trim (expected 1)\n", (unsigned long long)afterTrim);
+    CHECK(afterTrim == 1, "idle lane was not released (%llu live lanes)", (unsigned long long)afterTrim);
+}
+
 void testFallback(Env& env) {
     const int w = 45, h = 31;
     Plan plan = chainPlan(w, h);
@@ -490,6 +529,7 @@ void runAll(Env& env, cel::engine::Backend& be) {
     testErrors(env, be);
     testNegativeStride(env, be);
     testTwoQueues(env, be);
+    testIdleLanes(env, be);
     testFallback(env);
     testTiming(env, be);
     cel::gpu::BackendStats st;
@@ -505,6 +545,12 @@ void runAll(Env& env, cel::engine::Backend& be) {
 
 int main() {
     std::printf("Celluloid Pro GPU ABI tests\n");
+    // idle lanes are released after 150 ms instead of 10 s (testIdleLanes); read once by the module
+#if defined(_WIN32)
+    _putenv_s("CEL_GPU_LANE_IDLE_MS", "150");
+#else
+    setenv("CEL_GPU_LANE_IDLE_MS", "150", 1);
+#endif
     int apis = 0;
     // self tests of the production backends
     for (cel::gpu::Api api : {cel::gpu::Api::OpenCL, cel::gpu::Api::CUDA, cel::gpu::Api::Metal}) {
