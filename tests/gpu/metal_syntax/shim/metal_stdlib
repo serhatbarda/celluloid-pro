@@ -1,0 +1,65 @@
+// Celluloid Pro - Linux workbench shim for <metal_stdlib> (tests/gpu/metal_syntax).
+// Lets clang++ parse the flattened MSL source as C++14 (the MSL base language) with MSL-like
+// address spaces: `device`, `constant`, `threadgroup` map to distinct clang address spaces, so
+// mixing them (e.g. passing a constant pointer where a device pointer is expected) is a hard
+// error exactly as in the Metal compiler. Declarations only (-fsyntax-only), no definitions.
+// This is NOT a Metal compiler: macOS CI additionally runs `xcrun metal` (check_metal.sh).
+#pragma once
+#define kernel
+#define device __attribute__((address_space(1)))
+#define constant __attribute__((address_space(2)))
+#define threadgroup __attribute__((address_space(3)))
+#define thread
+
+typedef unsigned int uint;
+typedef unsigned short ushort;
+struct uint2 { uint x, y; };
+struct ushort2 { ushort x, y; };
+struct float2 { float x, y; };
+struct float3 { float x, y, z; };
+struct float4 { float x, y, z, w; };
+
+namespace metal {
+namespace precise {
+float pow(float, float);
+float exp(float);
+float exp2(float);
+float log(float);
+float log2(float);
+float log10(float);
+float sqrt(float);
+float sin(float);
+float cos(float);
+float atan2(float, float);
+float tan(float);
+float rsqrt(float);
+} // namespace precise
+namespace fast {
+float pow(float, float);
+float exp(float);
+float log(float);
+} // namespace fast
+float floor(float);
+float ceil(float);
+float round(float);
+float trunc(float);
+float fract(float);
+float fabs(float);
+float abs(float);
+float fmin(float, float);
+float fmax(float, float);
+float fma(float, float, float);
+float clamp(float, float, float);
+float mix(float, float, float);
+float step(float, float);
+float sign(float);
+bool isfinite(float);
+bool isnan(float);
+bool isinf(float);
+int min(int, int);
+int max(int, int);
+uint min(uint, uint);
+uint max(uint, uint);
+int abs(int);
+int clamp(int, int, int);
+} // namespace metal
