@@ -105,7 +105,7 @@ jobs:
       - name: GPU device tests (Metal / OpenCL, skipped without a device)
         run: |
           system_profiler SPDisplaysDataType 2>/dev/null | sed -n '1,20p' || true
-          ctest --test-dir build -C ${BUILD_TYPE} --output-on-failure --timeout 1200 -L gpu-device
+          ctest --test-dir build -C ${BUILD_TYPE} -V --timeout 1200 -L gpu-device
 
       - name: Import signing certificates
         if: env.MACOS_CERT_P12 != ''

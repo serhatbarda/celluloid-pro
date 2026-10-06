@@ -28,7 +28,7 @@ CEL_DEVICE void cel_k_t_add4(CEL_KERNEL_PARAMS) {
 
 CEL_DEVICE void cel_k_t_state(CEL_KERNEL_PARAMS) {
     CelF4 p = cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y);
-    cel_uint hsh = cel_hash_u32((cel_uint)(x * 73856093) ^ (cel_uint)(y * 19349663));
+    cel_uint hsh = cel_hash_u32((cel_uint)x * 73856093U ^ (cel_uint)y * 19349663U);   /* unsigned: no signed overflow */
     int idx = a->i[0] + (int)(hsh % (cel_uint)a->i[1]);
     float s = state[idx], t = state[a->i[2]];
     cel_store(out, a->outStride, x, y, cel_f4(p.x * s + t, p.y * s, p.z + s, (float)idx));
