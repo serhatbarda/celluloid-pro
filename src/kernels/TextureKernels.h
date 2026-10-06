@@ -1,0 +1,524 @@
+/* Celluloid Pro - texture kernels (gate weave, acutance, halation, bloom, vignette, grain).
+ * Owner: texture agent.  Portable dialect (see Portable.h): compiled as C++17, OpenCL C 1.2,
+ * CUDA and Metal.  Uniform ABI (KernelABI.h): every kernel writes ONE output pixel (x, y).
+ *
+ * Buffer conventions
+ *   - all buffers are float RGBA, row stride in floats (a->outStride / a->inStride[k]);
+ *   - "full res" = the frame size; pyramid level L has size ceil(w / 2^L) x ceil(h / 2^L);
+ *     pixel centres are at (i + 0.5); level-L coordinate = full-res coordinate / 2^L;
+ *   - the image passes (weave, acutance, composite, vignette) work on scene-linear Rec.2020
+ *     (Full mode) or display-linear (Texture-Only; see tx_tonemap) and pass alpha (w) through;
+ *   - unused inputs are flagged with i[] values, never detected through null pointers.
+ *
+ * Every kernel documents its f[] / i[] usage right above its body.  The values are computed on
+ * the host by src/engine/Plan.cpp + src/texture/TextureDesign.cpp (all pixel sizes there are
+ * already multiplied by pixelScale, so the kernels never see "px @1920").
+ *
+ * Robustness: the first pass that touches the image (weave, acut_luma/apply, prefilter,
+ * composite, vignette, tonemap) replaces NaN/Inf with 0 and clamps magnitudes to 1e7, so one
+ * bad pixel can never spread through a blur pyramid.
+ */
+#ifndef CEL_TEXTURE_KERNELS_H
+#define CEL_TEXTURE_KERNELS_H
+#include "KernelABI.h"
+
+/* ------------------------------------------------------------------------------------------ */
+/* helpers                                                                                     */
+/* ------------------------------------------------------------------------------------------ */
+
+/* NOTE: helpers use the cel_txh_ prefix and must never be named cel_<kernel name>: the GPU
+ * backends generate an entry point cel_<name> for every kernel in the list. */
+#define CEL_TX_BIG 1.0e7f
+/* CPU build only (GCC/Clang): force inlining of the small per-tap helpers (GCC otherwise keeps
+ * some as calls returning structs, which made the 4x4 samplers much slower). GPU compilers
+ * inline anyway. */
+#if defined(CEL_API_CPU) && (defined(__GNUC__) || defined(__clang__))
+  #define CEL_TXH_INLINE __attribute__((always_inline))
+#else   /* MSVC: "static inline __forceinline" would warn (C4141); its inliner handles these */
+  #define CEL_TXH_INLINE
+#endif
+/* the uniform ABI hands every kernel all buffers; mark the ones a kernel ignores as used */
+#define CEL_TX_ABI_USE() \
+    (void)x; (void)y; (void)a; (void)out; (void)in0; (void)in1; (void)in2; (void)in3; (void)state
+
+/* Cheap min/max/floor. cel_fmin/cel_fmax/cel_floor map to libm calls on some CPU compilers
+ * (IEEE NaN rules), which dominated the CPU backend's inner loops. These are plain compare/select
+ * and NaN-safe by operand order: when `a` is NaN the result is `b` (pass the trusted operand
+ * second). cel_txh_floor is exact for |v| < 2^31 (all callers clamp their coordinates first). */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_min(float a, float b) { return a < b ? a : b; }
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_max(float a, float b) { return a > b ? a : b; }
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_clampf(float v, float lo, float hi) { return cel_txh_min(cel_txh_max(v, lo), hi); }
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_floor(float v) { float t = (float)(int)v; return t > v ? t - 1.0f : t; }
+CEL_DEVICE CEL_TXH_INLINE int cel_txh_cidx(int i, int n) { return i < 0 ? 0 : (i >= n ? n - 1 : i); }
+#define CEL_TX_COORD_MAX 1.0e8f
+
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_clean(float v) { return cel_txh_clampf(cel_finite_or(v, 0.0f), -CEL_TX_BIG, CEL_TX_BIG); }
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_clean4(CelF4 v) {
+    return cel_f4(cel_txh_clean(v.x), cel_txh_clean(v.y), cel_txh_clean(v.z), cel_txh_clean(v.w));
+}
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_add4(CelF4 a, CelF4 b) { return cel_f4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w); }
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_scale4(CelF4 a, float s) { return cel_f4(a.x * s, a.y * s, a.z * s, a.w * s); }
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_madd4(CelF4 acc, CelF4 v, float s) {
+    return cel_f4(acc.x + v.x * s, acc.y + v.y * s, acc.z + v.z * s, acc.w + v.w * s);
+}
+/* per channel min/max; NaN in `a` yields `b` */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_min4(CelF4 a, CelF4 b) {
+    return cel_f4(cel_txh_min(a.x, b.x), cel_txh_min(a.y, b.y), cel_txh_min(a.z, b.z), cel_txh_min(a.w, b.w));
+}
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_max4(CelF4 a, CelF4 b) {
+    return cel_f4(cel_txh_max(a.x, b.x), cel_txh_max(a.y, b.y), cel_txh_max(a.z, b.z), cel_txh_max(a.w, b.w));
+}
+/* Rec.2020 luminance (working space of the scene-linear passes) */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_luma(CelF4 v) { return 0.2627f * v.x + 0.6780f * v.y + 0.0593f * v.z; }
+
+/* cubic B-spline weights for taps (i-1, i, i+1, i+2), fractional position t in [0,1) */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_bspline_w(float t) {
+    float t2 = t * t, t3 = t2 * t, u = 1.0f - t;
+    return cel_f4(u * u * u * (1.0f / 6.0f),
+                  (3.0f * t3 - 6.0f * t2 + 4.0f) * (1.0f / 6.0f),
+                  (-3.0f * t3 + 3.0f * t2 + 3.0f * t + 1.0f) * (1.0f / 6.0f),
+                  t3 * (1.0f / 6.0f));
+}
+/* Catmull-Rom weights (interpolating bicubic, a = -0.5) */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_catmull_w(float t) {
+    float t2 = t * t, t3 = t2 * t;
+    return cel_f4(0.5f * (-t3 + 2.0f * t2 - t),
+                  0.5f * (3.0f * t3 - 5.0f * t2 + 2.0f),
+                  0.5f * (-3.0f * t3 + 4.0f * t2 + t),
+                  0.5f * (t3 - t2));
+}
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_px(CEL_GLOBAL const float* row, int xi) {
+    CEL_GLOBAL const float* p = row + xi * 4;
+    return cel_f4(p[0], p[1], p[2], p[3]);
+}
+/* weighted sum of 4 texels of one row at (already clamped) columns c0..c3 */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_row4c(CEL_GLOBAL const float* row, int c0, int c1, int c2, int c3, CelF4 wx) {
+    CelF4 r = cel_txh_scale4(cel_txh_px(row, c0), wx.x);
+    r = cel_txh_madd4(r, cel_txh_px(row, c1), wx.y);
+    r = cel_txh_madd4(r, cel_txh_px(row, c2), wx.z);
+    r = cel_txh_madd4(r, cel_txh_px(row, c3), wx.w);
+    return r;
+}
+/* separable 4x4 filter with top-left tap (x0, y0), weights wx / wy, clamp-to-edge */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_filter4x4(CEL_GLOBAL const float* buf, int st, int w, int h, int x0, int y0, CelF4 wx, CelF4 wy) {
+    int c0 = cel_txh_cidx(x0, w), c1 = cel_txh_cidx(x0 + 1, w), c2 = cel_txh_cidx(x0 + 2, w), c3 = cel_txh_cidx(x0 + 3, w);
+    CelF4 r = cel_txh_scale4(cel_txh_row4c(buf + cel_txh_cidx(y0, h) * st, c0, c1, c2, c3, wx), wy.x);
+    r = cel_txh_madd4(r, cel_txh_row4c(buf + cel_txh_cidx(y0 + 1, h) * st, c0, c1, c2, c3, wx), wy.y);
+    r = cel_txh_madd4(r, cel_txh_row4c(buf + cel_txh_cidx(y0 + 2, h) * st, c0, c1, c2, c3, wx), wy.z);
+    r = cel_txh_madd4(r, cel_txh_row4c(buf + cel_txh_cidx(y0 + 3, h) * st, c0, c1, c2, c3, wx), wy.w);
+    return r;
+}
+/* smooth (C2) cubic B-spline reconstruction at continuous coordinate (fx, fy) in the buffer's own
+ * pixel units (centres at i + 0.5), clamp-to-edge.  Used for every pyramid upsample: no ringing,
+ * no overshoot, no visible grid. */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_sample_bspline(CEL_GLOBAL const float* buf, int st, int w, int h, float fx, float fy) {
+    float sx = cel_txh_clampf(fx - 0.5f, -CEL_TX_COORD_MAX, CEL_TX_COORD_MAX);
+    float sy = cel_txh_clampf(fy - 0.5f, -CEL_TX_COORD_MAX, CEL_TX_COORD_MAX);
+    float ix = cel_txh_floor(sx), iy = cel_txh_floor(sy);
+    return cel_txh_filter4x4(buf, st, w, h, (int)ix - 1, (int)iy - 1,
+                             cel_txh_bspline_w(sx - ix), cel_txh_bspline_w(sy - iy));
+}
+
+/* horizontal half of the separable B-spline: 4 taps on row y at continuous column fx (pixel
+ * units of the buffer). Used on buffers that tx_up_v already upsampled vertically. */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_sample_bspline_h(CEL_GLOBAL const float* buf, int st, int w, int h, float fx, int y) {
+    float sx = cel_txh_clampf(fx - 0.5f, -CEL_TX_COORD_MAX, CEL_TX_COORD_MAX);
+    float ix = cel_txh_floor(sx);
+    int x0 = (int)ix - 1;
+    return cel_txh_row4c(buf + cel_txh_cidx(y, h) * st, cel_txh_cidx(x0, w), cel_txh_cidx(x0 + 1, w),
+                         cel_txh_cidx(x0 + 2, w), cel_txh_cidx(x0 + 3, w), cel_txh_bspline_w(sx - ix));
+}
+
+/* ---- Texture-Only tone mapping between display-linear and a film-like pseudo scene ---------
+ * Hill/Naka-Rushton curve with a gamma-2.4 display encode: v = q/(1+q), q = (x/x0)^p, Y = v^2.4.
+ * (x0, p chosen so 18% grey -> v = 0.40 and +6 stops -> v ~ 0.95, i.e. like a print curve.)
+ * Below 0 it is the identity. Above Yk (slope-matched, C1):
+ *   sdr = 0 (HDR outputs): linear continuation -> exact bijection on all reals (values > 1 kept)
+ *   sdr = 1 (SDR outputs): exponential approach to 1.0, Y = 1 - (1 - Yk) exp(-(x - xk) / L),
+ *            L = (1 - Yk) slope. Monotonic and never above 1, so texture effects added in the
+ *            pseudo scene can never push an SDR output out of range. Display values >= 1 map to
+ *            the finite x of Y = 1 - 1e-6 (super-whites are compressed into range). */
+#define CEL_TX_SDR_TOP 0.999999f
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_d2s(float Y, float x0, float p, float Yk, float xk, float slope, float sdr) {
+    if (Y <= 0.0f) return Y;
+    if (Y >= Yk) {
+        if (sdr != 0.0f) {
+            float L = (1.0f - Yk) * slope;
+            float u = (cel_txh_min(Y, CEL_TX_SDR_TOP) - Yk) / (1.0f - Yk);
+            return xk - L * cel_log(1.0f - u);
+        }
+        return xk + (Y - Yk) * slope;
+    }
+    float v = cel_pow(Y, 1.0f / 2.4f);
+    return x0 * cel_pow(v / (1.0f - v), 1.0f / p);
+}
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_s2d(float x, float x0, float p, float Yk, float xk, float slope, float sdr) {
+    if (x <= 0.0f) return x;
+    if (x >= xk) {
+        if (sdr != 0.0f) return 1.0f - (1.0f - Yk) * cel_exp(-(x - xk) / ((1.0f - Yk) * slope));
+        return Yk + (x - xk) / slope;
+    }
+    float q = cel_pow(x / x0, p);
+    return cel_pow(q / (1.0f + q), 2.4f);
+}
+
+/* ---- halation / bloom sources ---------------------------------------------------------------
+ * Halation energy: light that reaches the film base and is reflected back into the (mostly red
+ * sensitive) bottom layer.  Weighted towards red light; soft knee at threshold T (quadratic
+ * knee of half width k); extreme energies compressed rationally towards emax. */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_hal_energy(CelF4 v, float T, float k, float emax, float wr, float wg, float wb) {
+    float yh = cel_txh_max(wr * v.x + wg * v.y + wb * v.z, 0.0f);
+    float q = cel_txh_clampf(yh - T + k, 0.0f, 2.0f * k);
+    float e = cel_txh_max(q * q / (4.0f * k), yh - T);
+    return e * emax / (emax + e);
+}
+/* Bloom source: the image itself (diffusion is linear), with super-bright values compressed
+ * (hue preserving) so a specular sun cannot wash out the whole frame. */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_bloom_src(CelF4 v, float bmax) {
+    float m = cel_txh_max(cel_txh_max(v.x, v.y), cel_txh_max(v.z, 0.0f));
+    float s = bmax / (bmax + m);
+    return cel_f4(v.x * s, v.y * s, v.z * s, 0.0f);
+}
+/* natural vignette: cos^4 of the field angle, field angle from the distance to the optical centre
+ * in units of the half diagonal (circular for every aspect ratio). */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_vig_factor(int x, int y, float amount, float k, float cx, float cy, float invHalfDiag) {
+    float dx = ((float)x + 0.5f - cx) * invHalfDiag, dy = ((float)y + 0.5f - cy) * invHalfDiag;
+    float t2 = (dx * dx + dy * dy) * k * k;          /* tan^2 of the field angle */
+    float c2 = 1.0f / (1.0f + t2);                   /* cos^2 */
+    return cel_mix(1.0f, c2 * c2, amount);
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* kernels                                                                                     */
+/* ------------------------------------------------------------------------------------------ */
+
+/* tx_copy: out = in0 (same size).  f/i unused. */
+CEL_DEVICE void cel_k_tx_copy(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    cel_store(out, a->outStride, x, y, cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+}
+
+/* tx_weave: gate weave.  out(p) = in0(R(rot) (p - c) + c + d), Catmull-Rom bicubic, de-ringed by
+ * clamping to the range of the 4 nearest texels (no overshoot around lamps), clamp-to-edge.
+ *   f[0], f[1] = d (px, actual resolution)     f[2], f[3] = cos(rot), sin(rot)
+ *   f[4], f[5] = rotation centre c (px)
+ * Input is sanitised (first image pass): only the 4 nearest texels are cleaned; a NaN/Inf in the
+ * 4x4 footprint makes the sum non-finite and the de-ring clamp then falls back to the clean
+ * bounds (cel_txh_max/min select the second operand when the first is NaN). */
+CEL_DEVICE void cel_k_tx_weave(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    int w = a->inW[0], h = a->inH[0], st = a->inStride[0];
+    float px = (float)x + 0.5f - a->f[4], py = (float)y + 0.5f - a->f[5];
+    float fx = a->f[2] * px - a->f[3] * py + a->f[4] + a->f[0];
+    float fy = a->f[3] * px + a->f[2] * py + a->f[5] + a->f[1];
+    float sx = cel_txh_clampf(fx - 0.5f, -CEL_TX_COORD_MAX, CEL_TX_COORD_MAX);
+    float sy = cel_txh_clampf(fy - 0.5f, -CEL_TX_COORD_MAX, CEL_TX_COORD_MAX);
+    float ix = cel_txh_floor(sx), iy = cel_txh_floor(sy);
+    int x0 = (int)ix, y0 = (int)iy;
+    CelF4 r = cel_txh_filter4x4(in0, st, w, h, x0 - 1, y0 - 1, cel_txh_catmull_w(sx - ix), cel_txh_catmull_w(sy - iy));
+    int c0 = cel_txh_cidx(x0, w), c1 = cel_txh_cidx(x0 + 1, w);
+    CEL_GLOBAL const float* r0 = in0 + cel_txh_cidx(y0, h) * st;
+    CEL_GLOBAL const float* r1 = in0 + cel_txh_cidx(y0 + 1, h) * st;
+    CelF4 p00 = cel_txh_clean4(cel_txh_px(r0, c0)), p10 = cel_txh_clean4(cel_txh_px(r0, c1));
+    CelF4 p01 = cel_txh_clean4(cel_txh_px(r1, c0)), p11 = cel_txh_clean4(cel_txh_px(r1, c1));
+    CelF4 lo = cel_txh_min4(cel_txh_min4(p00, p10), cel_txh_min4(p01, p11));
+    CelF4 hi = cel_txh_max4(cel_txh_max4(p00, p10), cel_txh_max4(p01, p11));
+    r = cel_txh_min4(cel_txh_max4(r, lo), hi);
+    cel_store(out, a->outStride, x, y, r);
+}
+
+/* tx_acut_luma: out.x = log2(max(Y, 0) + eps), Y = Rec.2020 luminance of in0 (same size).
+ *   f[0] = eps */
+CEL_DEVICE void cel_k_tx_acut_luma(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+    float l = cel_log2(cel_txh_max(cel_txh_luma(v), 0.0f) + a->f[0]);
+    cel_store(out, a->outStride, x, y, cel_f4(l, 0.0f, 0.0f, 0.0f));
+}
+
+/* tx_acut_apply: adjacency effect / acutance in log exposure.
+ *   in0 = image (full res), in1 = blurred log2 luminance (.x), full res or pyramid level L.
+ *   d = log2Y - blur;  g = amount * k * u / sqrt(1 + u^2), u = d / k   (soft-limited: fine detail
+ *   gets ~amount * d, large edges at most amount * k -> crisp, no halos); |g| <= gmax;
+ *   out.rgb = in0.rgb * 2^g (alpha kept).  Negative amount softens (pulls log luminance to blur).
+ *   f[0] = amount   f[1] = k (log2 units)   f[2] = gmax (log2)   f[3] = eps (as tx_acut_luma)
+ *   f[4] = in1 column scale (1 / 2^L)
+ *   i[0] = 1: in1 is level L upsampled vertically by tx_up_v (size w_L x h): horizontal B-spline
+ *         sampling here; 0: in1 is full res, direct load */
+CEL_DEVICE void cel_k_tx_acut_apply(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+    float l = cel_log2(cel_txh_max(cel_txh_luma(v), 0.0f) + a->f[3]);
+    float b;
+    if (a->i[0] != 0) {
+        float s = a->f[4];
+        b = cel_txh_sample_bspline_h(in1, a->inStride[1], a->inW[1], a->inH[1], ((float)x + 0.5f) * s, y).x;
+    } else {
+        b = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], x, y).x;
+    }
+    float k = a->f[1];
+    float u = (l - b) / k;
+    float g = a->f[0] * k * u / cel_sqrt(1.0f + u * u);
+    g = cel_txh_clampf(g, -a->f[2], a->f[2]);
+    float m = cel_exp2(g);
+    cel_store(out, a->outStride, x, y, cel_f4(v.x * m, v.y * m, v.z * m, v.w));
+}
+
+/* tx_pyr_down: 2x downsample, separable binomial [1 3 3 1]/8 (variance 0.75 source px^2),
+ * all four channels, clamp-to-edge.  out size = ceil(in / 2).  f/i unused. */
+CEL_DEVICE void cel_k_tx_pyr_down(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 wb = cel_f4(0.125f, 0.375f, 0.375f, 0.125f);
+    cel_store(out, a->outStride, x, y,
+              cel_txh_filter4x4(in0, a->inStride[0], a->inW[0], a->inH[0], 2 * x - 1, 2 * y - 1, wb, wb));
+}
+
+/* tx_blur4: one direction of a separable symmetric blur with an individual kernel per channel.
+ *   i[0] = radius R (0..7)   i[1] = direction (0 = horizontal, 1 = vertical)
+ *   i[2] = 1: only channel x carries data (y, z, w written as 0), 0: all four channels
+ *   f[0..7]   = channel x weights for taps 0..7 (tap k is applied at +k and -k)
+ *   f[8..15]  = channel y weights, f[16..23] = channel z, f[24..31] = channel w */
+CEL_DEVICE void cel_k_tx_blur4(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    int w = a->inW[0], h = a->inH[0], st = a->inStride[0];
+    int R = cel_imin(cel_imax(a->i[0], 0), 7);
+    if (a->i[2] == 1) {   /* only channel x carries data (acutance luma): 1-channel loop */
+        int hx1 = a->i[1] == 0 ? 1 : 0, hy1 = 1 - hx1;
+        float s1 = cel_load(in0, st, w, h, x, y).x * a->f[0];
+        for (int k = 1; k <= R; ++k)
+            s1 += (cel_load(in0, st, w, h, x + k * hx1, y + k * hy1).x + cel_load(in0, st, w, h, x - k * hx1, y - k * hy1).x) * a->f[k];
+        cel_store(out, a->outStride, x, y, cel_f4(s1, 0.0f, 0.0f, 0.0f));
+        return;
+    }
+    int hx = a->i[1] == 0 ? 1 : 0, hy = 1 - hx;
+    CelF4 c = cel_load(in0, st, w, h, x, y);
+    float sx = c.x * a->f[0], sy = c.y * a->f[8], sz = c.z * a->f[16], sw = c.w * a->f[24];
+    int interior = hx != 0 ? (x - R >= 0 && x + R < w && y < h) : (y - R >= 0 && y + R < h && x < w);
+    CEL_GLOBAL const float* cp = in0 + cel_txh_cidx(y, h) * st + cel_txh_cidx(x, w) * 4;
+    int step = hx != 0 ? 4 : st;
+    for (int k = 1; k <= R; ++k) {
+        CelF4 p, m;
+        if (interior != 0) {
+            CEL_GLOBAL const float* pp = cp + k * step;
+            CEL_GLOBAL const float* mp = cp - k * step;
+            p = cel_f4(pp[0], pp[1], pp[2], pp[3]);
+            m = cel_f4(mp[0], mp[1], mp[2], mp[3]);
+        } else {
+            p = cel_load(in0, st, w, h, x + k * hx, y + k * hy);
+            m = cel_load(in0, st, w, h, x - k * hx, y - k * hy);
+        }
+        sx += (p.x + m.x) * a->f[k];
+        sy += (p.y + m.y) * a->f[8 + k];
+        sz += (p.z + m.z) * a->f[16 + k];
+        sw += (p.w + m.w) * a->f[24 + k];
+    }
+    cel_store(out, a->outStride, x, y, cel_f4(sx, sy, sz, sw));
+}
+
+/* tx_pyr_up_add: pyramid accumulation  out = Bspline(in0) + weight (per channel) * in1.
+ *   in0 = coarser accumulation (sampled at (p + 0.5) * f[4]), in1 = this level's blurred source
+ *   (same size as out).  f[0..3] = per-channel weights of in1   f[4] = in0 coordinate scale
+ *   i[0] = 1 if in0 is used   i[1] = 1 if in1 is used */
+CEL_DEVICE void cel_k_tx_pyr_up_add(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 r = cel_f4(0.0f, 0.0f, 0.0f, 0.0f);
+    if (a->i[0] != 0) {
+        float s = a->f[4];
+        r = cel_txh_sample_bspline(in0, a->inStride[0], a->inW[0], a->inH[0],
+                                  ((float)x + 0.5f) * s, ((float)y + 0.5f) * s);
+    }
+    if (a->i[1] != 0) {
+        CelF4 v = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], x, y);
+        r = cel_f4(r.x + v.x * a->f[0], r.y + v.y * a->f[1], r.z + v.z * a->f[2], r.w + v.w * a->f[3]);
+    }
+    cel_store(out, a->outStride, x, y, r);
+}
+
+/* tx_hb_prefilter: per-pixel source of the glow pyramid (same size as in0; tx_pyr_down then
+ * builds level 1). Each texel is sanitised and turned into
+ *   xyz = bloom source (cel_txh_bloom_src), w = halation energy (cel_txh_hal_energy),
+ * BEFORE any filtering, so thin bright lines keep their full halation energy.
+ *   f[0] = threshold T   f[1] = knee half width k   f[2] = emax   f[3] = bloom bmax
+ *   f[4..6] = halation source weights (r, g, b) */
+CEL_DEVICE void cel_k_tx_hb_prefilter(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+    CelF4 b = cel_txh_bloom_src(v, a->f[3]);
+    b.w = cel_txh_hal_energy(v, a->f[0], a->f[1], a->f[2], a->f[4], a->f[5], a->f[6]);
+    cel_store(out, a->outStride, x, y, b);
+}
+
+/* tx_hb_composite: adds bloom + halation from the accumulated glow pyramid and applies the
+ * vignette, at full res.
+ *   in0 = image (scene-linear, or pseudo-scene in Texture-Only), in1 = glow accumulation at its
+ *   finest level L, upsampled vertically by tx_up_v (size w_L x h); B-spline sampled horizontally
+ *   at column (x + 0.5) * f[12].
+ *   bloom:     out = v + s * (glow.xyz - bloomsrc(v))        (energy conserving diffusion)
+ *   halation:  out += gain * max(glow.w - E(v), 0) * tint    (only light spread beyond the source:
+ *              flat highlight areas stay untinted, the glow hugs the outside of bright edges)
+ *   f[0] = bloom mix s        f[1] = halation gain     f[2..4] = halation tint (r, g, b)
+ *   f[5] = T  f[6] = k  f[7] = emax  f[8] = bmax  f[9..11] = halation source weights
+ *   f[12] = in1 column scale (1 / 2^L)
+ *   f[13] = vignette amount  f[14] = vignette k  f[15], f[16] = optical centre  f[17] = 1/half diag
+ *   f[18..23] = tone map (x0, p, Yk, xk, slope, sdr), used when i[0] = 1
+ *   i[0] = 1: Texture-Only (in0 is pseudo-scene; result is mapped back to display-linear and the
+ *             vignette is applied in display-linear, like the stand-alone tx_vignette; for SDR
+ *             outputs the result is <= 1 by construction of the curve)
+ *   i[1] = halation on   i[2] = bloom on   i[3] = vignette on */
+CEL_DEVICE void cel_k_tx_hb_composite(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+    float s = a->f[12];
+    CelF4 g = cel_txh_sample_bspline_h(in1, a->inStride[1], a->inW[1], a->inH[1], ((float)x + 0.5f) * s, y);
+    CelF4 o = v;
+    if (a->i[2] != 0) {
+        CelF4 b = cel_txh_bloom_src(v, a->f[8]);
+        float m = a->f[0];
+        o.x += m * (g.x - b.x); o.y += m * (g.y - b.y); o.z += m * (g.z - b.z);
+    }
+    if (a->i[1] != 0) {
+        float e = cel_txh_hal_energy(v, a->f[5], a->f[6], a->f[7], a->f[9], a->f[10], a->f[11]);
+        float hal = a->f[1] * cel_txh_max(g.w - e, 0.0f);
+        o.x += hal * a->f[2]; o.y += hal * a->f[3]; o.z += hal * a->f[4];
+    }
+    if (a->i[0] != 0) {
+        o.x = cel_txh_s2d(o.x, a->f[18], a->f[19], a->f[20], a->f[21], a->f[22], a->f[23]);
+        o.y = cel_txh_s2d(o.y, a->f[18], a->f[19], a->f[20], a->f[21], a->f[22], a->f[23]);
+        o.z = cel_txh_s2d(o.z, a->f[18], a->f[19], a->f[20], a->f[21], a->f[22], a->f[23]);
+    }
+    if (a->i[3] != 0) {
+        float vg = cel_txh_vig_factor(x, y, a->f[13], a->f[14], a->f[15], a->f[16], a->f[17]);
+        o.x *= vg; o.y *= vg; o.z *= vg;
+    }
+    o.w = v.w;
+    cel_store(out, a->outStride, x, y, o);
+}
+
+/* tx_vignette: out.rgb = in0.rgb * vignette (alpha kept).
+ *   f[0] = amount (0..1)   f[1] = k = tan(field angle at the corner)   f[2], f[3] = optical centre
+ *   f[4] = 1 / half diagonal (px) */
+CEL_DEVICE void cel_k_tx_vignette(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+    float vg = cel_txh_vig_factor(x, y, a->f[0], a->f[1], a->f[2], a->f[3], a->f[4]);
+    cel_store(out, a->outStride, x, y, cel_f4(v.x * vg, v.y * vg, v.z * vg, v.w));
+}
+
+/* tx_tonemap: Texture-Only conversion display-linear <-> pseudo scene (see cel_txh_d2s/s2d).
+ *   i[0] = 0: display -> pseudo scene, 1: pseudo scene -> display
+ *   f[0..5] = x0, p, Yk, xk, slope, sdr */
+CEL_DEVICE void cel_k_tx_tonemap(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+    float x0 = a->f[0], p = a->f[1], yk = a->f[2], xk = a->f[3], sl = a->f[4], sd = a->f[5];
+    if (a->i[0] == 0) {
+        v.x = cel_txh_d2s(v.x, x0, p, yk, xk, sl, sd); v.y = cel_txh_d2s(v.y, x0, p, yk, xk, sl, sd);
+        v.z = cel_txh_d2s(v.z, x0, p, yk, xk, sl, sd);
+    } else {
+        v.x = cel_txh_s2d(v.x, x0, p, yk, xk, sl, sd); v.y = cel_txh_s2d(v.y, x0, p, yk, xk, sl, sd);
+        v.z = cel_txh_s2d(v.z, x0, p, yk, xk, sl, sd);
+    }
+    cel_store(out, a->outStride, x, y, v);
+}
+
+/* tx_up_v: vertical half of a separable cubic B-spline upsample. out (in0 width x target height)
+ *   out(x, y) = sum_j B_j * in0(x, row j around (y + 0.5) * f[0] + f[1])
+ *   f[0] = row scale (1 / 2^L or 1 / D)   f[1] = row offset in in0 px (grain grid margin, else 0) */
+CEL_DEVICE void cel_k_tx_up_v(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    int w = a->inW[0], h = a->inH[0], st = a->inStride[0];
+    float sy = cel_txh_clampf(((float)y + 0.5f) * a->f[0] + a->f[1] - 0.5f, -CEL_TX_COORD_MAX, CEL_TX_COORD_MAX);
+    float iy = cel_txh_floor(sy);
+    CelF4 wy = cel_txh_bspline_w(sy - iy);
+    int y0 = (int)iy - 1;
+    CEL_GLOBAL const float* col = in0 + cel_txh_cidx(x, w) * 4;
+    CelF4 r = cel_txh_scale4(cel_txh_px(col + cel_txh_cidx(y0, h) * st, 0), wy.x);
+    r = cel_txh_madd4(r, cel_txh_px(col + cel_txh_cidx(y0 + 1, h) * st, 0), wy.y);
+    r = cel_txh_madd4(r, cel_txh_px(col + cel_txh_cidx(y0 + 2, h) * st, 0), wy.z);
+    r = cel_txh_madd4(r, cel_txh_px(col + cel_txh_cidx(y0 + 3, h) * st, 0), wy.w);
+    cel_store(out, a->outStride, x, y, r);
+}
+
+/* ---- grain ---------------------------------------------------------------------------------- */
+
+/* approximately Gaussian, zero-mean, unit-variance white noise from a 32-bit key: sum of the
+ * eight bytes of two hashes (Irwin-Hall n = 8, kurtosis 2.85; the following blur makes it
+ * Gaussian for all practical purposes). */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_gauss_noise(cel_uint key) {
+    cel_uint h1 = cel_hash_u32(key);
+    cel_uint h2 = cel_hash_u32(key ^ 0x5bd1e995U);
+    cel_uint s = (h1 & 255U) + ((h1 >> 8) & 255U) + ((h1 >> 16) & 255U) + (h1 >> 24)
+               + (h2 & 255U) + ((h2 >> 8) & 255U) + ((h2 >> 16) & 255U) + (h2 >> 24);
+    return ((float)s - 1020.0f) * (1.0f / 209.0215f);
+}
+
+/* tx_grain_gen: 4 independent white-noise channels on a generation grid (any size):
+ *   x, y, z = per-layer grain (red-, green-, blue-sensitive layer), w = shared clump field.
+ *   i[0] = frame seed (bit pattern of a 32-bit hash of grainSeed and, when animated, the frame) */
+CEL_DEVICE void cel_k_tx_grain_gen(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    cel_uint seed = (cel_uint)a->i[0];
+    cel_uint base = cel_hash_u32(((cel_uint)x * 0x8da6b343U) ^ cel_hash_u32(((cel_uint)y * 0xd8163841U) ^ seed));
+    cel_store(out, a->outStride, x, y,
+              cel_f4(cel_txh_gauss_noise(base + 0x9e3779b9U), cel_txh_gauss_noise(base + 0x3c6ef372U),
+                     cel_txh_gauss_noise(base + 0xdaa66d2bU), cel_txh_gauss_noise(base + 0x78dde6e4U)));
+}
+
+/* tx_grain_finish: turns the band-limited noise channels into the final grain field.
+ *   in0 = coarse noise (dominant grain size + shared clump field), in1 = fine noise (crisp
+ *   sub-structure of the dye clouds, per layer; only when resolvable).  Both live on their own
+ *   generation grid (spacing D >= 1 full-res px, any real value; margin M grid px on every side;
+ *   grid pixel M + i covers full-res [i D, (i+1) D)). When D > 1 the grid is B-spline upsampled:
+ *   vertically by tx_up_v (-> grid width x frame height), horizontally here.
+ *   n_c = in0.c * f[1+c] + in1.c * f[15+c]   (weights include the octave mix: unit variance)
+ *   s   = in0.w * f[4]                        (shared clump field, unit variance)
+ *   X_c = (a * n_c * (1 + m * (s^2 - 1) / sqrt 2) + b * s) * invX
+ *         layers share s -> correlated (target 0.4); clumps: the per-layer grain is stronger where
+ *         the shared field is far from its mean (either sign, so the clumping adds no skew)
+ *   y_c = (X_c + gamma * sqrt((X_c - t)^2 + kappa^2) - mu) * invSigma
+ *         mildly skewed, heavier-tailed (clumpy) distribution; gamma/kappa from grainSoftness;
+ *         mu/invSigma computed on the host by quadrature -> zero mean, unit variance.
+ *   out = (y_r, y_g, y_b, 0); monochrome: all three = y_g.
+ *   f[0] = in0 coordinate scale (1 / Dc)   f[1..3] = coarse weights x, y, z   f[4] = shared norm
+ *   f[5] = a  f[6] = b  f[7] = m  f[8] = invX  f[9] = gamma  f[10] = t  f[11] = kappa^2
+ *   f[12] = mu  f[13] = invSigma  f[14] = in1 coordinate scale (1 / Df)
+ *   f[15..17] = fine weights x, y, z   f[18], f[19] = coarse / fine grid margin (grid px, integer):
+ *   the grids extend beyond the frame so no blur tap is ever clamped inside the frame (clamping
+ *   would replicate edge noise and raise the variance along the borders)
+ *   i[0] = 1: B-spline upsample in0   i[1] = 1: monochrome   i[2] = 1: in1 used
+ *   i[3] = 1: B-spline upsample in1 */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_grain_shape(float X, CEL_CONSTANT const CelPassArgs* a) {
+    float d = X - a->f[10];
+    return (X + a->f[9] * cel_sqrt(d * d + a->f[11]) - a->f[12]) * a->f[13];
+}
+/* grid value for full-res pixel (x, y). bspline = 1: buf was upsampled vertically by tx_up_v
+ * (rows = full-res rows), sample columns at (x + 0.5) * s + margin; 0: direct, offset by margin */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_grain_fetch(CEL_GLOBAL const float* buf, int st, int w, int h, int x, int y,
+                                     int bspline, float s, float margin) {
+    if (bspline != 0) return cel_txh_sample_bspline_h(buf, st, w, h, ((float)x + 0.5f) * s + margin, y);
+    int m = (int)margin;
+    return cel_load(buf, st, w, h, x + m, y + m);
+}
+CEL_DEVICE void cel_k_tx_grain_finish(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 v = cel_txh_grain_fetch(in0, a->inStride[0], a->inW[0], a->inH[0], x, y, a->i[0], a->f[0], a->f[18]);
+    float nx = v.x * a->f[1], ny = v.y * a->f[2], nz = v.z * a->f[3];
+    if (a->i[2] != 0) {
+        CelF4 q = cel_txh_grain_fetch(in1, a->inStride[1], a->inW[1], a->inH[1], x, y, a->i[3], a->f[14], a->f[19]);
+        nx += q.x * a->f[15]; ny += q.y * a->f[16]; nz += q.z * a->f[17];
+    }
+    float sh = v.w * a->f[4];
+    float ka = a->f[5] * (1.0f + a->f[7] * (sh * sh - 1.0f) * 0.70710678f), kb = a->f[6] * sh, ix = a->f[8];
+    float gy = cel_txh_grain_shape((ny * ka + kb) * ix, a);
+    CelF4 o;
+    if (a->i[1] != 0) {
+        o = cel_f4(gy, gy, gy, 0.0f);
+    } else {
+        float gx = cel_txh_grain_shape((nx * ka + kb) * ix, a);
+        float gz = cel_txh_grain_shape((nz * ka + kb) * ix, a);
+        o = cel_f4(gx, gy, gz, 0.0f);
+    }
+    cel_store(out, a->outStride, x, y, o);
+}
+
+#endif /* CEL_TEXTURE_KERNELS_H */

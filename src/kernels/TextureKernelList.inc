@@ -1,1 +1,17 @@
-/* Texture kernels (texture agent): one CEL_KERNEL(name) line per kernel. */
+/* Texture kernels (texture agent): one CEL_KERNEL(name) line per kernel.
+ * Bodies, f[]/i[] usage and buffer conventions: src/kernels/TextureKernels.h.
+ * Pass graph that uses them: src/engine/Plan.cpp. */
+CEL_KERNEL(tx_copy)          /* in0 -> out, plain copy (same size) */
+CEL_KERNEL(tx_weave)         /* gate weave: in0 resampled (Catmull-Rom, de-ringed) at a per-frame offset + rotation */
+CEL_KERNEL(tx_acut_luma)     /* acutance: in0 RGB -> out.x = log2 luminance */
+CEL_KERNEL(tx_acut_apply)    /* acutance: in0 image, in1 blurred log2 luminance -> sharpened/softened image */
+CEL_KERNEL(tx_pyr_down)      /* pyramid: 2x downsample of in0 ([1 3 3 1] binomial, all 4 channels) */
+CEL_KERNEL(tx_blur4)         /* separable Gaussian, one direction, per-channel kernels (radius <= 7) */
+CEL_KERNEL(tx_pyr_up_add)    /* pyramid: out = B-spline upsample(in0) + per-channel weight * in1 */
+CEL_KERNEL(tx_up_v)          /* vertical half of a separable B-spline upsample (coarse width x target height) */
+CEL_KERNEL(tx_hb_prefilter)  /* halation/bloom: per-pixel glow source (bloom RGB, halation energy) */
+CEL_KERNEL(tx_hb_composite)  /* halation/bloom/vignette: in0 image + in1 glow pyramid -> image */
+CEL_KERNEL(tx_vignette)      /* natural cos^4-like falloff, aspect-correct (stand-alone, when no glow pass) */
+CEL_KERNEL(tx_tonemap)       /* Texture-Only: display-linear <-> film-like pseudo scene (exact bijection) */
+CEL_KERNEL(tx_grain_gen)     /* grain: hashed white noise (4 independent channels) on the generation grid */
+CEL_KERNEL(tx_grain_finish)  /* grain: blurred noise -> layered, clumpy, normalised grain field (xyz) */
