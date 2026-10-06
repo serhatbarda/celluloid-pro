@@ -1,0 +1,132 @@
+// Celluloid Pro - OFX parameter registry.
+//
+// Every parameter of the plugin is described ONCE here (id, type, group, label, range, default,
+// hint, flags). describeInContext() defines the OFX parameters from this table, the look-preset
+// engine validates and applies presets against it, and the self-test checks it against SPEC §7.
+//
+// Parameter and group IDs are PERMANENT (they are stored in user projects): never rename or
+// remove one; append new parameters instead. Choice option order is permanent too (append only).
+#pragma once
+#include <string>
+#include <vector>
+
+namespace cel { namespace ofxp {
+
+enum class PType { Group, Double, Int, Bool, Choice, String, Label, Push };
+
+enum class StrKind { SingleLine, Directory };
+
+struct ParamDef {
+    std::string id;
+    PType       type = PType::Double;
+    std::string group;          // parent group id ("" = top level)
+    std::string label;
+    std::string hint;
+    // numeric (Double/Int) and Choice/Bool defaults
+    double def = 0.0, min = 0.0, max = 1.0;
+    double increment = 0.01;    // Double: slider step
+    int    digits = 2;          // Double: displayed digits
+    std::vector<std::string> options;   // Choice
+    // strings
+    std::string defString;
+    StrKind     strKind = StrKind::SingleLine;
+    // flags
+    bool animates = true;       // keyframable (look/texture params); false for choices that restructure
+    bool evaluateOnChange = true;
+    bool persistent = true;
+    bool groupOpen = false;     // Group: expanded by default
+    bool look = false;          // part of a look preset (set by lookPreset, compared for "(modified)")
+};
+
+// The full ordered table (groups precede their children). Built once on first use; choice
+// options for colour spaces and stocks come from cel::core.
+const std::vector<ParamDef>& paramDefs();
+const ParamDef* findParam(const std::string& id);
+
+// Case-insensitive choice lookup: returns the option index for a label (or a decimal index
+// string), or -1 if not found.
+int choiceIndex(const ParamDef& d, const std::string& labelOrIndex);
+
+// Default value of a preset-able parameter as a double (choices: option index; bools: 0/1).
+double numericDefault(const ParamDef& d);
+
+// ---- parameter / group ids (permanent) -------------------------------------------------
+namespace id {
+// groups
+constexpr const char* gLook = "groupLook";
+constexpr const char* gInput = "groupInput";
+constexpr const char* gNegative = "groupNegative";
+constexpr const char* gPrint = "groupPrint";
+constexpr const char* gHalation = "groupHalation";
+constexpr const char* gBloom = "groupBloom";
+constexpr const char* gGrain = "groupGrain";
+constexpr const char* gLens = "groupLensGate";
+constexpr const char* gOutput = "groupOutput";
+constexpr const char* gLut = "groupLutExport";
+constexpr const char* gLicense = "groupLicense";
+constexpr const char* gAbout = "groupAbout";
+// [Look]
+constexpr const char* lookPreset = "lookPreset";
+constexpr const char* lookPresetStatus = "lookPresetStatus";
+constexpr const char* mode = "mode";
+// [Input]
+constexpr const char* inputSpace = "inputSpace";
+constexpr const char* exposure = "exposure";
+// [Negative]
+constexpr const char* negStock = "negStock";
+constexpr const char* pushPull = "pushPull";
+constexpr const char* interlayer = "interlayer";
+constexpr const char* negBleach = "negBleach";
+constexpr const char* neutralize = "neutralize";
+// [Print]
+constexpr const char* process = "process";
+constexpr const char* printStock = "printStock";
+constexpr const char* printerR = "printerR";
+constexpr const char* printerG = "printerG";
+constexpr const char* printerB = "printerB";
+constexpr const char* printExposure = "printExposure";
+constexpr const char* printBleach = "printBleach";
+// [Halation]
+constexpr const char* halationAmount = "halationAmount";
+constexpr const char* halationRadius = "halationRadius";
+constexpr const char* halationThreshold = "halationThreshold";
+constexpr const char* halationHue = "halationHue";
+// [Bloom]
+constexpr const char* bloomAmount = "bloomAmount";
+constexpr const char* bloomRadius = "bloomRadius";
+// [Grain]
+constexpr const char* grainEnable = "grainEnable";
+constexpr const char* grainFormat = "grainFormat";
+constexpr const char* grainAmount = "grainAmount";
+constexpr const char* grainSize = "grainSize";
+constexpr const char* grainSoftness = "grainSoftness";
+constexpr const char* grainAnimated = "grainAnimated";
+constexpr const char* grainSeed = "grainSeed";
+// [Lens & Gate]
+constexpr const char* acutanceAmount = "acutanceAmount";
+constexpr const char* acutanceRadius = "acutanceRadius";
+constexpr const char* weaveAmount = "weaveAmount";
+constexpr const char* weaveSpeed = "weaveSpeed";
+constexpr const char* vignette = "vignette";
+// [Output]
+constexpr const char* outputSpace = "outputSpace";
+constexpr const char* hdrPeakNits = "hdrPeakNits";
+constexpr const char* hdrUnroll = "hdrUnroll";
+// [LUT Export]
+constexpr const char* lutSize = "lutSize";
+constexpr const char* lutPath = "lutPath";
+constexpr const char* lutExport = "lutExport";
+// [License]
+constexpr const char* licenseStatus = "licenseStatus";
+constexpr const char* licenseKey = "licenseKey";
+constexpr const char* licenseActivate = "licenseActivate";
+constexpr const char* licenseRemove = "licenseRemove";
+// [About]
+constexpr const char* aboutVersion = "aboutVersion";
+constexpr const char* aboutManual = "aboutManual";
+} // namespace id
+
+// LUT sizes offered by lutSize, in option order.
+constexpr int kLutSizes[3] = {17, 33, 65};
+
+}} // namespace cel::ofxp

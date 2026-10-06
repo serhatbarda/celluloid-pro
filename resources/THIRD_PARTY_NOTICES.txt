@@ -1,0 +1,23 @@
+Celluloid Pro - third-party software notices
+=============================================
+
+Celluloid Pro contains the following third-party software. Their full license texts are in this
+folder next to this file.
+
+OpenFX C++ Support Library (and OpenFX API headers)
+  Copyright OpenFX and contributors to the OpenFX project.
+  License: BSD 3-Clause (see OpenFX-LICENSE.txt / OpenFX-Support-LICENSE.txt)
+  https://github.com/AcademySoftwareFoundation/openfx
+
+Monocypher (Ed25519 signature verification)
+  Copyright (c) Loup Vaillant and the Monocypher contributors.
+  License: BSD 2-Clause or CC0-1.0, at your option (see Monocypher-LICENCE.txt)
+  https://monocypher.org
+
+Khronos OpenCL API headers (compile-time only)
+  Copyright (c) The Khronos Group Inc.
+  License: Apache License 2.0
+  https://github.com/KhronosGroup/OpenCL-Headers
+
+All other code, colour science, stock designs, presets, artwork and documentation are original
+work of the Celluloid Pro project.

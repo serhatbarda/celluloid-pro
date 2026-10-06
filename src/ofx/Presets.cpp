@@ -1,0 +1,187 @@
+// Celluloid Pro - look preset table and resolver. See Presets.h for the format and rules.
+#include "Presets.h"
+#include "Params.h"
+
+#include <algorithm>
+#include <cctype>
+#include <cerrno>
+#include <cmath>
+#include <cstdlib>
+#include <set>
+
+namespace cel { namespace ofxp {
+
+// ------------------------------------------------------------------------------------------
+// The table. APPEND ONLY (the choice index is stored in projects).
+// The three entries below are framework placeholders; the look designer replaces their
+// values (keeping the order/count or appending) after the stock design is final.
+// ------------------------------------------------------------------------------------------
+const std::vector<LookPreset>& lookPresets() {
+    static const std::vector<LookPreset> table = {
+        {
+            "Studio Classic",
+            "Balanced tungsten negative on a standard projection print: the house look.",
+            {
+                {"negStock", "CN 200T Studio Tungsten"},
+                {"process", "Print"},
+                {"printStock", "P1 Standard Projection"},
+                {"halationAmount", "0.5"},
+                {"bloomAmount", "0.15"},
+                {"grainEnable", "true"},
+                {"grainFormat", "Super 35"},
+                {"grainAmount", "1"},
+                {"acutanceAmount", "0.3"},
+            },
+        },
+        {
+            "Night Exterior",
+            "High-speed tungsten negative, rich-contrast print, generous halation around practicals.",
+            {
+                {"negStock", "CN 500T High Speed"},
+                {"process", "Print"},
+                {"printStock", "P3 Rich Contrast"},
+                {"halationAmount", "0.9"},
+                {"halationThreshold", "2.0"},
+                {"bloomAmount", "0.25"},
+                {"grainEnable", "true"},
+                {"grainFormat", "Super 35"},
+                {"grainAmount", "1.3"},
+                {"acutanceAmount", "0.35"},
+            },
+        },
+        {
+            "Faded Archive",
+            "Soft daylight negative on a faded archive print with gentle weave and vignetting.",
+            {
+                {"negStock", "CN 250D Soft Daylight"},
+                {"process", "Print"},
+                {"printStock", "P4 Faded Archive"},
+                {"halationAmount", "0.6"},
+                {"grainEnable", "true"},
+                {"grainFormat", "16 mm"},
+                {"grainAmount", "1.2"},
+                {"grainSoftness", "0.6"},
+                {"weaveAmount", "0.4"},
+                {"vignette", "0.25"},
+            },
+        },
+    };
+    return table;
+}
+
+// ------------------------------------------------------------------------------------------
+
+namespace {
+
+std::string lower(std::string s) {
+    for (char& c : s) c = char(std::tolower(static_cast<unsigned char>(c)));
+    return s;
+}
+
+bool parseDouble(const std::string& s, double* out) {
+    if (s.empty()) return false;
+    const char* b = s.c_str();
+    char* e = nullptr;
+    errno = 0;
+    double v = std::strtod(b, &e);
+    if (e == b || errno == ERANGE || !std::isfinite(v)) return false;
+    while (*e == ' ') ++e;
+    if (*e != '\0') return false;
+    *out = v;
+    return true;
+}
+
+bool parseBool(const std::string& s, double* out) {
+    const std::string l = lower(s);
+    if (l == "true" || l == "on" || l == "yes" || l == "1") { *out = 1.0; return true; }
+    if (l == "false" || l == "off" || l == "no" || l == "0") { *out = 0.0; return true; }
+    return false;
+}
+
+// Parses one preset value for a parameter. Returns false + reason on failure; out-of-range
+// numbers are clamped (and reported).
+bool parseValue(const ParamDef& d, const std::string& text, double* out, std::string* why) {
+    switch (d.type) {
+    case PType::Double:
+    case PType::Int: {
+        double v;
+        if (!parseDouble(text, &v)) { *why = "not a number: \"" + text + "\""; return false; }
+        if (d.type == PType::Int && std::floor(v) != v) { *why = "not an integer: \"" + text + "\""; return false; }
+        if (v < d.min || v > d.max) {
+            *why = "value " + text + " outside range, clamped";
+            v = std::min(std::max(v, d.min), d.max);
+            *out = v;
+            return true;   // usable, but reported
+        }
+        *out = v;
+        return true;
+    }
+    case PType::Bool:
+        if (!parseBool(text, out)) { *why = "not a boolean: \"" + text + "\""; return false; }
+        return true;
+    case PType::Choice: {
+        int idx = choiceIndex(d, text);
+        if (idx < 0) { *why = "unknown option \"" + text + "\""; return false; }
+        *out = double(idx);
+        return true;
+    }
+    default:
+        *why = "parameter type cannot be part of a preset";
+        return false;
+    }
+}
+
+} // namespace
+
+std::vector<ResolvedValue> resolvePreset(size_t index, std::vector<std::string>* problems) {
+    std::vector<ResolvedValue> out;
+    const auto& presets = lookPresets();
+    if (index >= presets.size()) return out;
+    const LookPreset& p = presets[index];
+
+    for (const ParamDef& d : paramDefs()) {
+        if (d.look) out.push_back({d.id, numericDefault(d)});
+    }
+    for (const PresetValue& pv : p.values) {
+        const ParamDef* d = findParam(pv.param);
+        if (!d) {
+            if (problems) problems->push_back(p.name + ": unknown parameter \"" + pv.param + "\"");
+            continue;
+        }
+        if (!d->look) {
+            if (problems) problems->push_back(p.name + ": parameter \"" + pv.param + "\" is not a look parameter");
+            continue;
+        }
+        double v = 0.0;
+        std::string why;
+        bool ok = parseValue(*d, pv.value, &v, &why);
+        if (!why.empty() && problems) problems->push_back(p.name + ": " + pv.param + ": " + why);
+        if (!ok) continue;
+        for (ResolvedValue& rv : out) {
+            if (rv.param == d->id) rv.value = v;
+        }
+    }
+    return out;
+}
+
+bool validatePresets(std::vector<std::string>* problems) {
+    std::vector<std::string> local;
+    std::vector<std::string>& pr = problems ? *problems : local;
+    const size_t before = pr.size();
+    std::set<std::string> names;
+    const auto& presets = lookPresets();
+    for (size_t i = 0; i < presets.size(); ++i) {
+        const LookPreset& p = presets[i];
+        if (p.name.empty()) pr.push_back("preset #" + std::to_string(i) + " has no name");
+        if (lower(p.name) == "custom") pr.push_back("preset name \"Custom\" is reserved");
+        if (!names.insert(lower(p.name)).second) pr.push_back("duplicate preset name \"" + p.name + "\"");
+        std::set<std::string> seen;
+        for (const PresetValue& pv : p.values) {
+            if (!seen.insert(pv.param).second) pr.push_back(p.name + ": parameter \"" + pv.param + "\" listed twice");
+        }
+        resolvePreset(i, &pr);
+    }
+    return pr.size() == before;
+}
+
+}} // namespace cel::ofxp
