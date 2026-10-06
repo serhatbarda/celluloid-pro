@@ -85,8 +85,11 @@ install -m 0755 "$HERE/scripts/postinstall" "$WORK/scripts/postinstall"
 pkgbuild --analyze --root "$WORK/root" "$WORK/component.plist"
 n=$(/usr/libexec/PlistBuddy -c "Print" "$WORK/component.plist" | grep -c "RootRelativeBundlePath" || true)
 for ((i = 0; i < n; i++)); do
-  /usr/libexec/PlistBuddy -c "Set :$i:BundleIsRelocatable false" "$WORK/component.plist"
-  /usr/libexec/PlistBuddy -c "Set :$i:BundleOverwriteAction upgrade" "$WORK/component.plist" 2>/dev/null || true
+  # newer pkgbuild versions omit keys that are at their default: Set if present, else Add
+  /usr/libexec/PlistBuddy -c "Set :$i:BundleIsRelocatable false" "$WORK/component.plist" 2>/dev/null ||
+    /usr/libexec/PlistBuddy -c "Add :$i:BundleIsRelocatable bool false" "$WORK/component.plist"
+  /usr/libexec/PlistBuddy -c "Set :$i:BundleOverwriteAction upgrade" "$WORK/component.plist" 2>/dev/null ||
+    /usr/libexec/PlistBuddy -c "Add :$i:BundleOverwriteAction string upgrade" "$WORK/component.plist"
 done
 
 pkgbuild --root "$WORK/root" \

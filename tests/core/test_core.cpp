@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -422,7 +423,7 @@ static void testCube(const std::string& dir) {
     bool ok = writeCubeLUT(P, 33, path, "Celluloid test", &err);
     double t1 = nowMs();
     CHECK(ok, "writeCubeLUT failed: %s", err.c_str());
-    std::ifstream f(path);
+    std::ifstream f(std::filesystem::u8path(path));   // UTF-8 path (Windows: not the ANSI code page)
     CHECK(bool(f), "cannot read back %s", path.c_str());
     std::string line;
     int size = 0, data = 0;
