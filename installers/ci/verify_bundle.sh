@@ -41,7 +41,10 @@ case "$OS" in
     [[ -f "$BIN" ]] || fail "missing $BIN"
     command -v dumpbin >/dev/null || fail "dumpbin not found (run inside the MSVC developer environment)"
     exports=$(dumpbin -nologo -exports "$BIN" | tr -d '\r' | awk '/ordinal +hint +RVA +name/{f=1;next} f&&NF>=4{print $4}' | sort | tr '\n' ' ')
-    [[ "$exports" == "OfxGetNumberOfPlugins OfxGetPlugin " ]] || fail "exports: $exports"
+    # NvOptimusEnablementCuda comes from the static CUDA runtime (cudart_static); it only asks
+    # Optimus laptops to prefer the NVIDIA GPU and is expected when the CUDA backend is built.
+    [[ "$exports" == "OfxGetNumberOfPlugins OfxGetPlugin " || "$exports" == "NvOptimusEnablementCuda OfxGetNumberOfPlugins OfxGetPlugin " ]] \
+      || fail "exports: $exports"
     ok "exports: $exports"
     deps=$(dumpbin -nologo -dependents "$BIN" | tr -d '\r' | grep -iE '^\s+[A-Za-z0-9_.-]+\.dll$' | awk '{print $1}')
     echo "$deps" | sed 's/^/    /'

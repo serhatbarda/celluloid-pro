@@ -16,7 +16,7 @@ status=0
 for f in "$@"; do
   b="$(basename "$f" .metal)"
   # ${arr[@]+"${arr[@]}"}: empty-array safe under `set -u` with macOS /bin/bash 3.2
-  if xcrun -sdk macosx metal -std=metal2.3 -mmacosx-version-min=11.0 -fno-fast-math ${werror[@]+"${werror[@]}"} \
+  if xcrun -sdk macosx metal -std=macos-metal2.3 -mmacosx-version-min=11.0 -fno-fast-math ${werror[@]+"${werror[@]}"} \
        -c "$f" -o "$out/$b.air"; then
     # also link a metallib to catch unresolved symbols
     if xcrun -sdk macosx metallib "$out/$b.air" -o "$out/$b.metallib"; then

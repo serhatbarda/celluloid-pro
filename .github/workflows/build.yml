@@ -87,7 +87,7 @@ jobs:
             bash tests/gpu/metal_syntax/check_metal.sh "${files[@]}"
           else
             for f in "${files[@]}"; do
-              xcrun -sdk macosx metal -std=metal2.3 -mmacosx-version-min=11.0 -fno-fast-math \
+              xcrun -sdk macosx metal -std=macos-metal2.3 -mmacosx-version-min=11.0 -fno-fast-math \
                 -c "$f" -o "$RUNNER_TEMP/$(basename "$f" .metal).air"
               echo "Metal source compiles: $f"
             done

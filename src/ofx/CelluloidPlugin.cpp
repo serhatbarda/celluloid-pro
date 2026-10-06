@@ -959,6 +959,10 @@ void CelluloidFactory::load() {
 }
 
 void CelluloidFactory::unload() {
+    try {
+        cel::shutdownParallelPool();   // join the CPU worker threads before the module goes away
+    } catch (...) {
+    }
 #if CEL_GPU_EXTRAS
     try {
         gpu::releaseAllResources();   // programs, pipelines, pooled buffers of the GPU backends

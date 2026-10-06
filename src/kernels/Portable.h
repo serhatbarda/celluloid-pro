@@ -100,10 +100,20 @@
   #define cel_log2(a)    std::log2((float)(a))
   #define cel_log10(a)   std::log10((float)(a))
   #define cel_sqrt(a)    std::sqrt((float)(a))
-  #define cel_floor(a)   std::floor((float)(a))
+  /* floor/fmin/fmax inline: without SSE4.1 / -ffinite-math-only, GCC and Clang emit libm calls
+   * for std::floor/std::fmin/std::fmax. These keep the exact IEEE results of the C functions
+   * (fmin/fmax return the non-NaN operand; floor keeps NaN, +-Inf, -0 and |x| >= 2^23). */
+  static inline float cel_cpu_floor(float x) {
+      if (!(std::fabs(x) < 8388608.0f)) return x;          /* NaN, Inf, already integral */
+      float t = (float)(int)x;                              /* truncation toward zero */
+      return t == x ? x : (t > x ? t - 1.0f : t);
+  }
+  static inline float cel_cpu_fmin(float a, float b) { return (a < b || b != b) ? a : b; }
+  static inline float cel_cpu_fmax(float a, float b) { return (a > b || b != b) ? a : b; }
+  #define cel_floor(a)   cel_cpu_floor((float)(a))
   #define cel_fabs(a)    std::fabs((float)(a))
-  #define cel_fmin(a,b)  std::fmin((float)(a),(float)(b))
-  #define cel_fmax(a,b)  std::fmax((float)(a),(float)(b))
+  #define cel_fmin(a,b)  cel_cpu_fmin((float)(a),(float)(b))
+  #define cel_fmax(a,b)  cel_cpu_fmax((float)(a),(float)(b))
   #define cel_sin(a)     std::sin((float)(a))
   #define cel_cos(a)     std::cos((float)(a))
   #define cel_atan2(a,b) std::atan2((float)(a),(float)(b))

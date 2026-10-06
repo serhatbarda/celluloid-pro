@@ -47,7 +47,9 @@
 #define CEL_LOGC4_S 0.1135972086105891f
 #define CEL_LOGC4_T (-0.01805699611991131f)
 
-CEL_DEVICE float celc_pow10(float x) { return cel_pow(10.0f, x); }
+/* 10^x as exp2(x log2 10): about 3x cheaper than pow() on CPU libm and native on GPUs; the
+ * extra rounding of the product is <= 5e-7 relative over the |x| <= 4 range the model uses. */
+CEL_DEVICE float celc_pow10(float x) { return cel_exp2(x * 3.32192809488736234787f); }
 
 CEL_DEVICE float celc_decode_transfer(int space, float v) {
     if (space == CEL_IN_FLOG2C || space == CEL_IN_FLOG2) {

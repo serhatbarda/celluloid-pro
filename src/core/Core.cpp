@@ -133,7 +133,16 @@ static void putMat(float* s, int o, const spec::Mat3& M) {
     for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) s[o + i * 3 + j] = float(M.m[i][j]);
 }
 
-Pipeline::Pipeline() : m_cache(std::make_shared<Cache>()) { prepare(LookParams()); }
+// The initial state uses the product default negative (SPEC section 4.6: CN 200T Studio Tungsten, index 1;
+// LookParams' field default in the fixed Core.h is index 0), so the first render of a new OFX
+// instance with default settings is a bake-cache hit.
+static LookParams productDefaultLook() {
+    LookParams p;
+    p.negStock = 1;
+    return p;
+}
+
+Pipeline::Pipeline() : m_cache(std::make_shared<Cache>()) { prepare(productDefaultLook()); }
 
 const NegativeStockInfo& Pipeline::negStock() const {
     if (m_cache->infos.empty()) m_cache->infos = negativeStocks();
