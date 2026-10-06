@@ -1,0 +1,7 @@
+/build*/
+/external-openfx-ref/
+/out/
+*.f32
+__pycache__/
+.DS_Store
+/tools/licensegen/private-keys/
