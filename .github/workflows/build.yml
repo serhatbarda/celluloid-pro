@@ -142,6 +142,33 @@ jobs:
           fi
           bash installers/macos/build_pkg.sh "${args[@]}"
 
+      - name: Disk image (.dmg with the installer)
+        run: |
+          VER="${{ steps.ver.outputs.version }}"
+          STAGE="$RUNNER_TEMP/dmg"
+          rm -rf "$STAGE" && mkdir -p "$STAGE"
+          cp dist/*.pkg "$STAGE/"
+          [ -f docs/MANUAL.md ] && cp docs/MANUAL.md "$STAGE/Manual.md"
+          cat > "$STAGE/READ ME FIRST.txt" <<EOF
+          Celluloid Pro $VER for DaVinci Resolve (macOS 11+, Apple silicon and Intel)
+
+          1. Quit DaVinci Resolve.
+          2. Double-click CelluloidPro-$VER-macOS.pkg and follow the installer.
+             The plug-in is installed to /Library/OFX/Plugins/Celluloid.ofx.bundle.
+          3. Start Resolve; the effect is under OpenFX > Celluloid > Celluloid Pro.
+
+          If the installer is not signed yet, macOS may block it: right-click the
+          .pkg and choose Open, or allow it in System Settings > Privacy & Security.
+          Without a license key the plug-in runs as a full trial with a watermark.
+          EOF
+          hdiutil create -volname "Celluloid Pro $VER" -srcfolder "$STAGE" -fs HFS+ \
+            -format UDZO -ov "dist/CelluloidPro-$VER-macOS.dmg"
+          if [ -n "${APP_IDENTITY:-}" ]; then
+            codesign --force --sign "$APP_IDENTITY" ${KEYCHAIN:+--keychain "$KEYCHAIN"} --timestamp "dist/CelluloidPro-$VER-macOS.dmg"
+          fi
+          hdiutil verify "dist/CelluloidPro-$VER-macOS.dmg"
+          ls -la dist
+
       - name: Clean up keychain
         if: always() && env.KEYCHAIN != ''
         run: security delete-keychain "$KEYCHAIN" || true
