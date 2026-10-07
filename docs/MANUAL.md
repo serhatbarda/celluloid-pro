@@ -374,7 +374,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 *Activation.*
 
-- **License Status** (`licenseStatus`; read-only) — Current license state. The trial includes every feature; renders carry a small watermark until a license key is activated.
+- **License Status** (`licenseStatus`; read-only) — Current license state. The trial includes every feature except LUT export; renders carry a small watermark until a license key is activated.
 - **License Key** (`licenseKey`; text field) — Paste the license key you received by e-mail (starts with CELL1-), then press Activate. The key is stored for your user account, not in the project; the field is cleared after activation.
 - **Activate** (`licenseActivate`; button) — Verifies the pasted key and activates Celluloid Pro on this computer.
 - **Deactivate** (`licenseRemove`; button) — Removes the license from this computer (for example before moving it to another machine). Renders return to trial mode.

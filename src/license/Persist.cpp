@@ -280,7 +280,7 @@ LicenseInfo trialInfo() {
     LicenseInfo li;
     li.valid = false;
     li.edition = Edition::Trial;
-    li.message = "Trial - all features enabled, renders carry a watermark. Enter a license key to activate.";
+    li.message = "Trial - all features except LUT export, renders carry a watermark. Enter a license key to activate.";
     return li;
 }
 

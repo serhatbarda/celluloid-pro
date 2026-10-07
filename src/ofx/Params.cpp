@@ -320,8 +320,8 @@ std::vector<ParamDef> build() {
     // ---------------------------------------------------------------- [License]
     b.beginGroup(id::gLicense, "License", false, "Activation.");
     b.label(id::licenseStatus, "License Status", "Trial - renders carry a watermark",
-            "Current license state. The trial includes every feature; renders carry a small watermark until a "
-            "license key is activated.");
+            "Current license state. The trial includes every feature except LUT export; renders carry a small "
+            "watermark until a license key is activated.");
     {
         ParamDef& st = b.defs.back();
         st.evaluateOnChange = true;   // re-render (remove/add the watermark) when the state changes
