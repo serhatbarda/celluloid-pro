@@ -44,7 +44,7 @@ index): new looks will be appended.
 
 **When to use.** Any scene, especially interiors and dialogue scenes with skin as the priority. Use it to judge exposure and lighting, then build on it.
 
-**Key settings.** Negative CN 200T Studio Tungsten, Process Print, Print P1 Standard Projection, Halation 0.5, Hal. Threshold 3, Bloom 0.15, Format Super 35, Grain Amount 0.9, Acutance 0.3.
+**Key settings.** Negative CN 200T Studio Tungsten, Process Print, Print P1 Standard Projection, Halation 0.5, Hal. Threshold 3.5, Bloom 0.15, Format Super 35, Grain Amount 0.9, Acutance 0.3.
 
 ## 2. Tungsten Night Drama
 
@@ -54,17 +54,17 @@ index): new looks will be appended.
 
 **When to use.** Night interiors and exteriors lit by tungsten practicals, thrillers, moody dialogue. On daylight scenes it reads as day-for-night-ish cool.
 
-**Key settings.** Negative CN 500T High Speed, Push/Pull 0.5, Process Print, Print P3 Rich Contrast, Printer R 0.5, Printer B -1, Print Density 0.5, Halation 0.8, Hal. Radius 26, Hal. Threshold 3.2, Bloom 0.25, Bloom Radius 50, Format Super 35, Grain Amount 1, Grain Softness 0.55, Acutance 0.3, Vignette 0.2.
+**Key settings.** Negative CN 500T High Speed, Push/Pull 0.5, Process Print, Print P3 Rich Contrast, Printer R 0.5, Printer B -1, Print Density 0.5, Halation 0.8, Hal. Radius 26, Hal. Threshold 3.6, Bloom 0.25, Bloom Radius 50, Format Super 35, Grain Amount 1, Grain Softness 0.55, Acutance 0.3, Vignette 0.2.
 
 ## 3. Soft Daylight Pastel
 
 *Soft daylight negative on the low-contrast print, printed light and warm: airy pastel colour, open shadows, gentle bloom.*
 
-**Intent.** Light, airy and forgiving: the soft daylight negative on the low-contrast print, printed 1.5 points lighter and a little warm, with a wide gentle bloom. Shadows stay open, colours turn pastel.
+**Intent.** Light, airy and forgiving: the soft daylight negative on the low-contrast print, printed half a point lighter and a little warm, with a wide gentle bloom. Shadows stay open, colours turn pastel, and whites still reach a clean bright white (the low contrast comes from P2's soft toe and mids, not from a grey ceiling).
 
 **When to use.** Fashion, lifestyle and romance, bright exteriors, window-lit interiors; footage with harsh contrast that needs taming.
 
-**Key settings.** Negative CN 250D Soft Daylight, Color Density 0.95, Process Print, Print P2 Low Contrast, Printer R -0.5, Printer G 0.5, Printer B 1, Print Density 1.5, Halation 0.35, Hal. Threshold 3.5, Bloom 0.35, Bloom Radius 70, Format 35 mm Stills, Grain Amount 0.8, Grain Softness 0.7, Acutance 0.15.
+**Key settings.** Negative CN 250D Soft Daylight, Color Density 1, Process Print, Print P2 Low Contrast, Printer R -0.5, Printer G 0.5, Printer B 1, Print Density 0.5, Halation 0.35, Hal. Threshold 3.5, Bloom 0.25, Bloom Radius 70, Format 35 mm Stills, Grain Amount 0.8, Grain Softness 0.7, Acutance 0.15.
 
 ## 4. Archive 1978
 
@@ -74,27 +74,27 @@ index): new looks will be appended.
 
 **When to use.** Flashbacks, period pieces, found-footage and memory sequences. Strong by design - lower Print Density or Grain for a subtler age.
 
-**Key settings.** Negative CN Vintage 85, Process Print, Print P4 Faded Archive, Printer R -1, Printer B 1.5, Print Density -1, Halation 0.7, Hal. Radius 28, Hal. Threshold 2.8, Hal. Hue 0.2, Bloom 0.3, Bloom Radius 60, Format 16 mm, Grain Amount 0.8, Grain Softness 0.75, Acutance 0.1, Gate Weave 0.5, Weave Speed 0.8, Vignette 0.3.
+**Key settings.** Negative CN Vintage 85, Process Print, Print P4 Faded Archive, Printer R -1, Printer B 1.5, Print Density -1, Halation 0.7, Hal. Radius 28, Hal. Threshold 3.2, Hal. Hue 0.2, Bloom 0.3, Bloom Radius 60, Format 16 mm, Grain Amount 0.8, Grain Softness 0.75, Acutance 0.1, Gate Weave 0.5, Weave Speed 0.8, Vignette 0.3.
 
 ## 5. Silver Retention Thriller
 
 *Pushed tungsten negative with partial bleach bypass on the silver-retention print: hard, metallic, desaturated contrast with crisp edges.*
 
-**Intent.** Hard and metallic: the tungsten negative pushed one stop with a quarter bleach bypass, printed on the silver-retention print. Inky blacks, desaturated colour, bright speculars and crisp edges.
+**Intent.** Hard and metallic: the tungsten negative pushed half a stop with a light (15 %) bleach bypass, printed on the silver-retention print. Inky blacks, desaturated colour, bright speculars and crisp edges.
 
-**When to use.** Action, war and crime, gritty urban exteriors, high-contrast lighting. Keep faces lit - shadows go to black quickly.
+**When to use.** Action, war and crime, gritty urban exteriors, high-contrast lighting. Keep faces lit - shadows below about -4 stops go to black (P5's deep D-max).
 
-**Key settings.** Negative CN 200T Studio Tungsten, Push/Pull 1, Color Density 0.85, Neg Bleach 0.25, Process Print, Print P5 Silver Retention, Printer R 0.5, Printer B -0.5, Print Density 0.5, Halation 0.35, Hal. Threshold 3.5, Bloom 0.1, Format Super 35, Grain Amount 1.15, Grain Softness 0.4, Acutance 0.6, Acut. Radius 1.6, Vignette 0.15.
+**Key settings.** Negative CN 200T Studio Tungsten, Push/Pull 0.5, Color Density 0.85, Neg Bleach 0.15, Process Print, Print P5 Silver Retention, Printer R 0.5, Printer B -0.5, Print Density 0.5, Halation 0.35, Hal. Threshold 3.5, Bloom 0.1, Format Super 35, Grain Amount 1.15, Grain Softness 0.4, Acutance 0.6, Acut. Radius 1.6, Vignette 0.15.
 
 ## 6. Neon Nocturne
 
 *Fast no-backing tungsten negative for city nights: red-orange halation around neon and practicals, coarse but soft grain, cool timing.*
 
-**Intent.** The no-backing tungsten negative for city nights: strong red-orange halation around neon signs, street lamps and headlights, coarse but soft grain, a touch of cool timing. Halation threshold is raised so bright skies do not glow.
+**Intent.** The no-backing tungsten negative for city nights: strong red-orange halation around neon signs, street lamps and headlights, coarse but soft grain, a touch of cool timing, printed half a point denser so neon cores stay saturated. Halation threshold is raised so bright skies do not glow.
 
-**When to use.** Night city streets, bars, neon and LED signage, car interiors at night. Lower Halation Amount on very bright day scenes.
+**When to use.** Night scenes only: city streets, bars, neon and LED signage, car interiors at night. On day scenes it prints dense and glows; use Studio Classic instead.
 
-**Key settings.** Negative CN 800T No-Backing, Process Print, Print P1 Standard Projection, Printer B -0.5, Halation 0.75, Hal. Radius 24, Hal. Threshold 3.6, Hal. Hue -0.2, Bloom 0.3, Bloom Radius 45, Format Super 35, Grain Amount 0.85, Grain Softness 0.55, Acutance 0.25.
+**Key settings.** Negative CN 800T No-Backing, Process Print, Print P1 Standard Projection, Printer B -0.5, Print Density -0.5, Halation 0.6, Hal. Radius 24, Hal. Threshold 3.6, Hal. Hue -0.2, Bloom 0.3, Bloom Radius 45, Format Super 35, Grain Amount 0.85, Grain Softness 0.55, Acutance 0.25.
 
 ## 7. Golden Hour Portrait
 
@@ -124,17 +124,17 @@ index): new looks will be appended.
 
 **When to use.** Travel and lifestyle content, music videos, nostalgic personal stories, beach and street scenes in sun.
 
-**Key settings.** Negative C41 Consumer 200, Process Lab Scan, Printer R -0.5, Printer B 0.5, Halation 0.45, Hal. Threshold 3, Bloom 0.25, Format 35 mm Stills, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.3, Vignette 0.25.
+**Key settings.** Negative C41 Consumer 200, Process Lab Scan, Printer R -0.5, Printer B 0.5, Halation 0.45, Hal. Threshold 3.5, Bloom 0.25, Format 35 mm Stills, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.3, Vignette 0.25.
 
 ## 10. Slide Show Brilliance
 
 *Daylight reversal (slide) film projected directly: brilliant saturation, deep blacks, short latitude - expose carefully.*
 
-**Intent.** Projected slide film: the reversal stock's brilliant saturation, deep blacks and short latitude, fine stills grain and a projector-like vignette. Print settings do not apply to reversal film.
+**Intent.** Projected slide film: the reversal stock's brilliant saturation, deep blacks and short latitude, crisp, clearly visible stills grain and a projector-like vignette. Print settings do not apply to reversal film.
 
 **When to use.** Saturated travel, nature and architecture in good light. Expose carefully - highlights and shadows clip sooner than on negative film.
 
-**Key settings.** Negative RV 100 Slide, Halation 0.3, Hal. Threshold 3.5, Bloom 0.15, Format 35 mm Stills, Grain Amount 0.8, Grain Softness 0.45, Acutance 0.4, Vignette 0.3.
+**Key settings.** Negative RV 100 Slide, Halation 0.3, Hal. Threshold 3.5, Bloom 0.15, Format 35 mm Stills, Grain Amount 1.2, Grain Softness 0.45, Acutance 0.4, Vignette 0.3.
 
 ## 11. Monochrome Noir
 
@@ -150,8 +150,26 @@ index): new looks will be appended.
 
 *Reversal film in the Super 8 gauge: bold colour, big soft grain, warm halation, nervous gate weave and heavy vignetting.*
 
-**Intent.** A family film: reversal colour in the Super 8 gauge with big soft grain, warm halation and bloom, softened edges, nervous gate weave and heavy vignetting.
+**Intent.** A family film: reversal colour in the Super 8 gauge, pushed 1.5 stops with strong interlayer effects for dense, bold colour that is clearly its own (not the Slide Show look), with big soft grain, warm halation and bloom, softened edges, nervous gate weave and heavy vignetting.
 
 **When to use.** Home-movie inserts, memories, music videos, titles. Combine with a 4:3 crop and frame-rate reduction in Resolve for the full effect.
 
-**Key settings.** Negative RV 100 Slide, Halation 0.8, Hal. Radius 30, Hal. Threshold 2.6, Hal. Hue 0.3, Bloom 0.45, Bloom Radius 70, Format Super 8, Grain Amount 0.9, Grain Softness 0.75, Acutance -0.15, Gate Weave 1.1, Weave Speed 1.4, Vignette 0.45.
+**Key settings.** Negative RV 100 Slide, Push/Pull 1.5, Color Density 1.6, Halation 0.8, Hal. Radius 30, Hal. Threshold 3, Hal. Hue 0.3, Bloom 0.45, Bloom Radius 70, Format Super 8, Grain Amount 1.6, Grain Softness 0.6, Acutance -0.15, Gate Weave 1.1, Weave Speed 1.4, Vignette 0.45.
+
+## Revision notes (v1.1)
+
+* Halation no longer floods dark edges next to bright skies (new energy model, default threshold 2.5 -> 3.5
+  stops); preset thresholds were raised with it (Studio Classic 3 -> 3.5, Tungsten Night Drama 3.2 -> 3.6,
+  Archive 1978 2.8 -> 3.2, Summer Snapshot 3 -> 3.5, Home Movie Super 8 2.6 -> 3). On the overcast window scene
+  every preset keeps the window frame within d(R-G) <= 0.021.
+* Soft Daylight Pastel: Print Density 1.5 -> 0.5, Color Density 0.95 -> 1, Bloom 0.35 -> 0.25, on the re-shaped
+  P2 print: whites reach 0.93 at +6 stops instead of a grey ceiling.
+* Silver Retention Thriller: Push/Pull 1 -> 0.5, Neg Bleach 0.25 -> 0.15 (-4 stops 0.031 -> 0.036).
+* Neon Nocturne: Print Density 0 -> -0.5, Halation 0.75 -> 0.6, on the re-shaped CN 800T (P1 +6 stops
+  0.86 -> 0.96). Night scenes only.
+* Slide Show Brilliance: Grain Amount 0.8 -> 1.2 (and RV 100's base grain is now that of a normal-speed
+  colour stock).
+* Home Movie Super 8: Push/Pull 1.5, Color Density 1.6, Grain Amount 0.9 -> 1.6, Grain Softness 0.75 -> 0.6,
+  Hal. Threshold 2.6 -> 3: its own bold colour, clearly grainier than every 35 mm look.
+* Every pair of presets now differs in colour alone (texture off, colour-only chart) by a mean CIEDE2000 >= 2
+  (render test `presets`), so no two looks share the same colour.

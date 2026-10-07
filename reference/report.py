@@ -32,18 +32,22 @@ spectral upsampling (octahedral direction LUT, magnitude = L1 norm)  ──►  
    ▼
 interlayer / DIR inhibition (luminance-neutral)  ──►  negative curves (push / pull / neutralize)
    ▼                                                         ──►  dye densities  + grain  + [bleach: silver]
-PRINT:    printer lamp × T_neg(λ) × print sensitivities  (3D LUT)  ──► print curves ──► print dyes [+ silver]
-          ──► projector lamp × T_print(λ) × CIE 1931 CMFs (3D LUT, log XYZ) ──► CAT16 → D65
-LAB SCAN: Status-M-like scanner (3D LUT) ──► neutral-referenced balanced inversion ──► lab matrix ──► scanner curve
-REVERSAL: positive curves ──► reversal dyes ──► projection (3D LUT)
+PRINT:    printer lamp × T_neg(λ) × print sensitivities  (64³ LUT)  ──► print curves ──► print dyes [+ silver]
+          ──► projector lamp × T_print(λ) × CIE 1931 CMFs (per-pixel 41-sample integral) ──► CAT16 → D65
+LAB SCAN: Status-M-like scanner (64³ LUT) ──► neutral-referenced balanced inversion (crossover, contrast)
+          ──► lab matrix + root-polynomial terms ──► scanner curve
+REVERSAL: positive curves ──► reversal dyes ──► projection (per-pixel integral)
    ▼
-display XYZ (white 1.0) ──► output primaries ──► smooth gamut compression ──► SDR limiter | HDR unroll ──► EOTF⁻¹
+display XYZ (white 1.0) ──► hue hold ──► output primaries ──► smooth gamut compression ──► SDR limiter | HDR unroll ──► EOTF⁻¹
 ```
 
-All spectral work happens on the host in double precision at 380–780 nm / 5 nm (81 samples)
-and is baked into LUTs; the per-pixel kernel (`src/kernels/ColorKernels.h`, identical on CPU,
-OpenCL, CUDA and Metal) costs a 2D lookup, nine 1D lookups, two trilinear 3D lookups and a few
-matrices. Reference implementation: `reference/model.py` (NumPy, float64); the C++ kernels agree
+All spectral design work happens on the host in double precision at 380–780 nm / 5 nm
+(81 samples). The printer and scanner steps are baked into 64³ LUTs; the projection (print or
+reversal original → display XYZ) is integrated **per pixel** over 41 samples (10 nm, trapezoid
+weights) so smooth gradients stay smooth after any later grade (no LUT ripple). The per-pixel
+kernel (`src/kernels/ColorKernels.h`, identical on CPU, OpenCL, CUDA and Metal) costs a 2D
+lookup, ~a dozen 1D lookups, one trilinear 3D lookup, the 41-term projection sum, the hue hold
+and a few matrices (≈ 2× the cost of the former two-LUT kernel). Reference implementation: `reference/model.py` (NumPy, float64); the C++ kernels agree
 with it to 5e-6 on encoded output (tests/core).
 
 ### 1.1 Input
@@ -109,7 +113,7 @@ The table is stock-independent and generated offline (`reference/gen_upsampling.
   a log-exposure offset for the printer, so it needs no extra LUT dimension.
 
 ### 1.4 Print, projection, scan, reversal, B&W
-* **Printing**: `log H_j = log10 Σ lamp·T_neg(λ)·S_print,j(λ)` baked as a 48³ LUT over the
+* **Printing**: `log H_j = log10 Σ lamp·T_neg(λ)·S_print,j(λ)` baked as a 64³ LUT over the
   negative dye amounts; **printer points**: +1 point = +0.025 log H on that layer (more red
   light → more cyan dye → *less* red in the image); `printExposure` +1 = 1 point less light on
   all layers (= brighter print).
@@ -119,40 +123,71 @@ The table is stock-independent and generated offline (`reference/gen_upsampling.
   the grey level.
 * **Print curves** γ ≈ 2.55–3.75; print bleach = retained silver `≈0.6·Σw(P − Pmin)` (P5 has
   0.6 of it built in).
-* **Projection**: `log XYZ = log10 Σ projector·T_print(λ)·CMF(λ)` (48³ LUT); Y normalised so
+* **Projection**: `XYZ = Σ_k w(k)·10^−(base(k) + Σ_i D_i·ε_i(k) + silver)` over 41 samples, the
+  weights w = projector·CMF·Δλ (computed per pixel, no LUT); Y normalised so
   the clear (unexposed, processed) print — base + dye fog — is display white 1.0. Chromatic
   adaptation from the projector white (lamp through a perfectly clear base) to D65 with
   **CAT16** (von Kries, D = 1): the current CIE recommendation, linear and well behaved for the
   large warm→D65 shift; print base tints (e.g. P4's yellowed base) stay visible.
-* **Lab Scan**: Status-M-like narrow-band scanner (448/545/652 nm) reads the negative (48³
+* **Lab Scan**: Status-M-like narrow-band scanner (448/545/652 nm) reads the negative (64³
   LUT); *neutral-referenced balanced inversion*: each channel is mapped through the neutral
   ramp onto the green channel's density scale (per-density grey balance, like a lab scanner),
-  so neutrals stay neutral at every exposure while the negative's latitude is kept; a per-stock
-  3×3 lab matrix (rows sum to 1) and a gentle scanner curve (γ @SG@, shoulder p @SP@) give the
-  flatter scan look: open, but not milky blacks (−10 stops ≈ 0.08 encoded, a print ≈ 0.05).
+  so neutrals stay neutral at every exposure while the negative's latitude is kept. A per-stock
+  share of the negative's own crossover is kept (`scanCrossover`, scanner default 0.3) and a
+  per-stock `scanContrast` scales the inversion, so each negative scans with its own tonal
+  character. Colour correction is a root-polynomial profile: a 3×3 matrix plus a 3×3 on
+  (√(r·g), √(g·b), √(r·b)), every row summing to 1 (neutrals and exposure homogeneity kept),
+  root terms bounded to ±0.3. It is fitted per stock (`reference/optimize.py scan`) to that
+  stock's own P1 print rendition (saturation and hue bias from its brief), with skies and cyans
+  held on the input hue and yellows weighted 2–4×, so the scans differ by stock (smallest
+  ΔE2000 between two scans ≥ 2.1) instead of all looking alike. A gentle scanner curve (γ @SG@,
+  shoulder p @SP@) gives the flatter scan look: open, but not milky blacks (−10 stops ≈ 0.08
+  encoded, a print ≈ 0.05).
   Printer points act as scanner balance (1 point ≈ the same display change as in print).
 * **Reversal**: positive curves (`D = Dmin + dev(x0 − x)`), reversal dyes → projection LUT;
   grey balance via per-layer exposure offsets (CC filtration). Print stock and Process are
   ignored.
 * **B&W**: one panchromatic layer (three identical layers internally), silver image; printed
   as a neutral silver image on the chosen print stock (its green-layer curve and its base tint),
-  so B&W on P4 is warm-toned. Grain is monochrome (the colour kernel uses the G noise channel).
+  so B&W on P4 is warm-toned; P4 additionally has a two-lobe `monoTone` absorption (470 nm and
+  540 nm, scaled by density) that gives its B&W prints a sepia tone (a* +1.6, b* +5.3 at mid grey). Grain is monochrome (the colour kernel uses the G noise channel).
 
-### 1.5 Output
+### 1.5 Hue hold
+Every per-layer log-domain tone scale bends a colour's path toward white in the highlights and
+toward black in the shadows (orange slides to yellow, red to pink, sky blue to cyan, skin to
+yellow-orange). The hold keeps the film's *mid-grey rendering* of each scene chromaticity as the
+hue anchor at every exposure: a 49² octahedral table stores the CIELAB (a, b) of the film's
+rendering of each chromaticity at 18 % grey luminance relative to the grey neutral, and a 512-entry
+table the film's neutral (incl. printer lights and user offsets) over the reference exposure. Per
+pixel, the colour's (a, b) relative to its own neutral is turned toward the anchor hue by
+`t = hold·w·(1 − exp(−1.3·stops²))` (zero at mid grey, so the film's own mid-tone colour is
+untouched), faded out for near-neutral colours (|anchor| < ~2 ΔE) and for nearly opposite hues
+(90°–160°, keeps the map continuous); chroma is raised by `1 + chromaHold·t` (30 % of that in the
+shadows, none for colours already near the gamut boundary). Y is unchanged, so tone scale and
+monotonicity are exactly those of the film. `hueHold`/`chromaHold` belong to the stock that is viewed:
+the print stock (1.0/0.8), the reversal stock (1.0/0.8) or the Lab Scan scanner (1.0/1.0). Exact CIELAB f with a* weighted 2.5× b*, so the
+angles are CIELAB hue angles.
+
+### 1.6 Output
 Display XYZ → output RGB (P3-DCI: DCI white encoding with D65 white simulated, scaled so D65
 white's largest channel is 1). **Gamut compression**: hue-preserving desaturation toward the
-luminance axis — saturation ratio `s = (Y − min)/Y` mapped by
-`s' = 0.85 + 0.15·x/√(1+x²)`, `x = (s − 0.85)/0.15` above 0.85 (C1, asymptote at the gamut
+luminance axis — saturation ratio `s = (Y − min)/Y` (min = smooth minimum of the three channels,
+ε = 0.02·Y, so there is no slope kink where the smallest channel changes) mapped by
+`s' = 0.80 + 0.20·x/√(1+x²)`, `x = (s − 0.80)/0.20` above 0.80 (C1, asymptote at the gamut
 boundary, no clipping steps). **SDR**: per-channel C1 tanh limiter from 0.95 to 1.0 (output never
 exceeds 1.0, monotonic per channel). **HDR**: mid grey → 15 cd/m² (scaled from the SDR grey of
 the same look); highlight **unroll** multiplies luminance by `10^(u·G)`, `G = Gmax·t²/(1+t²)`,
-`t = max(e − 0.30, 0)/0.90`, e = log10 scene exposure over grey, `Gmax = log10(peak/(Lref·Ywhite))`
-— monotonic, C1, approaches the peak (per-channel limiter from 0.8·peak). PQ per SMPTE ST 2084
+`t = max(e − 0.60, 0)/0.60`, e = log10 scene exposure over grey, Gmax calibrated so that +10 stops
+reaches the peak — monotonic, C1 (per-channel limiter from 0.9·peak). Highlights open up
+earlier and brighter than in v1.0 (+6 stops 534 → 680 cd/m², +10 stops 807 → 976 cd/m² at a
+1000 cd/m² peak). PQ per SMPTE ST 2084
 (`hdrPeakNits`); HLG per ITU-R BT.2100 with the 1000 cd/m² reference display (system γ 1.2,
-inverse OOTF on BT.2020 luminance), peak fixed at 1000.
+inverse OOTF on BT.2020 luminance), peak fixed at 1000, signal clipped to 1. Decoding replaces NaN by 0 and clamps ±Inf
+to ±65504 (an absurdly large code value renders white, never black).
 
-### 1.6 Kernel / state contract (for the engine, GPU and texture code)
-* State layout: `src/kernels/ColorState.h` (128-float header + OCT, NC, PL, PC, PJ/SC blocks).
+### 1.7 Kernel / state contract (for the engine, GPU and texture code)
+* State layout: `src/kernels/ColorState.h` (layout 3.0: 128-float header + OCT, NC, PL, PC, PJ/SC
+  and hold HA/HN blocks; PJ holds K×7 floats [base, ε0..2, wX, wY, wZ]).
   `Pipeline::stateVersion()` comes from one process-wide counter (unique across instances).
 * `color` / `display_finish`: in1 = grain field, xyz = R-, G-, B-sensitive layer, zero mean,
   unit variance; used when `inStride[1] != 0`. in2 = alpha source when `inStride[2] != 0`.
@@ -162,8 +197,9 @@ inverse OOTF on BT.2020 luminance), peak fixed at 1000.
   (SDR: 1.0 = display white; PQ/HLG: cd/m² / 100); `display_finish` adds grain in density
   (fading out toward SDR white, never pushing a legal value above 1.0) and encodes; with grain
   off the pair is an identity (≤ 1e-5).
-* Cost of `prepare()`: cache hit ≈ 0.3 ms; full bake of a new stock pair ≈ 20 ms on 4 threads,
-  ≈ 50 ms on one core (`CEL_BAKE_THREADS=1`).
+* Cost of `prepare()`: cache hit ≈ 0.3 ms; full bake of a new stock pair ≈ 35 ms on one core
+  (`CEL_BAKE_THREADS=1`); the hold anchor is re-baked only when the film changes (not for
+  printer lights, exposure or output changes).
 '''
 
 
@@ -189,11 +225,85 @@ foliage, overcast exterior, high-key and low-key interiors). Changes:
   and ≈ 0.08 at −10 (open, not milky); lab matrices re-fitted for every negative.
 * **P4 Faded Archive**: magenta-dye fog 0.08 → 0.135, yellow-dye fog 0.08 → 0.09: highlights are
   cream (a* +0.7, b* +3.9 at +6 stops) instead of yellow-green (a* −2.6).
-* **Halation scale** of the anti-halation-backed stocks ≈ −40 % (CN 200T 1.0 → 0.6): at the
-  default amount a bright overcast sky no longer paints red fringes on every dark edge.
-  CN 800T No-Backing 3.0 → 2.0 (still 3.3× CN 200T).
+* **Halation scale** of the anti-halation-backed stocks ≈ −40 % (CN 200T 1.0 → 0.6),
+  CN 800T No-Backing 3.0 → 2.0 (still 3.3× CN 200T). *(This alone did not stop a bright
+  overcast sky from painting red fringes on dark edges — the critique of v1.0 measured
+  d(R−G) 0.12 on a window frame; the actual fix is the halation energy model in section 5.1.)*
 * **CN 800T grain** σ 0.020/0.024/0.032 → 0.017/0.020/0.026, size 1.40 → 1.30: still the
   coarsest colour stock, without the harsh blue-layer sparkle in skies.
+
+
+### 5.1 Refinement round (v1.1)
+
+Every point of the v1.0 critique was re-measured through the real plug-in (ofxhost, dev licence)
+before it was changed; numbers are before → after.
+
+* **Halation flooding (critical).** The energy that feeds the halation blur was the linear
+  excess over the threshold, capped at 32× — a large bright overcast sky therefore fed as much
+  light into the red layer as a lamp. It is now a soft knee in stops above the threshold,
+  `e = (y − T)·s²/(s² + k²)`, `s = log2(y/T)`, k = 2 stops (a sky just above threshold feeds
+  almost nothing, a +8-stop source still most of its excess), the per-amount gain is 0.60 → 0.24,
+  the scale ladder concentrates energy near the source (relative radii 0.2…3.2, weights
+  0.16/0.24/0.24/0.18/0.12/0.06) and the default threshold is 2.5 → 3.5 stops. On the overcast
+  "person against a window" scene at default settings: window frame d(R−G) 0.120 → 0.005, face
+  edge dR 0.334 → 0.024; a +8-stop point source keeps a visible ring (dR 0.28 at 4 px). All
+  presets: window d(R−G) ≤ 0.021. Automated in `tools/render_tests` (`halation_daylight`).
+  The per-stock halation scales were *not* lowered further (the energy model is the cause).
+* **Print-path slope ripple.** Trilinear 48³ printer + projection LUTs made the slope of smooth
+  gradients ripple periodically. The projection is now integrated per pixel (41 samples), the
+  printer LUT is 64³, gamut compression uses a smooth channel minimum and starts at 0.80. Worst
+  print pair, relative slope ripple (Savitzky–Golay fit, normalised by the fastest channel):
+  neutral 0.084 → 0.032, sky 0.144 → 0.038, blue 0.132 → 0.034 (limit 0.05, tested for every
+  print in `tests/core` `smoothness`). Cost: CPU colour kernel 1080p ≈ 187 → 400 ms (one
+  thread per row, all cores), full bake 35 ms on one core.
+* **Lab Scan distinctness.** Scans are fitted to each stock's own P1 rendition with per-stock
+  saturation/hue bias (`briefs.json` `scan_sat`, `scan_hue_bias`), keep part of the negative's
+  crossover (`scanCrossover`) and have a per-stock `scanContrast`: smallest ΔE2000 between two
+  stocks under Lab Scan 0.37 → 2.17 (gate ≥ 2.0 in `reference/design.py gates`, ctest
+  `look_gates_distinct`).
+* **Lab Scan yellows.** Yellows are weighted 4× (below 100°) / 2× in the scan fit and the
+  root-polynomial terms bend saturated hues without moving neutrals: golden-hour field under
+  Lab Scan h 81–89° (input 82°, P1 75–93°), no longer spring-green.
+* **Skies and cyan, reds, skin and orange in highlights.** Root cause: every log-domain per-layer
+  tone scale bends hue toward the dye primaries/secondaries as exposure moves away from grey; no
+  curve fit removes it for all hues. Fixed structurally by the hue hold (section 1.5) plus print
+  sensitivities 30 % narrower and re-optimised negatives. CN 200T / P1: daylight sky
+  L68 C16 h241 → L69 C32 h258 (input L85 C35 h259); chart red +2…+4 stops 31 → 21° became
+  29 → 27°; F-Gamut red 21 → 0° became 14 → 9°; skin at +3 stops 68° → 58°, at +6 77° → 63°
+  (input 57°); orange at +2 stops 78–82° → 61° (input 59°). Aims (sky ±6°, chroma ≥ 0.7;
+  skin ±5° at +1…+3; orange ±10° at +2; red/rose/magenta ±10° at +2…+4; deep skin ±12° at −2,
+  chroma ≥ 0.4) are gated for the core stocks (50D, 200T, 250D, 500T, Portrait 400 on P1 and
+  200T Lab Scan): 0 misses (`reference/aims.py`, ctest `look_gates_aims`). Character stocks
+  and special prints are reported, not gated. The chart cyan patch lies outside Rec.709, so its
+  chroma is judged on the film's XYZ, not on clipped display RGB.
+* **Grain colour.** Inter-layer grain correlation 0.40 → 0.90, shared clump scale 1.6 → 1.2,
+  colour-stock granularity × 0.84 so luminance grain is unchanged: CN 200T chroma/L* noise
+  1.68/0.94 → 0.83/0.98 (ratio 1.8 → 0.85); Tungsten Night Drama 0.73, Archive 1978 0.84.
+  Render test checks the layer correlation (0.72–0.97).
+* **RV 100 Slide.** D-max and shoulder sharpness up (R × 1.44, p 2.6 → 4.5), γ × 1.18, toe
+  k × 1.4, granularity 0.006/0.007/0.010 → 0.0101/0.0118/0.0168 (the critic's 0.012/0.014/0.020
+  × the 0.84 chroma-grain rescale): −6 stops 0.083 → 0.032 (aim ≤ 0.035), −10 stops 0.015, near clip by +4.5.
+* **CN 800T No-Backing.** Shoulder lifted (R × 1.3, p 2 → 2.8), re-neutralised: P1 +6 stops
+  0.857 → 0.956, +8 0.899 → 0.976 (the low "white ceiling" of the neon look is gone).
+* **P2 Low Contrast.** Toe softer (k 4 → 6.5), γ 2.55 → 2.4, dye secondaries × 2.5 so the low
+  contrast comes from the toe and mids: CN 200T / P2 +6 stops 0.902 → 0.971, Soft Daylight
+  Pastel flat field +6 stops 0.934.
+* **P4 Faded Archive B&W.** `monoTone` sepia absorption: B&W mid grey a*/b* −1.7/+3.6 (olive)
+  → +1.6/+5.3 (warm).
+* **CN Vintage 85.** Cyan-layer toe re-fitted: shadow a* −1.7 → −0.1 (−6…−2 stops), highlights
+  keep b* +4…+5.
+* **HDR headroom.** Unroll starts later and steeper and is calibrated at +10 stops: at a
+  1000 cd/m² peak +10 stops 807 → 976 cd/m²; +6 stops 534 → 680 cd/m² (brighter than asked to
+  keep — accepted, highlights match the SDR look better).
+* **Rejected / partial.** Widening the red brightness dip of the upsampling (σ 8° → 14°) did not
+  change the F-Gamut red/rose sweeps (the drift was log-domain desaturation, fixed by the hue
+  hold) — reverted. Capping P3's low-chroma gain at 1.35 (measured 1.48 on CN 200T, 1.13–1.96
+  across negatives) needs dye impurities that turn skies 10–20° cyan — rejected; the gain is
+  reported by `reference/aims.py` but not gated. The suggested 0.15 logE yellow-layer shoulder
+  delay was not applied: the hue hold fixes orange and skin in the highlights without changing
+  the grey scale. Silver Retention Thriller −4 stops is 0.031 → 0.036 (aim 0.045, partial: P5's
+  deep D-max is its character; the suggested printExposure 0.5 → 0 would darken the shadows
+  further, so pushPull 1 → 0.5 and negBleach 0.25 → 0.15 were used instead).
 '''
 
 
@@ -273,6 +383,17 @@ def main():
     off2 = T2[~np.eye(len(pn), dtype=bool)]
     L.append('')
     L.append('Smallest difference between two different prints: **%.1f**.' % off2.min())
+    L.append('')
+    TS = design.scan_deltae(lib)
+    sn = sorted(set([k[0] for k in TS] + [k[1] for k in TS]))
+    L.append('| (Lab Scan) | ' + ' | '.join(lib.negs[i]['name'] for i in sn) + ' |')
+    L.append('|---|' + '---|' * len(sn))
+    for a in sn:
+        L.append('| %s | ' % lib.negs[a]['name'] + ' | '.join(
+            fmt(0.0 if a == b else TS[(min(a, b), max(a, b))], 1) for b in sn) + ' |')
+    L.append('')
+    L.append('Smallest difference between two different negatives through the Lab Scan (chart + skin): **%.2f**.'
+             % min(TS.values()))
     L.append('')
     L.append(REVISION)
     L.append('')
