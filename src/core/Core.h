@@ -127,7 +127,8 @@ private:
     std::shared_ptr<Cache> m_cache;
 };
 
-// Write an Adobe/Resolve .cube 3D LUT of processColor() over [0,1]^3 input code values.
+// Write an Adobe/Resolve .cube 3D LUT of processColor() over [0,1]^3 input code values
+// (Linear Rec.2020 input: with a 1D log2 shaper in the same file, see Core.cpp).
 // size: 17, 33 or 65. Returns false and fills err on failure.
 bool writeCubeLUT(const Pipeline& pipe, int size, const std::string& path, const std::string& title, std::string* err);
 

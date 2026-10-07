@@ -80,6 +80,10 @@ for every real colour and stays smooth.
 opponent basis, 97×97, odd so that texel lines lie on the map's two kink lines through the
 neutral axis): it covers all of RGB space incl. negative and out-of-gamut values. Exposure is
 `L1(rgb) × K(direction)`, hence exactly homogeneous (`E(k·rgb) = k·E(rgb)`, tested to 1e-7).
+The per-stock table stores `log10 K` and is interpolated in the log domain (the small minority-
+layer K of a saturated direction curves strongly across texels: bilinear interpolation of linear
+K was off by up to 0.2 stops, log-domain interpolation by 0.06; directions without a spectrum are
+filled outward one decade per texel, floor 10⁻¹⁰).
 *Out of gamut.* Chromaticity is soft-clipped toward D65 along the dominant-wavelength line
 (relative purity identity up to 0.65, C1 tanh roll-off to 0.92 of the spectral locus), luminance
 kept (with a smooth floor 0.03·(X⁺+Y⁺+Z⁺) for imaginary colours whose Y is tiny/negative);
@@ -162,9 +166,13 @@ table the film's neutral (incl. printer lights and user offsets) over the refere
 pixel, the colour's (a, b) relative to its own neutral is turned toward the anchor hue by
 `t = hold·w·(1 − exp(−1.3·stops²))` (zero at mid grey, so the film's own mid-tone colour is
 untouched), faded out for near-neutral colours (|anchor| < ~2 ΔE) and for nearly opposite hues
-(90°–160°, keeps the map continuous); chroma is raised by `1 + chromaHold·t` (30 % of that in the
-shadows, none for colours already near the gamut boundary). Y is unchanged, so tone scale and
-monotonicity are exactly those of the film. `hueHold`/`chromaHold` belong to the stock that is viewed:
+(90°–160°, keeps the map continuous). Chroma C (relative to the film's neutral) is raised to
+`C + b·C/(1 + (C/C₀)⁴)`, `b = chromaHold·t'·(0.3 + 0.7·ss(stops))` (30 % in the shadows; t' = t
+without the anchor validity weight w), C₀ = 0.20 (40 CIELAB C*). Its slope `1 + b(1 − 3q)/(1 + q)²`
+(q = (C/C₀)⁴) is ≥ 1 − 0.56·b > 0, so the hold is monotonic in the film's chroma by construction: a
+more saturated film colour always stays more saturated (tests/core sweeps scene saturation on every
+pair); the boost fades for colours already near the gamut boundary. Y is unchanged, so the tone
+scale and its monotonicity are exactly those of the film. `hueHold`/`chromaHold` belong to the stock that is viewed:
 the print stock (1.0/0.8), the reversal stock (1.0/0.8) or the Lab Scan scanner (1.0/1.0). Exact CIELAB f with a* weighted 2.5× b*, so the
 angles are CIELAB hue angles.
 

@@ -557,18 +557,38 @@ Float3 Pipeline::processColor(Float3 e) const {
 }
 
 // ------------------------------------------------------------------------- .cube export
+// Scene-linear input (Linear Rec.2020) has no camera log curve: a uniform [0,1] lattice would clip
+// everything above 1.0 (+2.5 stops over grey) and put all shadows below 18 % grey into ~6 lattice
+// intervals. Such LUTs carry a 1D log2 shaper in the same .cube (Resolve / Adobe 1D+3D layout:
+// LUT_1D_INPUT_RANGE over scene-linear values, shaper output = 3D lattice coordinate in [0,1]):
+//   t(x) = (log2(max(x, lo) + o) - log2(lo + o)) / R,  o = 0.18 * 2^-7,  lo = -o / 2,
+//   R = log2(hi + o) - log2(lo + o),  hi = 0.18 * 2^8.5   (~ -8.5 .. +8.5 stops around grey)
+namespace {
+constexpr double kShO = 0.18 / 128.0, kShLo = -0.5 * kShO, kShHi = 0.18 * 362.03867196751236;
+inline double shaperR() { return std::log2(kShHi + kShO) - std::log2(kShLo + kShO); }
+inline double shaperFwd(double x) {
+    return (std::log2(std::max(x, kShLo) + kShO) - std::log2(kShLo + kShO)) / shaperR();
+}
+inline double shaperInv(double t) { return std::exp2(t * shaperR() + std::log2(kShLo + kShO)) - kShO; }
+constexpr int kShaperSize = 16384;
+bool cubeUsesShaper(InputSpace in) { return in == InputSpace::LinearRec2020; }
+} // namespace
+
 bool writeCubeLUT(const Pipeline& pipe, int size, const std::string& path, const std::string& title, std::string* err) {
     if (size != 17 && size != 33 && size != 65) {
         if (err) *err = "LUT size must be 17, 33 or 65";
         return false;
     }
     const int N = size;
+    const bool shaper = cubeUsesShaper(pipe.params().input);
+    std::vector<float> axis(static_cast<size_t>(N), 0.0f);
+    for (int i = 0; i < N; ++i) axis[size_t(i)] = float(shaper ? shaperInv(double(i) / (N - 1)) : double(i) / (N - 1));
     std::vector<float> rgb(size_t(N) * N * N * 3);
     parallelRows(N, [&](int b0, int b1) {
         for (int b = b0; b < b1; ++b)
             for (int g = 0; g < N; ++g)
                 for (int r = 0; r < N; ++r) {
-                    Float3 o = pipe.processColor({float(r) / (N - 1), float(g) / (N - 1), float(b) / (N - 1)});
+                    Float3 o = pipe.processColor({axis[size_t(r)], axis[size_t(g)], axis[size_t(b)]});
                     float* p = &rgb[((size_t(b) * N + g) * N + r) * 3];
                     p[0] = o.r; p[1] = o.g; p[2] = o.b;
                 }
@@ -578,10 +598,24 @@ bool writeCubeLUT(const Pipeline& pipe, int size, const std::string& path, const
     std::string t = title;
     for (char& c : t) if (c == '"' || c == '\n' || c == '\r') c = ' ';
     os << "TITLE \"" << t << "\"\n";
-    os << "# Created by Celluloid Pro. Input: encoded camera code values [0,1]; output: encoded display values.\n";
-    os << "LUT_3D_SIZE " << N << "\n";
-    os << "DOMAIN_MIN 0.0 0.0 0.0\nDOMAIN_MAX 1.0 1.0 1.0\n";
-    char buf[96];
+    char buf[128];
+    if (shaper) {
+        os << "# Created by Celluloid Pro. Input: scene-linear Rec.2020 through a 1D log2 shaper "
+              "(-8.5 .. +8.5 stops around 18 % grey); output: encoded display values.\n";
+        std::snprintf(buf, sizeof(buf), "LUT_1D_SIZE %d\nLUT_1D_INPUT_RANGE %.9g %.9g\n", kShaperSize, kShLo, kShHi);
+        os << buf;
+        os << "LUT_3D_SIZE " << N << "\nLUT_3D_INPUT_RANGE 0.0 1.0\n";
+        for (int k = 0; k < kShaperSize; ++k) {
+            const double x = kShLo + (kShHi - kShLo) * double(k) / (kShaperSize - 1);
+            const double v = std::min(std::max(shaperFwd(x), 0.0), 1.0);
+            std::snprintf(buf, sizeof(buf), "%.7f %.7f %.7f\n", v, v, v);
+            os << buf;
+        }
+    } else {
+        os << "# Created by Celluloid Pro. Input: encoded camera code values [0,1]; output: encoded display values.\n";
+        os << "LUT_3D_SIZE " << N << "\n";
+        os << "DOMAIN_MIN 0.0 0.0 0.0\nDOMAIN_MAX 1.0 1.0 1.0\n";
+    }
     for (size_t i = 0; i < size_t(N) * N * N; ++i) {
         std::snprintf(buf, sizeof(buf), "%.6f %.6f %.6f\n", double(rgb[i * 3]), double(rgb[i * 3 + 1]), double(rgb[i * 3 + 2]));
         os << buf;

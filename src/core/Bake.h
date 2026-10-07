@@ -33,7 +33,7 @@ spec::Spectrum baseDensity(const stocks::BaseDef& b);
 struct Lut { std::vector<float> data; int n = 0; double maxv = 0.0; };
 
 // cached blocks (immutable once built)
-struct ExposureBake { Lut oct; };                       // octahedral K LUT, N x N x 3
+struct ExposureBake { Lut oct; };                       // octahedral log10 K LUT, N x N x 3
 struct DyeLutBake { Lut lut; };                         // N^3 x 3 log10 exposures / XYZ
 struct ProjBake { Lut lut; /* spectral PJ table K x 7, n = K, maxv = dye domain */ spec::Mat3 cat; double pmin[3]; std::vector<float> pcurve; };   // pcurve: print curves 3 x kNCurve
 

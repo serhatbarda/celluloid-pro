@@ -25,7 +25,7 @@ class Direct:
         if self.mono:
             prt = m.print_mono_variant(prt)
         self.prt = prt
-        self.K = m.bake_exposure_lut(lib, neg)
+        self.LK = m.log_exposure_table(m.bake_exposure_lut(lib, neg), lib.up_a.reshape(lib.N_OCT, lib.N_OCT) > 0)
         rev = neg['kind'] == 'reversal'
         cs = neg['curves'] if not self.mono else [neg['curves'][0]] * 3
         self.ncs = [m.push_params(c, push, rev) for c in cs]
@@ -67,9 +67,7 @@ class Direct:
         return np.stack([m.neg_curve_eval(c, x[:, i], self.rev) for i, c in enumerate(self.ncs)], 1)
 
     def exposures(self, rgb):
-        u, v, L1 = sp.oct_encode(rgb)
-        K = m.lut2d(self.K, u, v)
-        return np.log10(np.maximum(L1[:, None] * K, 1e-10))
+        return m.exposures_from_log_table(self.LK, rgb)
 
     def densities(self, rgb):
         x = self.exposures(rgb)

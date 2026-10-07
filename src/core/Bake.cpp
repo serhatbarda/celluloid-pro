@@ -303,18 +303,63 @@ std::shared_ptr<const ExposureBake> exposureLut(int neg) {
         }
         const std::vector<double>& R = upsampleR();
         auto b = std::make_shared<ExposureBake>();
-        const int NN = CEL_UPSAMPLE_N * CEL_UPSAMPLE_N;
-        b->oct.n = CEL_UPSAMPLE_N;
-        b->oct.data.resize(size_t(NN) * 3);
+        const int N = CEL_UPSAMPLE_N, NN = N * N;
+        // log10 K per texel (the kernel interpolates in the log domain); directions without a
+        // spectrum (a_u = 0) are filled outward from the valid region, one decade darker per texel
+        // step (8-neighbour dilation), floored at CEL_LOGK_FLOOR (== reference/model.py
+        // log_exposure_table)
+        std::vector<double> L(size_t(NN) * 3, 0.0);
+        std::vector<char> filled(size_t(NN), 0);
+        int nFilled = 0;
         for (int t = 0; t < NN; ++t) {
             const double* r = &R[size_t(t) * NWL];
             double a = kUpsampleTable[t * 4 + 3];
+            if (!(a > 0.0)) continue;
+            filled[size_t(t)] = 1;
+            ++nFilled;
             for (int i = 0; i < 3; ++i) {
                 double e = 0;
                 for (int l = 0; l < NWL; ++l) e += r[l] * w[i][l];
-                b->oct.data[size_t(t) * 3 + i] = float(e * a);
+                L[size_t(t) * 3 + i] = std::log10(std::max(e * a, std::pow(10.0, double(CEL_LOGK_FLOOR))));
             }
         }
+        while (nFilled < NN) {
+            std::vector<double> L2 = L;
+            std::vector<char> f2 = filled;
+            int grown = 0;
+            for (int j = 0; j < N; ++j)
+                for (int i = 0; i < N; ++i) {
+                    const size_t t = size_t(j) * size_t(N) + size_t(i);
+                    if (filled[t]) continue;
+                    bool hit = false;
+                    double best[3] = {-HUGE_VAL, -HUGE_VAL, -HUGE_VAL};
+                    for (int dj = -1; dj <= 1; ++dj)
+                        for (int di = -1; di <= 1; ++di) {
+                            const int jj = j + dj, ii = i + di;
+                            if ((dj == 0 && di == 0) || jj < 0 || jj >= N || ii < 0 || ii >= N) continue;
+                            const size_t q = size_t(jj) * size_t(N) + size_t(ii);
+                            if (!filled[q]) continue;
+                            hit = true;
+                            for (int c = 0; c < 3; ++c) best[c] = std::max(best[c], L[q * 3 + size_t(c)]);
+                        }
+                    if (!hit) continue;
+                    for (int c = 0; c < 3; ++c) L2[t * 3 + size_t(c)] = std::max(best[c] - 1.0, double(CEL_LOGK_FLOOR));
+                    f2[t] = 1;
+                    ++grown;
+                }
+            if (grown == 0) {                       // no valid texel at all
+                for (size_t t = 0; t < size_t(NN); ++t)
+                    if (!f2[t]) for (int c = 0; c < 3; ++c) L2[t * 3 + size_t(c)] = double(CEL_LOGK_FLOOR);
+                L.swap(L2);
+                break;
+            }
+            nFilled += grown;
+            L.swap(L2);
+            filled.swap(f2);
+        }
+        b->oct.n = N;
+        b->oct.data.resize(size_t(NN) * 3);
+        for (size_t k = 0; k < L.size(); ++k) b->oct.data[k] = float(L[k]);
         return std::shared_ptr<const ExposureBake>(b);
     });
 }

@@ -110,7 +110,7 @@ CEL_DEVICE CelF3 celc_oct_uv(CelF3 rgb) {
     return cel_f3(u, v, L1);
 }
 
-/* octahedral direction of scene RGB (opponent basis) -> layer log10 exposures */
+/* octahedral direction of scene RGB (opponent basis) -> layer log10 exposures (log10 L1 + log10 K) */
 CEL_DEVICE CelF3 celc_exposures(CEL_GLOBAL const float* s, CelF3 rgb) {
     CelF3 o = celc_oct_uv(rgb);
     float u = o.x, v = o.y, L1 = o.z;
@@ -124,11 +124,12 @@ CEL_DEVICE CelF3 celc_exposures(CEL_GLOBAL const float* s, CelF3 rgb) {
     CEL_GLOBAL const float* p01 = p00 + n * 3;
     CEL_GLOBAL const float* p11 = p01 + 3;
     float w00 = (1.0f - fu) * (1.0f - fv), w10 = fu * (1.0f - fv), w01 = (1.0f - fu) * fv, w11 = fu * fv;
-    CelF3 K = cel_f3(p00[0] * w00 + p10[0] * w10 + p01[0] * w01 + p11[0] * w11,
-                     p00[1] * w00 + p10[1] * w10 + p01[1] * w01 + p11[1] * w11,
-                     p00[2] * w00 + p10[2] * w10 + p01[2] * w01 + p11[2] * w11);
-    return cel_f3(cel_log10(cel_fmax(L1 * K.x, 1e-10f)), cel_log10(cel_fmax(L1 * K.y, 1e-10f)),
-                  cel_log10(cel_fmax(L1 * K.z, 1e-10f)));
+    /* the table holds log10 K (bilinear in the log domain: the small minority-layer K of saturated
+     * directions curves strongly across texels) */
+    float l1 = cel_log10(cel_fmax(L1, 1e-30f));
+    return cel_f3(cel_fmax(l1 + p00[0] * w00 + p10[0] * w10 + p01[0] * w01 + p11[0] * w11, CEL_LOGK_FLOOR),
+                  cel_fmax(l1 + p00[1] * w00 + p10[1] * w10 + p01[1] * w01 + p11[1] * w11, CEL_LOGK_FLOOR),
+                  cel_fmax(l1 + p00[2] * w00 + p10[2] * w10 + p01[2] * w01 + p11[2] * w11, CEL_LOGK_FLOOR));
 }
 
 typedef struct { CelF3 d; float silver; float xref; } CelcNeg;
@@ -238,7 +239,7 @@ CEL_DEVICE CelcFilm celc_film_xyz(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 no
  * CIELAB coordinates (f = CIELAB f(XYZ / W_D65), a = 2.5 (f_x - f_y), b = f_y - f_z) the colour's (a, b)
  * relative to the film's own neutral at the same exposure and luminance (crossover tints and
  * printer lights stay) is turned toward the anchor's (relative to the grey neutral) by
- * t = hold * w * (1 - exp(-K stops^2)), its length scaled by 1 + chromaHold * t; Y unchanged.
+ * t = hold * w * (1 - exp(-K stops^2)), its length raised by a monotonic chroma hold; Y unchanged.
  * == reference/model.py Pipeline.apply_hold */
 /* CIELAB f(t) and its inverse (cube root above (6/29)^3, linear segment below) */
 CEL_DEVICE float celc_labf(float x) { return x > 0.008856451679f ? cel_pow(x, 0.333333333333333f) : 7.787037037f * x + 0.137931034f; }
@@ -263,7 +264,9 @@ CEL_DEVICE CelF3 celc_hold(CEL_GLOBAL const float* s, CelF3 X, float xref, CelF3
     float d1 = p00[1] * w00 + p10[1] * w10 + p01[1] * w01 + p11[1] * w11;
     float aw = p00[3] * w00 + p10[3] * w10 + p01[3] * w01 + p11[3] * w11;
     float st = cel_log2(Ys / 0.18f);
-    float t = hold * aw * (1.0f - cel_exp(-CEL_HOLD_K * st * st));
+    /* g: hold strength without the anchor validity weight aw (the chroma hold uses g: aw falls along
+     * a saturation ramp toward the gamut edge and would fold the chroma); hue turn t = g * aw */
+    float g = hold * (1.0f - cel_exp(-CEL_HOLD_K * st * st));
     int nno = celc_i(s, CEL_CS_HOLD_N_OFF), nnn = celc_i(s, CEL_CS_HOLD_N_N);
     CelF3 nt = celc_lut1_3(s, nno, nnn, CEL_HOLD_X0, CEL_HOLD_X1, cel_f3(xref, xref, xref));
     float cy = celc_labf(X.y);
@@ -278,18 +281,24 @@ CEL_DEVICE CelF3 celc_hold(CEL_GLOBAL const float* s, CelF3 X, float xref, CelF3
     /* near-neutral colours (chroma below ~1..4 CIELAB units relative to the film's neutral) are left
      * alone: their hue is meaningless and the neutral table's interpolation residual must not be
      * amplified */
-    t *= cel_smoothstep(0.002f, 0.008f, dn);
+    g *= cel_smoothstep(0.002f, 0.008f, dn);
     /* turn by t times the (wrapped) hue angle difference: well conditioned for any pair of hues */
     float hc = cel_atan2(c1, c0), dh = cel_atan2(d1, d0) - hc;
     if (dh > CEL_PI) dh -= 2.0f * CEL_PI;
     if (dh < -CEL_PI) dh += 2.0f * CEL_PI;
     /* opposite hues (|dh| -> 180 deg, near-neutral noise): fade the turn out so the wrap is continuous */
-    t *= 1.0f - cel_smoothstep(0.5f * CEL_PI, 0.9f * CEL_PI, cel_fabs(dh));
-    /* full chroma hold in the highlights (skies), 30 % of it in the shadows */
-    /* (already strongly saturated colours are not boosted: they would only be cut back by the
-     * display gamut mapping) */
-    float h = hc + t * dh, k = cn * (1.0f + s[CEL_CS_HOLD_CHROMA] * t * (0.3f + 0.7f * cel_smoothstep(-0.5f, 0.5f, st)) *
-                                               (1.0f - cel_smoothstep(0.12f, 0.30f, cn)));
+    g *= 1.0f - cel_smoothstep(0.5f * CEL_PI, 0.9f * CEL_PI, cel_fabs(dh));
+    float h = hc + g * aw * dh;
+    /* chroma hold, full in the highlights (skies), 30 % of it in the shadows:
+     *   k = cn + b cn / (1 + q),  q = (cn / C0)^4,  b = chromaHold g (0.3 + 0.7 ss(st)) <= 1.5
+     * dk/dcn = 1 + b (1 - 3q) / (1 + q)^2 >= 1 - 0.5625 b > 0: monotonic by construction (a more
+     * saturated film colour always renders more saturated). The boost is ~ b cn for weak colours,
+     * peaks at ~0.11 b near cn = 0.76 C0 and fades for strongly saturated colours, which the display
+     * gamut mapping would only cut back. */
+    float b = cel_fmin(s[CEL_CS_HOLD_CHROMA] * g * (0.3f + 0.7f * cel_smoothstep(-0.5f, 0.5f, st)), 1.5f);
+    float qc = cn * (1.0f / CEL_HOLD_C0);
+    qc = qc * qc;
+    float k = cn + b * cn / (1.0f + qc * qc);
     float e0 = an0 + cel_cos(h) * k, e1 = an1 + cel_sin(h) * k;
     return cel_f3(CEL_D65_X * celc_labfinv(e0 * 0.4f + cy), X.y, CEL_D65_Z * celc_labfinv(cy - e1));
 }

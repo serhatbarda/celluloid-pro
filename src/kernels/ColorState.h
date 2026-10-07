@@ -7,7 +7,7 @@
  *
  *   block              layout                                         domain / meaning
  *   OCT  (exposure)    N x N x 3, row = v index, column = u index       octahedral direction of scene RGB
- *                      (corner aligned on [-1,1]^2)                     -> layer exposure per unit L1 magnitude
+ *                      (corner aligned on [-1,1]^2)                     -> log10 layer exposure per unit L1 magnitude
  *   NC   (neg curves)  3 x N (layer-major)                              log10 E in [NC_X0, NC_X1] -> dye density
  *   PL   (dye LUT)     N^3 x 3, index ((i0*N + i1)*N + i2)*3 + c        neg dye amounts [0, PL_MAX]^3 ->
  *                                                                       print: log10 print-layer exposure,
@@ -29,7 +29,7 @@
 #define CEL_COLOR_STATE_H
 
 #define CEL_CS_MAGIC_VALUE   7341.0f
-#define CEL_CS_LAYOUT_VALUE  3.0f
+#define CEL_CS_LAYOUT_VALUE  4.0f
 #define CEL_CS_HEADER        128
 
 /* header indices */
@@ -107,6 +107,8 @@
 #define CEL_SCAN_FLOOR     1.0e-3f
 #define CEL_HOLD_X0        (-6.0f)
 #define CEL_HOLD_X1        4.0f
+#define CEL_LOGK_FLOOR     (-10.0f)  /* floor of the layer log10 exposures (OCT block, celc_exposures) */
+#define CEL_HOLD_C0        0.20f     /* chroma-hold roll-off (CIELAB C* / 200), see celc_hold */
 #define CEL_HOLD_K         1.3f      /* hold weight t = hold * (1 - exp(-K stops^2)) */
 #define CEL_D65_X          0.95045592705167f
 #define CEL_D65_Z          1.08905775075988f

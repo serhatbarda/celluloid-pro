@@ -49,6 +49,7 @@ HOLD_N = 49                          # hue-hold anchor grid (octahedral directio
 HOLD_NX = 512                        # hue-hold neutral table over the reference log exposure
 HOLD_X0, HOLD_X1 = -6.0, 4.0
 HOLD_W = (0.3127 / 0.3290, 1.0, (1.0 - 0.3127 - 0.3290) / 0.3290)   # D65 white XYZ
+HOLD_C0 = 0.20                      # chroma-hold roll-off (CIELAB C* / 200)
 HOLD_K = 1.3                        # hold weight 1 - exp(-HOLD_K stops^2) away from grey
 
 INPUTS = ['FLog2C', 'FLog2', 'FLog', 'DaVinciIntermediate', 'ArriLogC3', 'ArriLogC4',
@@ -452,6 +453,45 @@ def bake_exposure_lut(lib, neg):
     return K.reshape(N, N, 3)
 
 
+LOGK_FLOOR = -10.0      # log10 exposure floor (== kernel)
+
+
+def log_exposure_table(K, valid):
+    """log10 K for the device table (interpolated in the log domain: the minority-layer K of a
+    saturated direction is small and curves strongly across texels, linear interpolation of K was
+    off by up to 0.2 stops). Directions without a spectrum (a_u = 0, non-physical) get no -inf:
+    they are filled outward from the valid region, one decade darker per texel step (8-neighbour
+    dilation, deterministic), then floored at LOGK_FLOOR (== src/core/Bake.cpp exposureLut)."""
+    L = np.where(valid[..., None], np.log10(np.maximum(K, 10.0 ** LOGK_FLOOR)), -np.inf)
+    filled = valid.copy()
+    while not filled.all():
+        P = np.pad(L, ((1, 1), (1, 1), (0, 0)), constant_values=-np.inf)
+        F = np.pad(filled, 1, constant_values=False)
+        best = np.full(L.shape, -np.inf)
+        hit = np.zeros(filled.shape, bool)
+        N0, N1 = filled.shape
+        for dj in (-1, 0, 1):
+            for di in (-1, 0, 1):
+                if dj or di:
+                    best = np.maximum(best, P[1 + dj:1 + dj + N0, 1 + di:1 + di + N1])
+                    hit |= F[1 + dj:1 + dj + N0, 1 + di:1 + di + N1]
+        grow = hit & ~filled
+        if not grow.any():                    # nothing valid at all
+            L[~filled] = LOGK_FLOOR
+            break
+        L = np.where(grow[..., None], np.maximum(best - 1.0, LOGK_FLOOR), L)
+        filled = filled | grow
+    return L
+
+
+def exposures_from_log_table(LK, rgb):
+    """layer log10 exposures of scene RGB: log10 L1 + bilinear log10 K (== kernel celc_exposures)"""
+    u, v, L1 = sp.oct_encode(rgb)
+    with np.errstate(divide='ignore'):
+        l1 = np.log10(np.maximum(L1, 1e-30))
+    return np.maximum(l1[:, None] + lut2d(LK, u, v), LOGK_FLOOR)
+
+
 def dmax_neg(neg):
     cs = neg['curves'] if neg['kind'] != 'bw' else [neg['curves'][0]]
     return max(c['fog'] + c['R'] for c in cs) * 1.15 + 0.35
@@ -657,7 +697,7 @@ class Pipeline:
         self.Min = f32(input_matrix(p.input))
         self.gain = 2.0 ** p.exposure
         # exposure LUT
-        self.K = f32(bake_exposure_lut(lib, neg))
+        self.LK = f32(log_exposure_table(bake_exposure_lut(lib, neg), lib.up_a.reshape(lib.N_OCT, lib.N_OCT) > 0))
         # negative / reversal curves
         nc, gam = build_neg_curves(neg, p.push, p.neutralize)
         self.ncurve = f32(nc)
@@ -787,8 +827,10 @@ class Pipeline:
         A = lut2d(self.hold_a, u, v)
         Ys = rgb_scene @ sp.LUM2020
         st = np.log2(np.maximum(Ys, 1e-10) / 0.18)
-        t = self.hold * A[:, 3] * (1.0 - np.exp(-HOLD_K * st * st))
-        t = np.where(Ys > 1e-10, t, 0.0)
+        # g: hold strength without the anchor validity weight (the chroma hold below uses it: the
+        # weight falls along a saturation ramp toward the gamut edge and would fold the chroma)
+        g = self.hold * (1.0 - np.exp(-HOLD_K * st * st))
+        g = np.where(Ys > 1e-10, g, 0.0)
         n = np.stack([lut1d(self.hold_n[c], HOLD_X0, HOLD_X1, xref) for c in range(3)], 1)
         W = np.array(HOLD_W)
 
@@ -812,13 +854,21 @@ class Pipeline:
         an = np.linalg.norm(ca, axis=1)
         good = (cn > 1e-9) & (an > 1e-9) & (Y > 1e-10) & (Ys > 1e-10)
         sst = lambda e0, e1, x: (lambda q: q * q * (3 - 2 * q))(np.clip((x - e0) / (e1 - e0), 0.0, 1.0))
-        t = t * sst(0.002, 0.008, an)
+        g = g * sst(0.002, 0.008, an)
         hc = np.arctan2(c[:, 1], c[:, 0])
         dh = np.arctan2(ca[:, 1], ca[:, 0]) - hc
         dh = np.where(dh > np.pi, dh - 2 * np.pi, np.where(dh < -np.pi, dh + 2 * np.pi, dh))
-        t = t * (1.0 - sst(0.5 * np.pi, 0.9 * np.pi, np.abs(dh)))
+        g = g * (1.0 - sst(0.5 * np.pi, 0.9 * np.pi, np.abs(dh)))
+        t = g * A[:, 3]
         h = hc + t * dh
-        k = cn * (1.0 + self.hold_chroma * t * (0.3 + 0.7 * sst(-0.5, 0.5, st)) * (1.0 - sst(0.12, 0.30, cn)))
+        # chroma hold: k = cn + b cn / (1 + (cn / C0)^4), b = chromaHold g (0.3 + 0.7 ss(st)) <= 1.
+        # dk/dcn = 1 + b (1 - 3 q) / (1 + q)^2 (q = (cn / C0)^4) >= 1 - 0.5625 b > 0: monotonic by
+        # construction (a more saturated film colour always renders more saturated); the boost is
+        # ~ b cn for weak colours, at most ~0.11 b near cn = 0.76 C0, and fades for strongly saturated
+        # colours, which the display gamut mapping would only cut back
+        b = np.minimum(self.hold_chroma * g * (0.3 + 0.7 * sst(-0.5, 0.5, st)), 1.5)
+        q = (cn / HOLD_C0) ** 4
+        k = cn + b * cn / (1.0 + q)
         c2 = abn + np.stack([np.cos(h), np.sin(h)], 1) * k[:, None]
         f2 = np.stack([c2[:, 0] * 0.4 + fy, fy, fy - c2[:, 1]], 1)
         out = W * lfinv(f2)
@@ -890,10 +940,7 @@ class Pipeline:
         return np.clip(np.where(np.isfinite(out), out, 0.0), -65504.0, 65504.0)
 
     def exposures(self, rgb):
-        u, v, L1 = sp.oct_encode(rgb)
-        K = lut2d(self.K, u, v)
-        E = L1[:, None] * K
-        return np.log10(np.maximum(E, 1e-10))
+        return exposures_from_log_table(self.LK, rgb)
 
     def interlayer(self, x):
         xref = x @ LAYER_W

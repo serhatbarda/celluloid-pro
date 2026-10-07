@@ -60,6 +60,10 @@ for every real colour and stays smooth.
 opponent basis, 97×97, odd so that texel lines lie on the map's two kink lines through the
 neutral axis): it covers all of RGB space incl. negative and out-of-gamut values. Exposure is
 `L1(rgb) × K(direction)`, hence exactly homogeneous (`E(k·rgb) = k·E(rgb)`, tested to 1e-7).
+The per-stock table stores `log10 K` and is interpolated in the log domain (the small minority-
+layer K of a saturated direction curves strongly across texels: bilinear interpolation of linear
+K was off by up to 0.2 stops, log-domain interpolation by 0.06; directions without a spectrum are
+filled outward one decade per texel, floor 10⁻¹⁰).
 *Out of gamut.* Chromaticity is soft-clipped toward D65 along the dominant-wavelength line
 (relative purity identity up to 0.65, C1 tanh roll-off to 0.92 of the spectral locus), luminance
 kept (with a smooth floor 0.03·(X⁺+Y⁺+Z⁺) for imaginary colours whose Y is tiny/negative);
@@ -142,9 +146,13 @@ table the film's neutral (incl. printer lights and user offsets) over the refere
 pixel, the colour's (a, b) relative to its own neutral is turned toward the anchor hue by
 `t = hold·w·(1 − exp(−1.3·stops²))` (zero at mid grey, so the film's own mid-tone colour is
 untouched), faded out for near-neutral colours (|anchor| < ~2 ΔE) and for nearly opposite hues
-(90°–160°, keeps the map continuous); chroma is raised by `1 + chromaHold·t` (30 % of that in the
-shadows, none for colours already near the gamut boundary). Y is unchanged, so tone scale and
-monotonicity are exactly those of the film. `hueHold`/`chromaHold` belong to the stock that is viewed:
+(90°–160°, keeps the map continuous). Chroma C (relative to the film's neutral) is raised to
+`C + b·C/(1 + (C/C₀)⁴)`, `b = chromaHold·t'·(0.3 + 0.7·ss(stops))` (30 % in the shadows; t' = t
+without the anchor validity weight w), C₀ = 0.20 (40 CIELAB C*). Its slope `1 + b(1 − 3q)/(1 + q)²`
+(q = (C/C₀)⁴) is ≥ 1 − 0.56·b > 0, so the hold is monotonic in the film's chroma by construction: a
+more saturated film colour always stays more saturated (tests/core sweeps scene saturation on every
+pair); the boost fades for colours already near the gamut boundary. Y is unchanged, so the tone
+scale and its monotonicity are exactly those of the film. `hueHold`/`chromaHold` belong to the stock that is viewed:
 the print stock (1.0/0.8), the reversal stock (1.0/0.8) or the Lab Scan scanner (1.0/1.0). Exact CIELAB f with a* weighted 2.5× b*, so the
 angles are CIELAB hue angles.
 
@@ -213,23 +221,23 @@ Rec.709 gamma 2.4 output, printer points 0, F-Log2 C input. Values are encoded c
 
 | Negative | Print / process | 18% grey | −6 stops | +6 stops | +8 stops | monotonic | skin hue shift (°, 6 tones) |
 |---|---|---|---|---|---|---|---|
-| CN 50D Fine Daylight | P1 Standard Projection | 0.4000 | 0.053 | 0.969 | 0.985 | yes | +0.1 +1.4 +1.5 -1.7 -2.4 -2.6 |
-| CN 200T Studio Tungsten | P1 Standard Projection | 0.4000 | 0.058 | 0.950 | 0.975 | yes | +0.8 +1.8 +2.2 +0.5 +0.3 -0.6 |
-| CN 250D Soft Daylight | P1 Standard Projection | 0.4000 | 0.081 | 0.898 | 0.944 | yes | +0.7 +1.6 +2.0 +0.5 +0.3 -0.1 |
-| CN 500T High Speed | P1 Standard Projection | 0.4000 | 0.072 | 0.923 | 0.960 | yes | +3.2 +4.2 +4.9 +3.3 +3.0 +1.6 |
-| CN 800T No-Backing | P1 Standard Projection | 0.4000 | 0.054 | 0.956 | 0.976 | yes | -5.1 -3.5 -2.6 -5.0 -5.2 -5.0 |
-| CN Vintage 85 | P1 Standard Projection | 0.4000 | 0.079 | 0.886 | 0.929 | yes | +7.9 +8.0 +8.6 +8.1 +7.6 +6.0 |
-| C41 Portrait 400 | P1 Standard Projection | 0.4000 | 0.078 | 0.917 | 0.957 | yes | +4.7 +5.4 +5.8 +4.7 +4.6 +4.0 |
-| C41 Consumer 200 | P1 Standard Projection | 0.4000 | 0.055 | 0.949 | 0.971 | yes | +5.4 +5.9 +6.5 +5.0 +4.5 +2.7 |
-| RV 100 Slide | — | 0.3910 | 0.032 | 0.977 | 0.978 | yes | -2.9 -0.8 +0.3 -1.9 -2.6 -5.1 |
+| CN 50D Fine Daylight | P1 Standard Projection | 0.4000 | 0.053 | 0.969 | 0.985 | yes | +0.1 +1.4 +1.5 -1.6 -2.3 -2.6 |
+| CN 200T Studio Tungsten | P1 Standard Projection | 0.4000 | 0.058 | 0.950 | 0.975 | yes | +0.9 +1.8 +2.3 +0.6 +0.3 -0.6 |
+| CN 250D Soft Daylight | P1 Standard Projection | 0.4000 | 0.081 | 0.898 | 0.944 | yes | +0.8 +1.7 +2.1 +0.7 +0.3 -0.1 |
+| CN 500T High Speed | P1 Standard Projection | 0.4000 | 0.072 | 0.923 | 0.960 | yes | +3.2 +4.3 +4.9 +3.4 +3.0 +1.6 |
+| CN 800T No-Backing | P1 Standard Projection | 0.4000 | 0.054 | 0.956 | 0.976 | yes | -5.1 -3.5 -2.6 -4.9 -5.1 -4.9 |
+| CN Vintage 85 | P1 Standard Projection | 0.4000 | 0.079 | 0.886 | 0.929 | yes | +7.9 +8.0 +8.6 +8.2 +7.6 +6.1 |
+| C41 Portrait 400 | P1 Standard Projection | 0.4000 | 0.078 | 0.917 | 0.957 | yes | +4.8 +5.4 +5.8 +4.8 +4.6 +4.0 |
+| C41 Consumer 200 | P1 Standard Projection | 0.4000 | 0.055 | 0.949 | 0.971 | yes | +5.4 +5.9 +6.5 +5.1 +4.6 +2.8 |
+| RV 100 Slide | — | 0.3910 | 0.032 | 0.977 | 0.978 | yes | -2.9 -0.8 +0.3 -1.7 -2.6 -5.1 |
 | BW 400 Panchromatic | P1 Standard Projection | 0.4000 | 0.080 | 0.893 | 0.934 | yes | n/a (monochrome) |
 | BW 100 Fine | P1 Standard Projection | 0.4000 | 0.069 | 0.925 | 0.957 | yes | n/a (monochrome) |
-| CN 200T Studio Tungsten | P2 Low Contrast | 0.4105 | 0.095 | 0.971 | 0.988 | yes | -0.5 -0.1 -0.0 -1.1 -1.2 +2.4 |
-| CN 200T Studio Tungsten | P3 Rich Contrast | 0.3750 | 0.041 | 0.975 | 0.989 | yes | -1.1 -0.1 -0.2 -3.0 -3.2 -0.9 |
-| CN 200T Studio Tungsten | P4 Faded Archive | 0.4134 | 0.151 | 0.877 | 0.913 | yes | +3.2 +3.6 +4.3 +3.7 +3.8 -1.4 |
-| CN 200T Studio Tungsten | P5 Silver Retention | 0.3910 | 0.023 | 0.961 | 0.981 | yes | +2.7 +4.4 +5.6 +3.6 +3.5 -1.3 |
-| CN 200T Studio Tungsten | Lab Scan | 0.4205 | 0.086 | 0.908 | 0.946 | yes | +0.7 +0.5 +0.1 -1.8 -1.9 -3.3 |
-| C41 Portrait 400 | Lab Scan | 0.4205 | 0.092 | 0.897 | 0.942 | yes | +8.1 +8.3 +8.3 +6.9 +6.8 +8.1 |
+| CN 200T Studio Tungsten | P2 Low Contrast | 0.4105 | 0.095 | 0.971 | 0.988 | yes | -0.5 -0.1 -0.0 -1.0 -1.2 +2.4 |
+| CN 200T Studio Tungsten | P3 Rich Contrast | 0.3750 | 0.041 | 0.975 | 0.989 | yes | -1.1 -0.1 -0.2 -2.9 -3.2 -0.9 |
+| CN 200T Studio Tungsten | P4 Faded Archive | 0.4134 | 0.151 | 0.877 | 0.913 | yes | +3.2 +3.6 +4.3 +3.8 +3.8 -1.4 |
+| CN 200T Studio Tungsten | P5 Silver Retention | 0.3910 | 0.023 | 0.961 | 0.981 | yes | +2.7 +4.4 +5.6 +3.7 +3.6 -1.2 |
+| CN 200T Studio Tungsten | Lab Scan | 0.4205 | 0.086 | 0.908 | 0.946 | yes | +0.7 +0.5 +0.1 -1.7 -1.9 -3.3 |
+| C41 Portrait 400 | Lab Scan | 0.4205 | 0.092 | 0.897 | 0.942 | yes | +8.1 +8.4 +8.3 +7.0 +6.8 +8.1 |
 
 ### 4.1 Distinctness: mean CIEDE2000 over the 24-patch reference chart
 
@@ -237,40 +245,40 @@ Rec.709 gamma 2.4 output, printer points 0, F-Log2 C input. Values are encoded c
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | CN 50D Fine Daylight | 0.0 | 2.5 | 5.5 | 4.1 | 2.4 | 6.0 | 5.1 | 3.9 | 3.3 | 18.8 | 17.9 |
 | CN 200T Studio Tungsten | 2.5 | 0.0 | 3.4 | 2.2 | 3.1 | 3.8 | 2.8 | 3.2 | 4.5 | 17.4 | 16.6 |
-| CN 250D Soft Daylight | 5.5 | 3.4 | 0.0 | 2.7 | 5.9 | 3.3 | 2.4 | 5.8 | 7.5 | 16.0 | 16.2 |
+| CN 250D Soft Daylight | 5.5 | 3.4 | 0.0 | 2.7 | 5.9 | 3.4 | 2.5 | 5.8 | 7.5 | 16.0 | 16.2 |
 | CN 500T High Speed | 4.1 | 2.2 | 2.7 | 0.0 | 4.4 | 2.3 | 2.4 | 4.4 | 5.7 | 16.6 | 16.3 |
-| CN 800T No-Backing | 2.4 | 3.1 | 5.9 | 4.4 | 0.0 | 6.1 | 5.5 | 4.0 | 3.6 | 18.7 | 18.0 |
-| CN Vintage 85 | 6.0 | 3.8 | 3.3 | 2.3 | 6.1 | 0.0 | 2.9 | 4.8 | 6.7 | 15.8 | 15.7 |
-| C41 Portrait 400 | 5.1 | 2.8 | 2.4 | 2.4 | 5.5 | 2.9 | 0.0 | 3.9 | 6.4 | 16.5 | 16.6 |
+| CN 800T No-Backing | 2.4 | 3.1 | 5.9 | 4.4 | 0.0 | 6.2 | 5.5 | 4.0 | 3.6 | 18.7 | 18.0 |
+| CN Vintage 85 | 6.0 | 3.8 | 3.4 | 2.3 | 6.2 | 0.0 | 2.9 | 4.8 | 6.8 | 15.7 | 15.7 |
+| C41 Portrait 400 | 5.1 | 2.8 | 2.5 | 2.4 | 5.5 | 2.9 | 0.0 | 3.9 | 6.3 | 16.5 | 16.6 |
 | C41 Consumer 200 | 3.9 | 3.2 | 5.8 | 4.4 | 4.0 | 4.8 | 3.9 | 0.0 | 3.6 | 18.3 | 17.7 |
-| RV 100 Slide | 3.3 | 4.5 | 7.5 | 5.7 | 3.6 | 6.7 | 6.4 | 3.6 | 0.0 | 19.5 | 18.8 |
-| BW 400 Pan | 18.8 | 17.4 | 16.0 | 16.6 | 18.7 | 15.8 | 16.5 | 18.3 | 19.5 | 0.0 | 2.7 |
+| RV 100 Slide | 3.3 | 4.5 | 7.5 | 5.7 | 3.6 | 6.8 | 6.3 | 3.6 | 0.0 | 19.5 | 18.8 |
+| BW 400 Pan | 18.8 | 17.4 | 16.0 | 16.6 | 18.7 | 15.7 | 16.5 | 18.3 | 19.5 | 0.0 | 2.7 |
 | BW 100 Fine | 17.9 | 16.6 | 16.2 | 16.3 | 18.0 | 15.7 | 16.6 | 17.7 | 18.8 | 2.7 | 0.0 |
 
 Smallest difference between two different negatives: **2.2**.
 
 | (with CN 200T) | P1 Standard Projection | P2 Low Contrast | P3 Rich Contrast | P4 Faded Archive | P5 Silver Retention |
 |---|---|---|---|---|---|
-| P1 Standard Projection | 0.0 | 3.8 | 3.1 | 4.6 | 3.4 |
+| P1 Standard Projection | 0.0 | 3.8 | 3.0 | 4.7 | 3.5 |
 | P2 Low Contrast | 3.8 | 0.0 | 5.8 | 4.7 | 4.8 |
-| P3 Rich Contrast | 3.1 | 5.8 | 0.0 | 7.4 | 4.2 |
-| P4 Faded Archive | 4.6 | 4.7 | 7.4 | 0.0 | 5.6 |
-| P5 Silver Retention | 3.4 | 4.8 | 4.2 | 5.6 | 0.0 |
+| P3 Rich Contrast | 3.0 | 5.8 | 0.0 | 7.5 | 4.2 |
+| P4 Faded Archive | 4.7 | 4.7 | 7.5 | 0.0 | 5.7 |
+| P5 Silver Retention | 3.5 | 4.8 | 4.2 | 5.7 | 0.0 |
 
-Smallest difference between two different prints: **3.1**.
+Smallest difference between two different prints: **3.0**.
 
 | (Lab Scan) | CN 50D Fine Daylight | CN 200T Studio Tungsten | CN 250D Soft Daylight | CN 500T High Speed | CN 800T No-Backing | CN Vintage 85 | C41 Portrait 400 | C41 Consumer 200 |
 |---|---|---|---|---|---|---|---|---|
 | CN 50D Fine Daylight | 0.0 | 2.4 | 5.8 | 3.9 | 2.9 | 5.5 | 4.3 | 2.6 |
-| CN 200T Studio Tungsten | 2.4 | 0.0 | 3.8 | 2.5 | 2.2 | 4.1 | 3.8 | 3.5 |
-| CN 250D Soft Daylight | 5.8 | 3.8 | 0.0 | 2.5 | 4.5 | 2.6 | 4.3 | 5.9 |
-| CN 500T High Speed | 3.9 | 2.5 | 2.5 | 0.0 | 3.9 | 2.3 | 3.0 | 4.0 |
-| CN 800T No-Backing | 2.9 | 2.2 | 4.5 | 3.9 | 0.0 | 4.8 | 4.0 | 4.0 |
-| CN Vintage 85 | 5.5 | 4.1 | 2.6 | 2.3 | 4.8 | 0.0 | 3.2 | 4.8 |
-| C41 Portrait 400 | 4.3 | 3.8 | 4.3 | 3.0 | 4.0 | 3.2 | 0.0 | 2.7 |
-| C41 Consumer 200 | 2.6 | 3.5 | 5.9 | 4.0 | 4.0 | 4.8 | 2.7 | 0.0 |
+| CN 200T Studio Tungsten | 2.4 | 0.0 | 3.8 | 2.6 | 2.2 | 4.1 | 3.8 | 3.5 |
+| CN 250D Soft Daylight | 5.8 | 3.8 | 0.0 | 2.5 | 4.5 | 2.5 | 4.3 | 5.9 |
+| CN 500T High Speed | 3.9 | 2.6 | 2.5 | 0.0 | 4.0 | 2.3 | 3.0 | 4.0 |
+| CN 800T No-Backing | 2.9 | 2.2 | 4.5 | 4.0 | 0.0 | 4.8 | 4.1 | 4.0 |
+| CN Vintage 85 | 5.5 | 4.1 | 2.5 | 2.3 | 4.8 | 0.0 | 3.1 | 4.7 |
+| C41 Portrait 400 | 4.3 | 3.8 | 4.3 | 3.0 | 4.1 | 3.1 | 0.0 | 2.7 |
+| C41 Consumer 200 | 2.6 | 3.5 | 5.9 | 4.0 | 4.0 | 4.7 | 2.7 | 0.0 |
 
-Smallest difference between two different negatives through the Lab Scan (chart + skin): **2.23**.
+Smallest difference between two different negatives through the Lab Scan (chart + skin): **2.20**.
 
 ## 5. Look-phase revision (v1.0)
 

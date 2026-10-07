@@ -9,8 +9,8 @@ Method (justification in docs/STOCKS.md, "Spectral upsampling"):
     1. XYZ_u = M_2020 * rgb_u.  S = X+Y+Z, q = S / (|X|+|Y|+|Z|) (q = 1 for every real colour).
        Fade phi(q) = smoothstep(0, 0.5, q); S <= 0 -> black (non-physical directions).
     2. Chromaticity soft-clip toward the D65 white along the dominant-wavelength line:
-       relative purity r = |xy - w| / |locus(h) - w| -> r' = r (r <= 0.70), C1 tanh roll-off to
-       an asymptote of 0.95 (never on/over the spectral locus).
+       relative purity r = |xy - w| / |locus(h) - w| -> r' = r (r <= R0 = 0.65), C1 tanh roll-off
+       to an asymptote of RMAX = 0.92 (never on/over the spectral locus).
     3. Spectral shape: Jakob-Hanika style sigmoid-polynomial reflectance
            R(lambda) = sigmoid(c0 + c1 t + c2 t^2),  t = (lambda - 580) / 200
        fitted EXACTLY to the clipped chromaticity at half the optimal-colour (MacAdam) luminance

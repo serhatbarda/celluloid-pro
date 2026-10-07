@@ -531,6 +531,192 @@ static void testCube(const std::string& dir) {
     std::printf("  33^3 export %.1f ms, max deviation %.1e\n", t1 - t0, maxErr);
 }
 
+// .cube accuracy: trilinear evaluation of the exported file (incl. the 1D shaper of Linear input)
+// against processColor at random inputs, every input space (CN 200T / P1, Rec.709 2.4)
+struct CubeFile {
+    int n1 = 0, n3 = 0;
+    double lo1 = 0, hi1 = 1, lo3 = 0, hi3 = 1;
+    std::vector<float> s1, t3;          // shaper (n1 x 3), 3D (n3^3 x 3, red fastest)
+};
+static bool readCube(const std::string& path, CubeFile& c) {
+    std::ifstream f(std::filesystem::u8path(path));
+    if (!f) return false;
+    std::string line;
+    std::vector<float> vals;
+    while (std::getline(f, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        if (line.rfind("LUT_1D_SIZE", 0) == 0) c.n1 = std::atoi(line.c_str() + 11);
+        else if (line.rfind("LUT_3D_SIZE", 0) == 0) c.n3 = std::atoi(line.c_str() + 11);
+        else if (line.rfind("LUT_1D_INPUT_RANGE", 0) == 0) std::sscanf(line.c_str() + 18, "%lf %lf", &c.lo1, &c.hi1);
+        else if (line.rfind("LUT_3D_INPUT_RANGE", 0) == 0) std::sscanf(line.c_str() + 18, "%lf %lf", &c.lo3, &c.hi3);
+        else {
+            float r, g, b;
+            if (std::sscanf(line.c_str(), "%f %f %f", &r, &g, &b) == 3) { vals.push_back(r); vals.push_back(g); vals.push_back(b); }
+        }
+    }
+    const size_t n1 = size_t(c.n1) * 3, n3 = size_t(c.n3) * c.n3 * c.n3 * 3;
+    if (vals.size() != n1 + n3 || c.n3 < 2) return false;
+    c.s1.assign(vals.begin(), vals.begin() + long(n1));
+    c.t3.assign(vals.begin() + long(n1), vals.end());
+    return true;
+}
+static Float3 applyCube(const CubeFile& c, Float3 in) {
+    double v[3] = {in.r, in.g, in.b};
+    for (int k = 0; k < 3; ++k) {
+        if (c.n1 >= 2) {
+            double t = std::min(std::max((v[k] - c.lo1) / (c.hi1 - c.lo1), 0.0), 1.0) * (c.n1 - 1);
+            int i = std::min(int(t), c.n1 - 2);
+            double f = t - i;
+            v[k] = c.s1[size_t(i) * 3 + size_t(k)] * (1 - f) + c.s1[size_t(i + 1) * 3 + size_t(k)] * f;
+        }
+        v[k] = std::min(std::max((v[k] - c.lo3) / (c.hi3 - c.lo3), 0.0), 1.0) * (c.n3 - 1);
+    }
+    const int N = c.n3;
+    int i[3];
+    double f[3];
+    for (int k = 0; k < 3; ++k) { i[k] = std::min(int(v[k]), N - 2); f[k] = v[k] - i[k]; }
+    double o[3] = {0, 0, 0};
+    for (int corner = 0; corner < 8; ++corner) {
+        int dr = corner & 1, dg = (corner >> 1) & 1, db = (corner >> 2) & 1;
+        double w = (dr ? f[0] : 1 - f[0]) * (dg ? f[1] : 1 - f[1]) * (db ? f[2] : 1 - f[2]);
+        size_t idx = ((size_t(i[2] + db) * N + size_t(i[1] + dg)) * N + size_t(i[0] + dr)) * 3;
+        for (int k = 0; k < 3; ++k) o[k] += w * c.t3[idx + size_t(k)];
+    }
+    return {float(o[0]), float(o[1]), float(o[2])};
+}
+static void testCubeAccuracy(const std::string& dir) {
+    std::printf("[.cube accuracy: 33^3 trilinear vs processColor, CN 200T / P1, every input space]\n");
+    const auto names = inputSpaceNames();
+    for (int sp = 0; sp < int(InputSpace::Count); ++sp) {
+        LookParams lp;
+        lp.input = InputSpace(sp);
+        Pipeline P;
+        P.prepare(lp);
+        const std::string path = dir + "/cel_cube_acc_" + std::to_string(sp) + ".cube";
+        std::string err;
+        CHECK(writeCubeLUT(P, 33, path, "acc", &err), "writeCubeLUT: %s", err.c_str());
+        CubeFile c;
+        CHECK(readCube(path, c), "cannot parse %s", path.c_str());
+        if (c.n3 == 0) continue;
+        const bool lin = InputSpace(sp) == InputSpace::LinearRec2020;
+        CHECK(lin == (c.n1 > 0), "space %d: shaper present = %d", sp, int(c.n1 > 0));
+        // inputs: code values uniform in [0,1]^3 (log cameras); scene-linear -8..+8 stops around
+        // grey per channel (Linear Rec.2020)
+        uint32_t rng = 12345u + uint32_t(sp);
+        auto uni = [&rng]() { rng = rng * 1664525u + 1013904223u; return double(rng >> 8) / double(1u << 24); };
+        std::vector<double> errs;
+        const int S = 20000;
+        errs.reserve(S);
+        for (int k = 0; k < S; ++k) {
+            Float3 in;
+            if (lin) in = {float(0.18 * std::exp2(16 * uni() - 8)), float(0.18 * std::exp2(16 * uni() - 8)), float(0.18 * std::exp2(16 * uni() - 8))};
+            else in = {float(uni()), float(uni()), float(uni())};
+            Float3 d = P.processColor(in), l = applyCube(c, in);
+            errs.push_back(std::max({std::fabs(d.r - l.r), std::fabs(d.g - l.g), std::fabs(d.b - l.b)}));
+        }
+        // grey ramp -8..+8 stops (Linear: the shaper must not clip highlights)
+        double greyErr = 0;
+        for (int k = -80; k <= 80; ++k) {
+            float x = float(0.18 * std::exp2(k / 10.0));
+            float e = lin ? x : celc_encode_transfer(sp, x);
+            if (!lin && (e < 0.f || e > 1.f)) continue;
+            Float3 d = P.processColor({e, e, e}), l = applyCube(c, {e, e, e});
+            greyErr = std::max(greyErr, double(std::fabs(d.g - l.g)));
+        }
+        std::sort(errs.begin(), errs.end());
+        double mx = errs.back(), p99 = errs[size_t(0.99 * (S - 1))], mean = 0;
+        for (double e : errs) mean += e;
+        mean /= S;
+        std::printf("  %-34s max %.4f  p99 %.4f  mean %.4f  grey ramp %.4f%s\n", names[size_t(sp)].c_str(), mx, p99, mean, greyErr,
+                    lin ? "  (1D shaper)" : "");
+        // F-Log2 C (primary camera): the no-hold baseline level (review: p99 0.031)
+        if (InputSpace(sp) == InputSpace::FLog2C) CHECK(p99 <= 0.035, "F-Log2 C 33^3 LUT p99 error %.4f > 0.035", p99);
+        CHECK(p99 <= 0.06, "space %d: 33^3 LUT p99 error %.4f", sp, p99);
+        CHECK(greyErr <= 0.015, "space %d: grey ramp LUT error %.4f", sp, greyErr);
+        std::error_code ec;
+        std::filesystem::remove(std::filesystem::u8path(path), ec);
+    }
+}
+
+// Hue hold: the chroma hold is monotonic by construction. Along scene saturation ramps at constant
+// luminance (12 hues of Rec.2020 and of Rec.709 primaries, -3/0/+3/+6 stops, every stock pair, the
+// Lab Scan and reversal), the chroma of the held film colour (CIELAB units, relative to the film's
+// own neutral at the same exposure and luminance: the frame the hold works in, so a tinted print
+// white does not count as chroma) never falls where the film's own chroma rises (0.2 C* tolerance),
+// and where the film itself folds at the gamut edge the hold amplifies that by no more than its
+// gain (<= 1.6). (Display C* is not tested: the display gamut mapping alone already folds such
+// ramps for saturated blues and greens.)
+static double holdChroma(const float* s, CelF3 X, float xref) {
+    CelF3 nt = celc_lut1_3(s, celc_i(s, CEL_CS_HOLD_N_OFF), celc_i(s, CEL_CS_HOLD_N_N), CEL_HOLD_X0, CEL_HOLD_X1, cel_f3(xref, xref, xref));
+    float fx = celc_labf(X.x / CEL_D65_X), fz = celc_labf(X.z / CEL_D65_Z);
+    float nx = celc_labf(nt.x * X.y / CEL_D65_X), nz = celc_labf(nt.z * X.y / CEL_D65_Z);
+    return std::hypot(500.0 * (fx - nx), 200.0 * (nz - fz));
+}
+static void testHoldMonotonic() {
+    std::printf("[hue hold: chroma along saturation ramps, every pair / Lab Scan / reversal]\n");
+    const auto negs = negativeStocks();
+    const int npr = int(printStockNames().size());
+    const spec::Vec3 lum = {0.26270021, 0.67799807, 0.05930172};
+    // Rec.709 -> Rec.2020 (BT.2087)
+    const double M709[9] = {0.627403896, 0.329283039, 0.043313065, 0.069097289, 0.919540395, 0.011362316,
+                            0.016391439, 0.088013308, 0.895595253};
+    int sweeps = 0, bad = 0;
+    double worst = 0;
+    for (int ni = 0; ni < int(negs.size()); ++ni) {
+        std::vector<std::pair<int, Process>> cfg;
+        if (negs[size_t(ni)].reversal) cfg.push_back({0, Process::NegativeToPrint});
+        else {
+            for (int pj = 0; pj < npr; ++pj) cfg.push_back({pj, Process::NegativeToPrint});
+            cfg.push_back({0, Process::NegativeScan});
+        }
+        for (auto [pj, pr] : cfg) {
+            Pipeline P;
+            P.prepare(lpFor(ni, pj, pr, OutputSpace::Rec709_G24));
+            const float* s = P.state().data();
+            if (!(s[CEL_CS_HOLD] > 0.f)) continue;
+            for (int set = 0; set < 2; ++set)
+                for (int st : {-3, 0, 3, 6})
+                    for (int h = 0; h < 360; h += 30) {
+                        double hh = h / 60.0, f = hh - std::floor(hh);
+                        int seg = int(std::floor(hh)) % 6;
+                        const double pr6[6][3] = {{1, f, 0}, {1 - f, 1, 0}, {0, 1, f}, {0, 1 - f, 1}, {f, 0, 1}, {1, 0, 1 - f}};
+                        double p[3] = {pr6[seg][0], pr6[seg][1], pr6[seg][2]};
+                        if (set == 1) {
+                            double q[3];
+                            for (int r = 0; r < 3; ++r) q[r] = M709[r * 3] * p[0] + M709[r * 3 + 1] * p[1] + M709[r * 3 + 2] * p[2];
+                            for (int r = 0; r < 3; ++r) p[r] = q[r];
+                        }
+                        double Y = p[0] * lum[0] + p[1] * lum[1] + p[2] * lum[2];
+                        double Ys = 0.18 * std::exp2(double(st));
+                        double c0 = 0, c1 = 0;
+                        ++sweeps;
+                        bool fail = false;
+                        for (int k = 0; k <= 40; ++k) {
+                            double sat = k / 40.0;
+                            CelF3 rgb = cel_f3(float(Ys * ((1 - sat) + sat * p[0] / Y)), float(Ys * ((1 - sat) + sat * p[1] / Y)),
+                                               float(Ys * ((1 - sat) + sat * p[2] / Y)));
+                            CelcFilm fm = celc_film_xyz(s, rgb, cel_f3(0, 0, 0), 0);
+                            CelF3 Xh = celc_hold(s, fm.X, fm.xref, rgb);
+                            double a0 = holdChroma(s, fm.X, fm.xref), a1 = holdChroma(s, Xh, fm.xref);
+                            if (k > 0) {
+                                double d0 = a0 - c0, d1 = a1 - c1;
+                                double ex = d1 - std::min(1.6 * d0, 0.0);
+                                worst = std::min(worst, ex);
+                                if (ex < -0.2) fail = true;
+                            }
+                            c0 = a0;
+                            c1 = a1;
+                        }
+                        if (fail) {
+                            ++bad;
+                            CHECK(false, "hold folds chroma: neg %d print %d process %d set %d %+d stops hue %d", ni, pj, int(pr), set, st, h);
+                        }
+                    }
+        }
+    }
+    std::printf("  %d ramps, %d with a hold-made chroma fold (worst step %.3f C*)\n", sweeps, bad, worst);
+}
+
 // ----------------------------------------------------------------------- 7. HDR
 static void testHDR() {
     std::printf("[HDR PQ / HLG]\n");
@@ -723,6 +909,8 @@ int main(int argc, char** argv) {
     testBehaviour();
     testGolden(golden);
     testCube(tmp);
+    testCubeAccuracy(tmp);
+    if (!quick) testHoldMonotonic();
     std::printf("\n%d checks, %d failures (%.1f s)\n", gChecks, gFail, (nowMs() - t0) / 1000.0);
     return gFail == 0 ? 0 : 1;
 }
