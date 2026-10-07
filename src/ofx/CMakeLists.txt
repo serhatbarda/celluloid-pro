@@ -46,9 +46,9 @@ add_library(celluloid_ofx MODULE ${CEL_OFX_SOURCES})
 target_include_directories(celluloid_ofx PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(celluloid_ofx PRIVATE cel_ofxsupport celgpu celtex celcore cellic)
 add_dependencies(celluloid_ofx cel_build_id)
-if(CEL_HAVE_GPU_API)
-  target_compile_definitions(celluloid_ofx PRIVATE CEL_HAVE_GPU_API=1)
-endif()
+# celgpu is always built and linked: the GPU self test at describe, the in-plug-in CPU fallback
+# and GPU cleanup at unload must always be compiled in (CelluloidPlugin.cpp, CEL_GPU_EXTRAS).
+target_compile_definitions(celluloid_ofx PRIVATE CEL_HAVE_GPU_API=1)
 cel_set_warnings(celluloid_ofx)
 
 set_target_properties(celluloid_ofx PROPERTIES
