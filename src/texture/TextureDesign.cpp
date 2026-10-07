@@ -355,7 +355,7 @@ HalationLook halationLook(float amount, float thresholdStops, float hue) {
     L.gain = float(am * 0.24);
     double th = std::isfinite(thresholdStops) ? std::min(12.0, std::max(-4.0, double(thresholdStops))) : 3.5;
     L.threshold = float(0.18 * std::exp2(th));
-    L.knee = 1.75f;
+    L.knee = 2.0f;
     L.emax = 32.f;
     L.srcW[0] = 0.60f; L.srcW[1] = 0.30f; L.srcW[2] = 0.10f;
     return L;

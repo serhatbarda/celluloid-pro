@@ -412,7 +412,11 @@ std::shared_ptr<const ProjBake> projectionLut(int prt, bool mono) {
         Spectrum base = baseDensity(p.base);
         Spectrum eps[3];
         if (mono) {
-            for (int i = 0; i < 3; ++i) eps[i].fill(1.0 / 3.0);
+            // B&W image tone: flat silver + the print's designed monoTone lobes, unit mean (model.print_dyes)
+            Spectrum t = spec::lobes(p.monoTone);
+            double mean = 0.0;
+            for (auto& v : t) { v += 1.0; mean += v / NWL; }
+            for (int i = 0; i < 3; ++i) for (int l = 0; l < NWL; ++l) eps[i][size_t(l)] = t[size_t(l)] / mean / 3.0;
         } else {
             for (int i = 0; i < 3; ++i) {
                 Spectrum a = spec::lobes(p.dyes[i].primary), s = spec::lobes(p.dyes[i].secondary);

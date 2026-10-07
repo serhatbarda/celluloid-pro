@@ -1,5 +1,5 @@
 {
- "_doc": "Design briefs for reference/optimize.py (rendered through P1, Rec.709). saturation = target chroma ratio (exposure-normalised Lab) for natural colours; skin_* for the skin set; ramp_tint_ab = target CIELAB a,b of the neutral ramp at -6..+6 stops (13 entries; the optimiser interpolates if fewer are given as [stop, a, b] anchors). Optional: neutral_bounds = {gamma, x0, k: [lo, hi], R} widens the R/B curve bounds relative to the G layer for stocks with a strong designed crossover; modes = which optimiser stages run (['colour', 'neutral']).",
+ "_doc": "Design briefs for reference/optimize.py (rendered through P1, Rec.709). saturation = target chroma ratio (exposure-normalised Lab) for natural colours; skin_* for the skin set; ramp_tint_ab = target CIELAB a,b of the neutral ramp at -6..+6 stops (13 entries; the optimiser interpolates if fewer are given as [stop, a, b] anchors). Optional: neutral_bounds = {gamma, x0, k: [lo, hi], R} widens the R/B curve bounds relative to the G layer for stocks with a strong designed crossover; modes = which optimiser stages run (['colour', 'neutral']). Lab Scan (optimize.py scan): scan_sat = chroma of the scan relative to the stock's own P1 rendering, scan_hue_bias = extra hue offset (deg).",
  "negatives": {
   "CN 50D Fine Daylight": {
    "saturation": 1.28,
@@ -39,7 +39,8 @@
      -0.4,
      -1.8
     ]
-   ]
+   ],
+   "scan_sat": 1.04
   },
   "CN 200T Studio Tungsten": {
    "saturation": 1.06,
@@ -48,8 +49,8 @@
    "ramp_anchors": [
     [
      -6,
-     -0.3,
-     -0.8
+     -0.1,
+     -0.3
     ],
     [
      0,
@@ -58,15 +59,17 @@
     ],
     [
      3,
-     0.2,
-     1.0
+     0.15,
+     0.5
     ],
     [
      6,
-     0.3,
-     1.2
+     0.2,
+     0.6
     ]
-   ]
+   ],
+   "scan_sat": 0.95,
+   "scan_hue_bias": -3.5
   },
   "CN 250D Soft Daylight": {
    "saturation": 0.74,
@@ -106,7 +109,8 @@
      -0.6,
      -1.5
     ]
-   ]
+   ],
+   "scan_sat": 0.8
   },
   "CN 500T High Speed": {
    "saturation": 0.82,
@@ -153,18 +157,19 @@
     ],
     [
      3,
-     0.4,
-     3.0
+     0.3,
+     1.6
     ],
     [
      6,
-     0.4,
-     3.5
+     0.3,
+     2.0
     ]
    ],
    "modes": [
     "neutral"
-   ]
+   ],
+   "scan_sat": 0.9
   },
   "CN 800T No-Backing": {
    "saturation": 0.86,
@@ -222,7 +227,8 @@
    ],
    "modes": [
     "neutral"
-   ]
+   ],
+   "scan_sat": 0.86
   },
   "CN Vintage 85": {
    "saturation": 0.7,
@@ -249,12 +255,12 @@
    "ramp_anchors": [
     [
      -6,
-     -3.0,
-     -0.2
+     -0.2,
+     -0.4
     ],
     [
      -2,
-     -1.4,
+     -0.1,
      0.0
     ],
     [
@@ -265,12 +271,12 @@
     [
      3,
      0.5,
-     4.5
+     4.2
     ],
     [
      6,
-     0.8,
-     6.5
+     0.6,
+     5.0
     ]
    ],
    "neutral_bounds": {
@@ -284,7 +290,8 @@
    },
    "modes": [
     "neutral"
-   ]
+   ],
+   "scan_sat": 0.95
   },
   "C41 Portrait 400": {
    "saturation": 1.05,
@@ -321,13 +328,13 @@
     ],
     [
      3,
-     0.5,
-     2.2
+     0.35,
+     1.3
     ],
     [
      6,
-     0.6,
-     2.8
+     0.4,
+     1.5
     ]
    ],
    "neutral_bounds": {
@@ -342,7 +349,9 @@
    "modes": [
     "colour",
     "neutral"
-   ]
+   ],
+   "scan_sat": 1.03,
+   "scan_hue_bias": 3.0
   },
   "C41 Consumer 200": {
    "saturation": 1.38,
@@ -380,12 +389,12 @@
     [
      3,
      0.4,
-     4.0
+     3.0
     ],
     [
      6,
      0.4,
-     5.0
+     3.5
     ]
    ],
    "neutral_bounds": {
@@ -400,7 +409,8 @@
    "modes": [
     "colour",
     "neutral"
-   ]
+   ],
+   "scan_sat": 1.04
   },
   "RV 100 Slide": {
    "saturation": 1.38,
@@ -423,7 +433,7 @@
     [
      -6,
      0,
-     -1.5
+     -0.6
     ],
     [
      0,

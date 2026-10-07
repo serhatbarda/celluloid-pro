@@ -6,5 +6,5 @@
 #define CEL_VERSION_MINOR     @PROJECT_VERSION_MINOR@
 #define CEL_VERSION_PATCH     @PROJECT_VERSION_PATCH@
 #define CEL_VERSION_STRING    "@PROJECT_VERSION@"
-#define CEL_BUILD_ID          "@CEL_BUILD_ID@"
-#define CEL_BUILD_DATE        "@CEL_BUILD_DATE@"
+// CEL_BUILD_ID / CEL_BUILD_DATE: generated at build time (CelBuildId.h, cmake/CelBuildIdScript.cmake)
+#include "CelBuildId.h"

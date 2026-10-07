@@ -64,7 +64,16 @@ struct Pipeline::Cache {
     std::shared_ptr<const DyeLutBake> dye;        // print or scan LUT
     std::shared_ptr<const ProjBake> proj;         // projection (print or reversal)
     std::vector<NegativeStockInfo> infos;
+    bool holdValid = false;                       // hue-hold anchor (depends on the film, not on
+    LookParams holdKey;                           // printer points / exposure / output / grain)
+    std::vector<float> holdAnchor;
 };
+
+static bool sameFilm(const LookParams& a, const LookParams& b) {
+    return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
+           a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.process == b.process &&
+           a.printStock == b.printStock && a.printBleach == b.printBleach;
+}
 
 static bool sameParams(const LookParams& a, const LookParams& b) {
     return a.input == b.input && a.output == b.output && a.exposure == b.exposure && a.negStock == b.negStock &&
@@ -186,7 +195,17 @@ void Pipeline::prepare(const LookParams& pin) {
     const size_t nPC = kind == 2 ? 0 : size_t(3) * kNCurve;
     const size_t nPJ = proj ? proj->lut.data.size() : (kind == 1 ? size_t(3) * kNCurve : 0);   // scan: inversion LUT
     const size_t oOct = CEL_CS_HEADER, oNC = oOct + nOct, oPL = oNC + nNC, oPC = oPL + nPL, oPJ = oPC + nPC;
-    const size_t total = oPJ + nPJ;
+    // hue hold (ColorState.h HA / HN blocks)
+    double holdStrength = 0.0, holdChroma = 0.0;
+    if (!mono) {
+        if (kind == 0) { holdStrength = prt.hueHold; holdChroma = prt.chromaHold; }
+        else if (kind == 2) { holdStrength = neg.hueHold; holdChroma = neg.chromaHold; }
+        else { holdStrength = st::scanner().hueHold; holdChroma = st::scanner().chromaHold; }
+    }
+    const bool hold = holdStrength > 0.0;
+    const size_t nHA = hold ? size_t(kHoldN) * kHoldN * 4 : 0, nHN = hold ? size_t(3) * kHoldNX : 0;
+    const size_t oHA = oPJ + nPJ, oHN = oHA + nHA;
+    const size_t total = oHN + nHN;
     const bool sameBlocks = C.valid && C.exp == exp && C.dye == dye && C.proj == proj && m_state.size() == total;
     std::vector<float>& S = m_state;
     if (!sameBlocks) {
@@ -295,7 +314,18 @@ void Pipeline::prepare(const LookParams& pin) {
         const double gGrey = fwdG(kLog10Grey);
         const double gam = (fwdG(kLog10Grey + 0.15) - fwdG(kLog10Grey - 0.15)) / 0.3;
         const size_t oSC = oPJ;   // scan has no projection block: the inversion LUT takes its place
+        // part of the negative's own crossover is kept: each channel blends the neutral-referenced
+        // inversion with its own per-channel inversion (own grey density / gamma); stock contrast
+        const double alpha = mono ? 0.0 : neg.scanCrossover, contrast = neg.scanContrast;
+        auto fwdJ = [&](int j, double x) {
+            double t = std::min(std::max((x - kScnXA) / (kScnXB - kScnXA) * (K - 1), 0.0), double(K - 1));
+            int i = std::min(int(std::floor(t)), K - 2);
+            double f = t - i;
+            return double(D[size_t(i) * 3 + j]) + (double(D[size_t(i + 1) * 3 + j]) - D[size_t(i) * 3 + j]) * f;
+        };
         for (int j = 0; j < 3; ++j) {
+            const double jGrey = fwdJ(j, kLog10Grey);
+            const double jGam = (fwdJ(j, kLog10Grey + 0.15) - fwdJ(j, kLog10Grey - 0.15)) / 0.3;
             const double d0 = D[size_t(j)], d1 = D[size_t(K - 1) * 3 + j];
             s[CEL_CS_SD0 + j] = float(d0);
             s[CEL_CS_SD1 + j] = float(d1);
@@ -306,7 +336,8 @@ void Pipeline::prepare(const LookParams& pin) {
                 double a0 = D[size_t(k - 1) * 3 + j], a1 = D[size_t(k) * 3 + j];
                 double f = a1 > a0 ? std::min(1.0, std::max(0.0, (t - a0) / (a1 - a0))) : 0.0;
                 double x = kScnXA + (kScnXB - kScnXA) * (k - 1 + f) / (K - 1);
-                s[oSC + size_t(j) * kNCurve + i] = float((fwdG(x) - gGrey) / gam);
+                double neutral = (fwdG(x) - gGrey) / gam, own = (fwdJ(j, x) - jGrey) / jGam;
+                s[oSC + size_t(j) * kNCurve + i] = float(((1.0 - alpha) * neutral + alpha * own) * contrast);
             }
         }
         s[CEL_CS_SC_OFF] = float(oSC);
@@ -314,6 +345,9 @@ void Pipeline::prepare(const LookParams& pin) {
         spec::Mat3 Ms;
         if (!mono) for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) Ms.m[i][j] = neg.scanMatrix[i][j];
         putMat(s, CEL_CS_MSCAN, Ms);
+        spec::Mat3 Ms2;
+        for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) Ms2.m[i][j] = mono ? 0.0 : neg.scanRoot[i][j];
+        putMat(s, CEL_CS_MSCAN2, Ms2);
         double tgt = -std::log10(sc.greyY), lo = -5.0, hi = 5.0;
         for (int it = 0; it < 80; ++it) {
             double mid = 0.5 * (lo + hi);
@@ -404,13 +438,63 @@ void Pipeline::prepare(const LookParams& pin) {
     // ---- HDR calibration on the balanced state: mid grey -> 15 nits, unroll to peak
     {
         CelF3 Xg = Grey::film(S, 0.18f);
-        CelF3 Xw = Grey::film(S, 0.18f * 16384.f);
+        // the unroll reaches the display peak at +10 stops over grey (reference/model.py calibrate_hdr)
+        CelF3 Xw = Grey::film(S, 0.18f * 1024.f);
         double Lref = kHdrGreyNits / std::max(double(Xg.y), 1e-6);
         double peak = p.output == OutputSpace::Rec2100_PQ ? double(p.hdrPeakNits) : 1000.0;
+        double t10 = (10.0 * std::log10(2.0) - CEL_HDR_E0) / CEL_HDR_ER;
         s[CEL_CS_HDR_LREF] = float(Lref);
-        s[CEL_CS_HDR_GMAX] = float(std::max(0.0, std::log10(peak / (Lref * std::max(double(Xw.y), 1e-6)))));
+        s[CEL_CS_HDR_GMAX] = float(std::max(0.0, std::log10(peak / (Lref * std::max(double(Xw.y), 1e-6)))) * (1.0 + t10 * t10) / (t10 * t10));
         s[CEL_CS_HDR_UNROLL] = p.hdrUnroll;
         s[CEL_CS_HDR_PEAK] = float(peak);
+    }
+
+    // ---- hue hold anchor (points 0, cached per film): film XYZ of every scene direction at 18 %
+    //      grey luminance, normalised to Y = 1, + validity weight (reference/model.py bake_hold_anchor)
+    s[CEL_CS_HOLD] = 0.f;
+    s[CEL_CS_HOLD_CHROMA] = 0.f;
+    if (hold) {
+        if (!(C.holdValid && sameFilm(C.holdKey, p) && C.holdAnchor.size() == nHA)) {
+            std::vector<float> A(nHA);
+            const double e1[3] = {1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0), 0.0};
+            const double e2[3] = {1.0 / std::sqrt(6.0), 1.0 / std::sqrt(6.0), -2.0 / std::sqrt(6.0)};
+            const double e3[3] = {1.0 / std::sqrt(3.0), 1.0 / std::sqrt(3.0), 1.0 / std::sqrt(3.0)};
+            const double lum[3] = {0.26270021, 0.67799807, 0.05930172};
+            const int N = kHoldN;
+            CelF3 g0 = Grey::film(S, 0.18f);
+            const float gx = celc_labf(g0.x / g0.y / CEL_D65_X), gy = celc_labf(1.f), gz = celc_labf(g0.z / g0.y / CEL_D65_Z);
+            parallelRows(N, [&](int r0, int r1) {
+                for (int jv = r0; jv < r1; ++jv)
+                    for (int iu = 0; iu < N; ++iu) {
+                        double u = -1.0 + 2.0 * iu / (N - 1), v = -1.0 + 2.0 * jv / (N - 1);
+                        double n = 1.0 - std::fabs(u) - std::fabs(v);
+                        double a = n < 0 ? (1.0 - std::fabs(v)) * (u >= 0 ? 1.0 : -1.0) : u;
+                        double b = n < 0 ? (1.0 - std::fabs(u)) * (v >= 0 ? 1.0 : -1.0) : v;
+                        double d[3], Y = 0.0, L1 = 0.0;
+                        for (int c = 0; c < 3; ++c) { d[c] = a * e1[c] + b * e2[c] + n * e3[c]; Y += lum[c] * d[c]; L1 += std::fabs(d[c]); }
+                        bool ok = Y > 0.02 * L1;
+                        double k = ok ? 0.18 / Y : 0.0;
+                        CelF3 rgb = ok ? cel_f3(float(d[0] * k), float(d[1] * k), float(d[2] * k)) : cel_f3(0.18f, 0.18f, 0.18f);
+                        CelcFilm f = celc_film_xyz(S.data(), rgb, cel_f3(0, 0, 0), 0);
+                        float iy = 1.f / std::max(f.X.y, 1e-12f);
+                        // CIELAB-scaled (a, b) relative to the grey neutral (celc_hold, model.bake_hold_anchor)
+                        float qx = celc_labf(f.X.x * iy / CEL_D65_X), qy = celc_labf(1.f), qz = celc_labf(f.X.z * iy / CEL_D65_Z);
+                        float* q = &A[(size_t(jv) * N + iu) * 4];
+                        q[0] = 2.5f * ((qx - qy) - (gx - gy));
+                        q[1] = (qy - qz) - (gy - gz);
+                        q[2] = 0.f;
+                        q[3] = ok ? float(std::min(1.0, std::max(0.0, (Y / L1 - 0.02) / 0.08))) : 0.f;
+                    }
+            });
+            C.holdAnchor = std::move(A);
+            C.holdKey = p;
+            C.holdValid = true;
+        }
+        std::memcpy(&S[oHA], C.holdAnchor.data(), nHA * sizeof(float));
+        CelF3 g = Grey::film(S, 0.18f);
+        s[CEL_CS_HOLD_N0] = g.x / g.y; s[CEL_CS_HOLD_N0 + 1] = 1.f; s[CEL_CS_HOLD_N0 + 2] = g.z / g.y;
+        s[CEL_CS_HOLD_A_OFF] = float(oHA);
+        s[CEL_CS_HOLD_A_N] = float(kHoldN);
     }
 
     // ---- user offsets on top of the balance
@@ -421,6 +505,24 @@ void Pipeline::prepare(const LookParams& pin) {
         if (kind == 0) o += kPoint * pts[j];
         else if (kind == 1) o = -0.075 / scanGamma * pts[j];
         s[CEL_CS_OFF + j] = float(o);
+    }
+    // ---- hue hold neutral table (with the user's printer points): film neutral XYZ (Y = 1) over
+    //      the reference log exposure (reference/model.py bake_hold_neutral)
+    if (hold) {
+        const float xr0 = celc_film_xyz(s, cel_f3(0.18f, 0.18f, 0.18f), cel_f3(0, 0, 0), 0).xref;
+        for (int k = 0; k < kHoldNX; ++k) {
+            double x = CEL_HOLD_X0 + (CEL_HOLD_X1 - CEL_HOLD_X0) * k / (kHoldNX - 1);
+            float gv = float(0.18 * std::pow(10.0, x - double(xr0)));
+            CelF3 X = Grey::film(S, gv);
+            float iy = 1.f / std::max(X.y, 1e-12f);
+            s[oHN + k] = X.x * iy;
+            s[oHN + kHoldNX + k] = 1.f;
+            s[oHN + 2 * kHoldNX + k] = X.z * iy;
+        }
+        s[CEL_CS_HOLD_N_OFF] = float(oHN);
+        s[CEL_CS_HOLD_N_N] = float(kHoldNX);
+        s[CEL_CS_HOLD] = float(holdStrength);
+        s[CEL_CS_HOLD_CHROMA] = float(holdChroma);
     }
     s[CEL_CS_GAIN] = gain;
 

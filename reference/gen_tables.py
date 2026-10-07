@@ -62,7 +62,7 @@ def cstr(s):
     return json.dumps(s, ensure_ascii=True)
 
 
-def neg_entry(n):
+def neg_entry(n, scan_xover=0.0):
     kind = {'negative': 0, 'reversal': 1, 'bw': 2}[n['kind']]
     sens = n['sensitivity'] if kind != 2 else [n['sensitivity'][0]] * 3
     curves = n['curves'] if kind != 2 else [n['curves'][0]] * 3
@@ -83,7 +83,8 @@ def neg_entry(n):
         f'  {base(n.get("base", {"d0": 0.0}))}, {mat3(inter)},',
         '  {' + ', '.join(fnum(v) for v in gran) + '},',
         f'  {fnum(n.get("silver", 0.9))}, {1 if "silverSpectrum" in n else 0}, {lobeset(n.get("silverSpectrum"))},',
-        f'  {fnum(n.get("greyY", 0.10))}, {mat3(scanM)}',
+        f'  {fnum(n.get("greyY", 0.10))}, {mat3(scanM)}, {mat3(n.get("scanRoot", [[0, 0, 0]] * 3))}, {fnum(n.get("scanCrossover", scan_xover))}, {fnum(n.get("scanContrast", 1.0))},'
+        f' {fnum(n.get("hueHold", 0.0))}, {fnum(n.get("chromaHold", 0.0))}',
         '}',
     ]
     return '\n'.join(lines)
@@ -97,7 +98,8 @@ def print_entry(p):
         '  {' + ', '.join('{%s, %s}' % (lobeset(d.get('primary')), lobeset(d.get('secondary'))) for d in p['dyes']) + '},',
         '  {' + ', '.join(curve(c) for c in p['curves']) + '},',
         f'  {base(p["base"])}, {fnum(p["greyY"])}, {fnum(p.get("silver", 0.0))}, {fnum(p.get("silverDensity", 0.9))},',
-        '  {' + ', '.join(fnum(v) for v in p.get('fade', [1.0, 1.0, 1.0])) + '}',
+        '  {' + ', '.join(fnum(v) for v in p.get('fade', [1.0, 1.0, 1.0])) + '},',
+        f'  {fnum(p.get("hueHold", 0.0))}, {fnum(p.get("chromaHold", 0.0))}, {lobeset(p.get("monoTone"))}',
         '}'])
 
 
@@ -127,12 +129,12 @@ def main():
         f.write(f'static const LampSet kLamps = {{{illum(L["printer"])}, {illum(L["projector"])}, {illum(L["scanner"])}}};\n')
         sc = j['scanner']
         cv = sc['curve']
-        f.write('static const ScannerDef kScanner = {{%s}, %s, %s, %s, %s, %s};\n' % (
+        f.write('static const ScannerDef kScanner = {{%s}, %s, %s, %s, %s, %s, %s, %s};\n' % (
             ', '.join(lobeset(s) for s in sc['sensitivity']), fnum(cv['gamma']), fnum(cv['k']), fnum(cv['R']),
-            fnum(cv['p']), fnum(sc['greyY'])))
+            fnum(cv['p']), fnum(sc['greyY']), fnum(sc.get('hueHold', 0.0)), fnum(sc.get('chromaHold', 0.0))))
         f.write(f'static const int kNumNegatives = {len(j["negatives"])};\n')
         f.write('static const NegDef kNegatives[] = {\n')
-        f.write(',\n'.join(neg_entry(n) for n in j['negatives']))
+        f.write(',\n'.join(neg_entry(n, j['scanner'].get('crossover', 0.0)) for n in j['negatives']))
         f.write('\n};\n')
         f.write(f'static const int kNumPrints = {len(j["prints"])};\n')
         f.write('static const PrintDef kPrints[] = {\n')

@@ -31,13 +31,18 @@ _P709 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0, 1, 1], [1, 0, 
                   [1, 0.5, 0], [0.5, 1, 0], [0, 1, 0.5], [0, 0.5, 1], [0.5, 0, 1], [1, 0, 0.5]], float)
 SAT = (_P709 * 0.85 + 0.03) @ sp.rgb_to_rgb('rec709', 'rec2020').T
 SAT = SAT / (SAT @ sp.LUM2020)[:, None] * 0.12
-TEST = np.concatenate([CHART[:18], SKIN, SKIN * 0.5, SKIN * 2.0, SAT], 0)
+# bright blue skies (look-phase aims, reference/aims.py): rendered hue and chroma must hold
+SKY = scenes.lab_to_rgb2020(np.array([(85, -7, -34), (75, -6, -32), (65, -3, -28), (80, -9, -26)], float))
+TEST = np.concatenate([CHART[:18], SKIN, SKIN * 0.5, SKIN * 2.0, SKY, SKY * 0.5, SAT], 0)
 IS_SAT = np.zeros(len(TEST), bool)
 IS_SAT[-len(SAT):] = True
+IS_SKY = np.zeros(len(TEST), bool)
+IS_SKY[18 + 3 * len(SKIN):18 + 3 * len(SKIN) + 2 * len(SKY)] = True
+IS_SKY[[2, 17]] = True                      # chart sky and cyan: blue-cyan family, chroma must hold
 LAB_IN = scenes.xyz_to_lab(TEST @ sp.M2020_TO_XYZ.T)
 IS_SKIN = np.zeros(len(TEST), bool)
 IS_SKIN[[0, 1]] = True
-IS_SKIN[18:] = True
+IS_SKIN[18:18 + 3 * len(SKIN)] = True
 RAMP = np.repeat((0.18 * 2.0 ** np.arange(-6, 7, 1.0))[:, None], 3, 1)
 
 
@@ -120,12 +125,14 @@ def residuals(x, lib, neg, prt, spec, brief, x0, mode='all'):
         hue_t = hue_t + sh * np.exp(-0.5 * (dd / wd) ** 2)
     skin_hue = brief.get('skin_hue', 2.0)
     hue_t = np.where(IS_SKIN, skin_hue, hue_t)
-    wh = np.clip(Cin / 25.0, 0.2, 1.5) * np.where(IS_SKIN, 2.5, 1.0) * np.where(IS_SAT, 0.35, 1.0)
+    wh = np.clip(Cin / 25.0, 0.2, 1.5) * np.where(IS_SKIN, 2.5, 1.0) * np.where(IS_SAT, 0.35, 1.0) * np.where(IS_SKY, 2.0, 1.0)
+    hue_t = np.where(IS_SKY, 0.0, hue_t)
     r_h = (dh - hue_t) / 4.0 * wh
     sat = brief.get('saturation', 1.05)
     skin_sat = brief.get('skin_saturation', sat * 0.97)
     st = np.where(IS_SKIN, skin_sat, np.where(IS_SAT, brief.get('sat_saturated', 0.8), sat))
-    r_c = np.log(np.maximum(Cout, 0.5) / (Cin * st)) / 0.05 * np.where(IS_SKIN, 1.5, np.where(IS_SAT, 0.15, 0.7))
+    st = np.where(IS_SKY, np.maximum(st, 0.95), st)
+    r_c = np.log(np.maximum(Cout, 0.5) / (Cin * st)) / 0.05 * np.where(IS_SKIN, 1.5, np.where(IS_SAT, 0.15, np.where(IS_SKY, 1.2, 0.7)))
     # neutral tracking: chroma of the ramp in Lab and per-channel log spread
     lr = lab_of(ramp, yg)
     if 'ramp_anchors' in brief:
@@ -214,40 +221,85 @@ def main():
 
 
 
-def optimise_scan(idx, write=False, sat=0.95):
+# extra Lab Scan probes: yellows / ambers / limes / foliage / golden-hour field (hue 60..130 deg,
+# where a 3x3 lab matrix most easily turns grass and sunlit fields spring green)
+SCAN_PROBES_LAB = [(60, 7, 51), (70, 12, 60), (55, -10, 40), (45, -20, 30), (62, 20, 45), (75, -12, 55),
+                   (50, -28, 22), (66, 2, 40), (81, 4, 79), (70, 25, 62), (62, 34, 57)]
+SCAN_TEST = np.concatenate([TEST, scenes.lab_to_rgb2020(np.array(SCAN_PROBES_LAB, float))], 0)
+SCAN_LAB_IN = scenes.xyz_to_lab(SCAN_TEST @ sp.M2020_TO_XYZ.T)
+SCAN_IS_SKIN = np.concatenate([IS_SKIN, np.zeros(len(SCAN_PROBES_LAB), bool)])
+SCAN_IS_SAT = np.concatenate([IS_SAT, np.zeros(len(SCAN_PROBES_LAB), bool)])
+SCAN_IS_SKY = np.concatenate([IS_SKY, np.zeros(len(SCAN_PROBES_LAB), bool)])
+
+
+def scan_render_lab(P, rgb):
+    M709 = np.linalg.inv(sp.npm(*sp.PRIMARIES['rec709']))
+    X, _ = P.film_xyz(rgb)
+    Xg, _ = P.film_xyz(np.full((1, 3), 0.18))
+    return lab_of(X @ M709.T, Xg[0, 1])
+
+
+def optimise_scan(idx, write=False, verbose=True):
     """Lab Scan colour matrix per negative (the lab's calibration): 3x3 with rows summing to 1
-    (neutrals untouched), fitted for hue fidelity and a moderate, 'flat scan' saturation."""
+    (neutrals untouched). The aim is the stock's OWN character, not the input: per patch the hue
+    offset and chroma ratio that the negative shows through the reference print (P1), with the
+    chroma scaled by the brief's scan_sat (a scan is a little flatter than a print) and the hue
+    nudged by scan_hue_bias. Yellows / ambers / limes / foliage (input hue 60..130 deg) are
+    weighted x2 and their hue aim is held within 4 deg of the input (no spring-green grass);
+    foliage / green chroma is capped at 1.05 x input."""
     lib = m.load()
     neg = lib.negs[idx]
     if neg['kind'] != 'negative':
         return None
+    briefs = json.load(open(os.path.join(HERE, 'briefs.json')))
+    brief = briefs['negatives'].get(neg['name'], {})
+    sat = brief.get('scan_sat', 0.95)
+    hb = brief.get('scan_hue_bias', 0.0)
+    ref = m.Pipeline(lib).prepare(m.Params(neg=idx, prt=0))
+    lab_p = scan_render_lab(ref, SCAN_TEST)
     P = m.Pipeline(lib).prepare(m.Params(neg=idx, process='scan'))
-    Cin = np.hypot(LAB_IN[:, 1], LAB_IN[:, 2])
-    hin = np.arctan2(LAB_IN[:, 2], LAB_IN[:, 1])
+    Cin = np.hypot(SCAN_LAB_IN[:, 1], SCAN_LAB_IN[:, 2])
+    hin = np.arctan2(SCAN_LAB_IN[:, 2], SCAN_LAB_IN[:, 1])
+    hdeg = np.degrees(hin) % 360
+    Cp = np.hypot(lab_p[:, 1], lab_p[:, 2])
+    dhp = np.degrees((np.arctan2(lab_p[:, 2], lab_p[:, 1]) - hin + np.pi) % (2 * np.pi) - np.pi)
+    yel = (hdeg >= 60) & (hdeg <= 130)
+    dh_t = np.where(yel & (hdeg < 100), np.clip(dhp, -4.0, 4.0), dhp) + hb
+    dh_t = np.where(SCAN_IS_SKY, 0.0, dh_t)                 # skies and cyan: on the input hue
+    c_t = Cin * np.maximum(Cp / np.maximum(Cin, 1e-6), 0.2) * sat
+    c_t = np.where(yel & (hdeg >= 95), np.minimum(c_t, 1.05 * Cin), c_t)
+
     def mat(x):
+        """x[:6] off-diagonal 3x3, x[6:] root-polynomial terms; each row of [M | M2] sums to 1"""
         M = np.zeros((3, 3))
-        M[0, 1], M[0, 2], M[1, 0], M[1, 2], M[2, 0], M[2, 1] = x
+        M[0, 1], M[0, 2], M[1, 0], M[1, 2], M[2, 0], M[2, 1] = x[:6]
+        M2 = np.asarray(x[6:15]).reshape(3, 3)
         for i in range(3):
-            M[i, i] = 1.0 - M[i].sum()
-        return M
-    M709 = np.linalg.inv(sp.npm(*sp.PRIMARIES['rec709']))
+            M[i, i] = 1.0 - M[i].sum() - M2[i].sum()
+        return M, M2
+
     def res(x):
-        P.Mscan = mat(x)
-        X, _ = P.film_xyz(TEST)
-        Xg, _ = P.film_xyz(np.full((1, 3), 0.18))
-        lab = lab_of(X @ M709.T, Xg[0, 1])
+        P.Mscan, P.Mscan2 = mat(x)
+        lab = scan_render_lab(P, SCAN_TEST)
         Cout = np.hypot(lab[:, 1], lab[:, 2])
         dh = np.degrees((np.arctan2(lab[:, 2], lab[:, 1]) - hin + np.pi) % (2 * np.pi) - np.pi)
-        wh = np.clip(Cin / 25.0, 0.2, 1.5) * np.where(IS_SKIN, 2.5, 1.0) * np.where(IS_SAT, 0.35, 1.0)
-        st = np.where(IS_SKIN, sat, np.where(IS_SAT, sat * 0.8, sat))
-        rc = np.log(np.maximum(Cout, 0.5) / (Cin * st)) / 0.05 * np.where(IS_SAT, 0.2, 1.0)
-        return np.concatenate([dh / 4.0 * wh, rc, x * 2.0])
-    r = least_squares(res, np.zeros(6), bounds=(-0.6, 0.6), diff_step=1e-3)
-    M = mat(r.x)
-    print(neg['name'], 'scan matrix', np.round(M, 4).tolist(), 'cost %.1f -> %.1f' % (0.5 * np.sum(res(np.zeros(6)) ** 2), r.cost))
+        wh = np.clip(Cin / 25.0, 0.2, 1.5) * np.where(SCAN_IS_SKIN, 2.5, 1.0) * np.where(SCAN_IS_SAT & ~yel, 0.35, 1.0) \
+            * np.where(yel, np.where(hdeg < 100, 4.0, 2.0), 1.0) * np.where(SCAN_IS_SKY, 3.0, 1.0)
+        rc = np.log(np.maximum(Cout, 0.5) / np.maximum(c_t, 0.5)) / 0.05 * np.where(SCAN_IS_SAT & ~yel, 0.2, 1.0) \
+            * np.where(yel, 2.0, 1.0)
+        return np.concatenate([(dh - dh_t) / 4.0 * wh, rc, x * 0.5])
+    r = least_squares(res, np.zeros(15), bounds=(-0.8, 0.8), diff_step=1e-3)
+    M, M2 = mat(r.x)
+    if verbose:
+        P.Mscan, P.Mscan2 = M, M2
+        lab = scan_render_lab(P, SCAN_TEST)
+        dh = np.degrees((np.arctan2(lab[:, 2], lab[:, 1]) - hin + np.pi) % (2 * np.pi) - np.pi)
+        print(neg['name'], 'scan matrix', np.round(M, 4).tolist(), 'root', np.round(M2, 4).tolist(), 'cost %.1f -> %.1f' % (0.5 * np.sum(res(np.zeros(15)) ** 2), r.cost))
+        print('   yellow/green probes dh', np.round(dh[yel], 1).tolist(), ' C ratio', np.round((np.hypot(lab[:, 1], lab[:, 2]) / Cin)[yel], 2).tolist())
     if write:
         j = json.load(open(os.path.join(HERE, 'stocks.json')))
         j['negatives'][idx]['scanMatrix'] = np.round(M, 5).tolist()
+        j['negatives'][idx]['scanRoot'] = np.round(M2, 5).tolist()
         with open(os.path.join(HERE, 'stocks.json'), 'w') as f:
             json.dump(j, f, indent=1)
     return M

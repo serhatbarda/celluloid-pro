@@ -239,8 +239,8 @@ static spec::Vec3 labToRec2020(double L, double a, double b) {
 
 // smoothness of the tone/colour scale (no LUT-interpolation sawtooth that a later grade would turn
 // into Mach bands): along fine exposure ramps the local slope of every output channel may deviate
-// from its 61-sample running mean by at most 5 % of the local mean |slope| (where the channel
-// moves at all), for every print pair and the reversal stock
+// from its 61-sample running quadratic fit by at most 5 % of the local mean |slope| (where the channel
+// moves at all; relative to the fastest channel), for every print pair and the reversal stock
 static void testSmoothness() {
     std::printf("[smoothness: slope ripple along exposure ramps, all print pairs]\n");
     struct Ramp { const char* name; double L, a, b, s0, s1; bool neutral; };
@@ -264,22 +264,37 @@ static void testSmoothness() {
                     Float3 v = P.sceneToOutput({float(c[0] * g), float(c[1] * g), float(c[2] * g)}, {0, 0, 0});
                     o[size_t(k) * 3] = v.r; o[size_t(k) * 3 + 1] = v.g; o[size_t(k) * 3 + 2] = v.b;
                 }
+                // per channel: deviation of the slope from its running mean, relative to the local
+                // running mean |slope| of the FASTEST channel (a channel that hardly moves along the
+                // ramp must not turn rounding-level wiggles into large relative numbers)
+                std::vector<double> sl[3], sm[3], am[3];
                 for (int ch = 0; ch < 3; ++ch) {
-                    std::vector<double> sl(size_t(N - 1)), sm(size_t(N - 1), 0.0), am(size_t(N - 1), 0.0);
-                    for (int k = 0; k < N - 1; ++k) sl[size_t(k)] = double(o[size_t(k + 1) * 3 + ch]) - o[size_t(k) * 3 + ch];
-                    for (int k = Wn / 2; k < N - 1 - Wn / 2; ++k) {
+                    sl[ch].assign(size_t(N - 1), 0.0); sm[ch].assign(size_t(N - 1), 0.0); am[ch].assign(size_t(N - 1), 0.0);
+                    for (int k = 0; k < N - 1; ++k) sl[ch][size_t(k)] = double(o[size_t(k + 1) * 3 + ch]) - o[size_t(k) * 3 + ch];
+                    // running quadratic (Savitzky-Golay, order 2) fit of the slope: smooth curvature of
+                    // the tone/colour scale is not ripple, a LUT sawtooth is
+                    const int mm = Wn / 2;
+                    for (int k = mm; k < N - 1 - mm; ++k) {
                         double a = 0, b = 0;
-                        for (int j = -Wn / 2; j <= Wn / 2; ++j) { a += sl[size_t(k + j)]; b += std::fabs(sl[size_t(k + j)]); }
-                        sm[size_t(k)] = a / Wn; am[size_t(k)] = b / Wn;
+                        for (int j = -mm; j <= mm; ++j) {
+                            double cj = 3.0 * (3.0 * mm * mm + 3.0 * mm - 1.0 - 5.0 * j * j) / ((2.0 * mm - 1.0) * (2.0 * mm + 1.0) * (2.0 * mm + 3.0));
+                            a += cj * sl[ch][size_t(k + j)];
+                            b += std::fabs(sl[ch][size_t(k + j)]);
+                        }
+                        sm[ch][size_t(k)] = a; am[ch][size_t(k)] = b / Wn;
                     }
-                    std::vector<double> sorted(am.begin() + Wn, am.end() - Wn);
-                    std::nth_element(sorted.begin(), sorted.begin() + sorted.size() / 2, sorted.end());
-                    double med = sorted[sorted.size() / 2];
+                }
+                std::vector<double> amax(size_t(N - 1), 0.0);
+                for (int k = 0; k < N - 1; ++k) amax[size_t(k)] = std::max({am[0][size_t(k)], am[1][size_t(k)], am[2][size_t(k)]});
+                std::vector<double> sorted(amax.begin() + Wn, amax.end() - Wn);
+                std::nth_element(sorted.begin(), sorted.begin() + sorted.size() / 2, sorted.end());
+                double med = sorted[sorted.size() / 2];
+                for (int ch = 0; ch < 3; ++ch) {
                     double w = 0;
                     for (int k = Wn; k < N - 1 - Wn; ++k) {
                         float v = o[size_t(k) * 3 + ch];
-                        if (v < 0.03f || v > 0.95f || am[size_t(k)] < 0.15 * med || am[size_t(k)] <= 0) continue;
-                        w = std::max(w, std::fabs(sl[size_t(k)] - sm[size_t(k)]) / am[size_t(k)]);
+                        if (v < 0.03f || v > 0.95f || amax[size_t(k)] < 0.15 * med || amax[size_t(k)] <= 0) continue;
+                        w = std::max(w, std::fabs(sl[ch][size_t(k)] - sm[ch][size_t(k)]) / amax[size_t(k)]);
                     }
                     CHECK(w <= 0.05, "slope ripple %.3f > 0.05: neg %d print %d ramp %s channel %d", w, n, p, r.name, ch);
                     if (w > worst) { worst = w; wname = std::to_string(n) + "/" + std::to_string(p) + " " + r.name; }

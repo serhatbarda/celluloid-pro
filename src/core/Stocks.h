@@ -33,6 +33,10 @@ struct NegDef {
     LobeSet silverSpectrum;           // B&W image silver spectral density shape
     double greyY;                     // reversal: display Y of 18% grey
     double scanMatrix[3][3];          // Lab Scan colour matrix (identity = none)
+    double scanRoot[3][3];            // Lab Scan root-polynomial terms (sqrt(rg), sqrt(gb), sqrt(rb))
+    double scanCrossover;             // Lab Scan: share of the negative's own crossover kept (0 = neutral)
+    double scanContrast;              // Lab Scan: stock profile contrast (1 = G-layer grey gamma)
+    double hueHold, chromaHold;       // reversal: hue hold (see ColorKernels.h celc_hold)
 };
 
 struct PrintDef {
@@ -46,9 +50,11 @@ struct PrintDef {
     double silver;                    // built-in silver retention 0..1
     double silverDensity;
     double fade[3];                   // dye fading factors (archive look)
+    double hueHold, chromaHold;       // hue hold strength / chroma hold (ColorKernels.h celc_hold)
+    LobeSet monoTone;                 // B&W image tone on this print: flat + these lobes (unit mean)
 };
 
-struct ScannerDef { LobeSet sens[3]; double gamma, k, R, p; double greyY; };
+struct ScannerDef { LobeSet sens[3]; double gamma, k, R, p; double greyY; double hueHold, chromaHold; };
 struct LampSet { IllumDef printer, projector, scanner; };
 
 int numNegatives();

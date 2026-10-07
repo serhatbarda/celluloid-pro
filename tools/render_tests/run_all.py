@@ -793,8 +793,8 @@ class Suite:
             self.check(g, "grain present, zero-mean (S35 default)", st["std"] > 0.002 and abs(st["mean"]) < 0.25 * st["std"],
                        "std %.4f mean %+.5f" % (st["std"], st["mean"]))
             cc = np.mean([st["rg"], st["rb"], st["gb"]])
-            self.check(g, "grain layers partially correlated (0.3..0.5 nominal)", 0.15 <= cc <= 0.75,
-                       "rg %.2f rb %.2f gb %.2f" % (st["rg"], st["rb"], st["gb"]), "0.3..0.5 (+-0.15)")
+            self.check(g, "grain layers strongly correlated (mostly luminance grain, 0.90 nominal)", 0.72 <= cc <= 0.97,
+                       "rg %.2f rb %.2f gb %.2f" % (st["rg"], st["rb"], st["gb"]), "0.90 (+-0.15)")
         order = []
         for name, pt in GRAIN_FORMATS[:4]:
             f = next((x for x in fmts if re.search(pt, x, re.I)), None)
@@ -846,7 +846,8 @@ class Suite:
             # the preset is applied after the base values, like a user picking it in the UI
             L.append(self.line("preset_%02d" % i, "natural_sheet", full, post=[("lookPreset", ("index", i))],
                                png=True, extra=["--list-params-json", os.path.join(jdir, "preset_%02d.json" % i)]))
-            L.append(self.line("presetc_%02d" % i, "chart", {}, post=[("lookPreset", ("index", i))]))
+            # colour-only chart render of the preset (texture would bleed between the wedge patches)
+            L.append(self.line("presetc_%02d" % i, "chart", {}, post=[("lookPreset", ("index", i)), ("mode", ("index", self.ix["color"]))]))
         # "(modified)" marking after a user edit
         L.append(self.line("preset_mod", "chart", {}, post=[("lookPreset", ("index", 1)), ("printerR", 1.5)], out=False,
                            extra=["--list-params-json", os.path.join(jdir, "preset_mod.json")]))
@@ -884,6 +885,20 @@ class Suite:
                     dmin, pair = d, "%s vs %s" % (opts[i + 1], opts[j + 1])
         if len(imgs) > 1:
             self.check(g, "presets are distinct looks", dmin > 2e-3, "min mean |diff| %.4f (%s)" % (dmin, pair), "> 0.002")
+        # colour distinctness (texture excluded): colour-only chart renders, mean dE2000 >= 2
+        labs = []
+        for i in range(1, len(opts)):
+            smp = self.chart.sample(self.load("presetc_%02d" % i, "chart"))[:, :3]
+            labs.append(C.xyz_to_lab(self.out709.to_xyz(smp)))
+        cmin, cpair = 1e9, ""
+        for i in range(len(labs)):
+            for j in range(i + 1, len(labs)):
+                d = float(np.mean(C.delta_e2000(labs[i], labs[j])))
+                if d < cmin:
+                    cmin, cpair = d, "%s vs %s" % (opts[i + 1], opts[j + 1])
+        if len(labs) > 1:
+            self.check(g, "presets have distinct colour (colour-only chart)", cmin >= 2.0,
+                       "min mean dE2000 %.2f (%s)" % (cmin, cpair), ">= 2.0")
         mod = {p["name"]: p for p in json.load(open(os.path.join(jdir, "preset_mod.json")))["params"]}
         st = mod.get("lookPresetStatus", {}).get("value", "")
         self.check(g, "user edit after a preset marks '(modified)' (or resets to Custom)",

@@ -28,6 +28,13 @@ set(CEL_OFX_ARCH "${CEL_OFX_ARCH}" PARENT_SCOPE)
 set(CEL_BUNDLE_BINARY_DIR "${CEL_BUNDLE_DIR}/Contents/${CEL_OFX_ARCH}")
 
 configure_file(Version.h.in "${CMAKE_CURRENT_BINARY_DIR}/generated/CelVersion.h" @ONLY)
+# build id / date regenerated on every build (the configure-time value goes stale)
+add_custom_target(cel_build_id ALL
+  COMMAND "${CMAKE_COMMAND}" "-DSRC=${PROJECT_SOURCE_DIR}" "-DOUT=${CMAKE_CURRENT_BINARY_DIR}/generated/CelBuildId.h"
+          "-DFORCED=$CACHE{CEL_BUILD_ID}" -P "${PROJECT_SOURCE_DIR}/cmake/CelBuildIdScript.cmake"
+  BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/generated/CelBuildId.h"
+  COMMENT "Celluloid build id"
+  VERBATIM)
 
 set(CEL_OFX_SOURCES
   CelluloidPlugin.cpp
@@ -38,6 +45,7 @@ set(CEL_OFX_SOURCES
 add_library(celluloid_ofx MODULE ${CEL_OFX_SOURCES})
 target_include_directories(celluloid_ofx PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(celluloid_ofx PRIVATE cel_ofxsupport celgpu celtex celcore cellic)
+add_dependencies(celluloid_ofx cel_build_id)
 if(CEL_HAVE_GPU_API)
   target_compile_definitions(celluloid_ofx PRIVATE CEL_HAVE_GPU_API=1)
 endif()

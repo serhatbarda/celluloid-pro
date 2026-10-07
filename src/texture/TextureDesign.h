@@ -30,7 +30,7 @@ float       grainFormatAmplitude(GrainFormat f);  // suggested amplitude factor 
 const char* grainFormatName(GrainFormat f);
 
 // Layer sizes relative to the green layer, and the shared clump field.
-constexpr double kGrainRelSigma[4] = {1.12, 1.00, 1.45, 1.60};   // red, green, blue, shared
+constexpr double kGrainRelSigma[4] = {1.12, 1.00, 1.45, 1.20};   // red, green, blue, shared
 
 struct GrainShape {          // distribution shaping (from grainSoftness)
     double sigmaScale;       // softness widens the grain (HF roll-off)
@@ -41,7 +41,7 @@ struct GrainShape {          // distribution shaping (from grainSoftness)
     double mu, invSigma;     // normalisation of y (quadrature, exact for Gaussian n, s)
     double corr;             // resulting inter-layer correlation of y
 };
-constexpr double kGrainLayerCorrelation = 0.40;   // SPEC: 0.3 .. 0.5
+constexpr double kGrainLayerCorrelation = 0.90;   // SPEC section 5 (look refinement): mostly luminance grain
 GrainShape grainShape(float softness);             // cached, thread-safe
 
 struct GrainOctave {

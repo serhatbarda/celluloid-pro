@@ -37,7 +37,11 @@ CEL_DEVICE float celc_comp(CelF3 v, int c) { return c == 0 ? v.x : (c == 1 ? v.y
 CEL_DEVICE float celc_max3(CelF3 v) { return cel_fmax(v.x, cel_fmax(v.y, v.z)); }
 CEL_DEVICE float celc_min3(CelF3 v) { return cel_fmin(v.x, cel_fmin(v.y, v.z)); }
 CEL_DEVICE CelF3 celc_scale(CelF3 v, float k) { return cel_f3(v.x * k, v.y * k, v.z * k); }
-CEL_DEVICE float celc_sanitize(float v) { return cel_clamp(cel_finite_or(v, 0.0f), -65504.0f, 65504.0f); }
+/* NaN -> 0; +-Inf and huge values clamp to the half-float range (an overflowing log decode of an
+ * absurd code value renders as the brightest white, not as black) */
+CEL_DEVICE float celc_sanitize(float v) { return (v != v) ? 0.0f : cel_clamp(v, -65504.0f, 65504.0f); }
+/* display-referred inputs (Texture-Only): any non-finite value -> 0 */
+CEL_DEVICE float celc_sanitize_d(float v) { return cel_clamp(cel_finite_or(v, 0.0f), -65504.0f, 65504.0f); }
 
 /* 1D LUT row `row` of a 3 x N block over [x0,x1], corner aligned, clamped */
 CEL_DEVICE float celc_lut1(CEL_GLOBAL const float* s, int off, int n, int row, float x0, float x1, float x) {
@@ -82,16 +86,16 @@ CEL_DEVICE CelF3 celc_lut3(CEL_GLOBAL const float* s, int off, int n, float mx, 
 /* ------------------------------------------------------------------------- input */
 CEL_DEVICE CelF3 celc_decode_px(CEL_GLOBAL const float* s, CelF3 e) {
     int sp = celc_i(s, CEL_CS_INPUT);
-    CelF3 l = cel_f3(celc_decode_transfer(sp, celc_sanitize(e.x)), celc_decode_transfer(sp, celc_sanitize(e.y)),
-                     celc_decode_transfer(sp, celc_sanitize(e.z)));
+    CelF3 l = cel_f3(celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.x))), celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.y))),
+                     celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.z))));
     l = celc_mat3(s, CEL_CS_MIN, l);
     float g = s[CEL_CS_GAIN];
     return cel_f3(celc_sanitize(l.x * g), celc_sanitize(l.y * g), celc_sanitize(l.z * g));
 }
 
 /* ------------------------------------------------------------------------- spectral exposure */
-/* octahedral direction of scene RGB (opponent basis) -> layer log10 exposures */
-CEL_DEVICE CelF3 celc_exposures(CEL_GLOBAL const float* s, CelF3 rgb) {
+/* octahedral parameterisation of a scene RGB direction (opponent basis): (u, v, L1 magnitude) */
+CEL_DEVICE CelF3 celc_oct_uv(CelF3 rgb) {
     float a = (rgb.x - rgb.y) * 0.70710678118654752f;
     float b = (rgb.x + rgb.y - 2.0f * rgb.z) * 0.40824829046386302f;
     float nn = (rgb.x + rgb.y + rgb.z) * 0.57735026918962576f;
@@ -103,6 +107,13 @@ CEL_DEVICE CelF3 celc_exposures(CEL_GLOBAL const float* s, CelF3 rgb) {
         float fv = (1.0f - cel_fabs(u)) * (v >= 0.0f ? 1.0f : -1.0f);
         u = fu; v = fv;
     }
+    return cel_f3(u, v, L1);
+}
+
+/* octahedral direction of scene RGB (opponent basis) -> layer log10 exposures */
+CEL_DEVICE CelF3 celc_exposures(CEL_GLOBAL const float* s, CelF3 rgb) {
+    CelF3 o = celc_oct_uv(rgb);
+    float u = o.x, v = o.y, L1 = o.z;
     int n = celc_i(s, CEL_CS_OCT_N), off = celc_i(s, CEL_CS_OCT_OFF);
     float tu = cel_clamp((u + 1.0f) * 0.5f * (float)(n - 1), 0.0f, (float)(n - 1));
     float tv = cel_clamp((v + 1.0f) * 0.5f * (float)(n - 1), 0.0f, (float)(n - 1));
@@ -201,7 +212,13 @@ CEL_DEVICE CelcFilm celc_film_xyz(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 no
         CelF3 v = cel_f3(celc_lut1(s, sco, scn, 0, s[CEL_CS_SD0], s[CEL_CS_SD1], -ls.x + ng.silver) + s[CEL_CS_OFF],
                          celc_lut1(s, sco, scn, 1, s[CEL_CS_SD0 + 1], s[CEL_CS_SD1 + 1], -ls.y + ng.silver) + s[CEL_CS_OFF + 1],
                          celc_lut1(s, sco, scn, 2, s[CEL_CS_SD0 + 2], s[CEL_CS_SD1 + 2], -ls.z + ng.silver) + s[CEL_CS_OFF + 2]);
-        CelF3 e = celc_mat3(s, CEL_CS_MSCAN, celc_pow10_3(v));
+        /* lab colour correction: 3x3 + root-polynomial terms (exposure homogeneous, rows sum to 1 so
+         * neutrals stay neutral) */
+        CelF3 lin = celc_pow10_3(v);
+        CelF3 e = celc_mat3(s, CEL_CS_MSCAN, lin);
+        CelF3 rp = cel_f3(cel_sqrt(lin.x * lin.y), cel_sqrt(lin.y * lin.z), cel_sqrt(lin.x * lin.z));
+        CelF3 e2 = celc_mat3(s, CEL_CS_MSCAN2, rp);
+        e = cel_f3(e.x + e2.x, e.y + e2.y, e.z + e2.z);
         float fl = CEL_SCAN_FLOOR * CEL_SCAN_FLOOR;
         e = cel_f3(0.5f * (e.x + cel_sqrt(e.x * e.x + fl)), 0.5f * (e.y + cel_sqrt(e.y * e.y + fl)), 0.5f * (e.z + cel_sqrt(e.z * e.z + fl)));
         CelF3 w = cel_f3(cel_log10(e.x), cel_log10(e.y), cel_log10(e.z));
@@ -214,12 +231,79 @@ CEL_DEVICE CelcFilm celc_film_xyz(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 no
     return r;
 }
 
+/* ------------------------------------------------------------------------- hue hold */
+/* Every per-layer log-domain tone scale bends a colour's path toward white (highlights) or black
+ * (shadows): orange slides to yellow, red to pink, sky blue to cyan. The hold keeps a colour on the
+ * hue the stock gives it at 18 % grey luminance (anchor, per scene chromaticity, points 0): in
+ * CIELAB coordinates (f = CIELAB f(XYZ / W_D65), a = 2.5 (f_x - f_y), b = f_y - f_z) the colour's (a, b)
+ * relative to the film's own neutral at the same exposure and luminance (crossover tints and
+ * printer lights stay) is turned toward the anchor's (relative to the grey neutral) by
+ * t = hold * w * (1 - exp(-K stops^2)), its length scaled by 1 + chromaHold * t; Y unchanged.
+ * == reference/model.py Pipeline.apply_hold */
+/* CIELAB f(t) and its inverse (cube root above (6/29)^3, linear segment below) */
+CEL_DEVICE float celc_labf(float x) { return x > 0.008856451679f ? cel_pow(x, 0.333333333333333f) : 7.787037037f * x + 0.137931034f; }
+CEL_DEVICE float celc_labfinv(float f) { return f > 0.206896552f ? f * f * f : (f - 0.137931034f) * 0.128418549f; }
+CEL_DEVICE CelF3 celc_hold(CEL_GLOBAL const float* s, CelF3 X, float xref, CelF3 rgb) {
+    float hold = s[CEL_CS_HOLD];
+    if (!(hold > 0.0f)) return X;
+    float Ys = 0.26270021f * rgb.x + 0.67799807f * rgb.y + 0.05930172f * rgb.z;
+    if (!(Ys > 1e-10f) || !(X.y > 1e-10f)) return X;
+    CelF3 o = celc_oct_uv(rgb);
+    int n = celc_i(s, CEL_CS_HOLD_A_N), off = celc_i(s, CEL_CS_HOLD_A_OFF);
+    float tu = cel_clamp((o.x + 1.0f) * 0.5f * (float)(n - 1), 0.0f, (float)(n - 1));
+    float tv = cel_clamp((o.y + 1.0f) * 0.5f * (float)(n - 1), 0.0f, (float)(n - 1));
+    int i = cel_imin((int)cel_floor(tu), n - 2), j = cel_imin((int)cel_floor(tv), n - 2);
+    float fu = tu - (float)i, fv = tv - (float)j;
+    CEL_GLOBAL const float* p00 = s + off + (j * n + i) * 4;
+    CEL_GLOBAL const float* p10 = p00 + 4;
+    CEL_GLOBAL const float* p01 = p00 + n * 4;
+    CEL_GLOBAL const float* p11 = p01 + 4;
+    float w00 = (1.0f - fu) * (1.0f - fv), w10 = fu * (1.0f - fv), w01 = (1.0f - fu) * fv, w11 = fu * fv;
+    float d0 = p00[0] * w00 + p10[0] * w10 + p01[0] * w01 + p11[0] * w11;
+    float d1 = p00[1] * w00 + p10[1] * w10 + p01[1] * w01 + p11[1] * w11;
+    float aw = p00[3] * w00 + p10[3] * w10 + p01[3] * w01 + p11[3] * w11;
+    float st = cel_log2(Ys / 0.18f);
+    float t = hold * aw * (1.0f - cel_exp(-CEL_HOLD_K * st * st));
+    int nno = celc_i(s, CEL_CS_HOLD_N_OFF), nnn = celc_i(s, CEL_CS_HOLD_N_N);
+    CelF3 nt = celc_lut1_3(s, nno, nnn, CEL_HOLD_X0, CEL_HOLD_X1, cel_f3(xref, xref, xref));
+    float cy = celc_labf(X.y);
+    float fx = celc_labf(X.x / CEL_D65_X), fz = celc_labf(X.z / CEL_D65_Z);
+    /* (a, b) scaled like CIELAB (a* = 500 (f_x - f_y), b* = 200 (f_y - f_z)): angles are CIELAB hues */
+    float Yn = X.y;
+    float nx = celc_labf(nt.x * Yn / CEL_D65_X), nz = celc_labf(nt.z * Yn / CEL_D65_Z);
+    float an0 = 2.5f * (nx - cy), an1 = cy - nz;
+    float c0 = 2.5f * (fx - cy) - an0, c1 = (cy - fz) - an1;
+    float cn = cel_sqrt(c0 * c0 + c1 * c1), dn = cel_sqrt(d0 * d0 + d1 * d1);
+    if (!(cn > 1e-9f) || !(dn > 1e-9f)) return X;
+    /* near-neutral colours (chroma below ~1..4 CIELAB units relative to the film's neutral) are left
+     * alone: their hue is meaningless and the neutral table's interpolation residual must not be
+     * amplified */
+    t *= cel_smoothstep(0.002f, 0.008f, dn);
+    /* turn by t times the (wrapped) hue angle difference: well conditioned for any pair of hues */
+    float hc = cel_atan2(c1, c0), dh = cel_atan2(d1, d0) - hc;
+    if (dh > CEL_PI) dh -= 2.0f * CEL_PI;
+    if (dh < -CEL_PI) dh += 2.0f * CEL_PI;
+    /* opposite hues (|dh| -> 180 deg, near-neutral noise): fade the turn out so the wrap is continuous */
+    t *= 1.0f - cel_smoothstep(0.5f * CEL_PI, 0.9f * CEL_PI, cel_fabs(dh));
+    /* full chroma hold in the highlights (skies), 30 % of it in the shadows */
+    /* (already strongly saturated colours are not boosted: they would only be cut back by the
+     * display gamut mapping) */
+    float h = hc + t * dh, k = cn * (1.0f + s[CEL_CS_HOLD_CHROMA] * t * (0.3f + 0.7f * cel_smoothstep(-0.5f, 0.5f, st)) *
+                                               (1.0f - cel_smoothstep(0.12f, 0.30f, cn)));
+    float e0 = an0 + cel_cos(h) * k, e1 = an1 + cel_sin(h) * k;
+    return cel_f3(CEL_D65_X * celc_labfinv(e0 * 0.4f + cy), X.y, CEL_D65_Z * celc_labfinv(cy - e1));
+}
+
 /* ------------------------------------------------------------------------- output stage */
 /* hue-preserving smooth gamut compression toward the luminance axis (C1, asymptote at the boundary) */
 CEL_DEVICE CelF3 celc_gamut_compress(CEL_GLOBAL const float* s, CelF3 rgb) {
     float Y = celc_dot3(s, CEL_CS_LUM, rgb);
     if (!(Y > 1e-10f)) return cel_f3(0.0f, 0.0f, 0.0f);
-    float sat = (Y - celc_min3(rgb)) / Y;
+    /* smooth minimum of the channels (no slope kink where the smallest channel changes) */
+    float e = 0.02f * Y;
+    float m1 = 0.5f * (rgb.x + rgb.y - cel_sqrt((rgb.x - rgb.y) * (rgb.x - rgb.y) + e * e));
+    float mn = 0.5f * (m1 + rgb.z - cel_sqrt((m1 - rgb.z) * (m1 - rgb.z) + e * e));
+    float sat = (Y - mn) / Y;
     if (sat <= CEL_GC_THR) return rgb;
     float x = (sat - CEL_GC_THR) / (1.0f - CEL_GC_THR);
     float sc = CEL_GC_THR + (1.0f - CEL_GC_THR) * x / cel_sqrt(1.0f + x * x);
@@ -244,7 +328,8 @@ CEL_DEVICE CelF3 celc_hlg_from_nits(CEL_GLOBAL const float* s, CelF3 nits) {
     if (!(Yd > 1e-12f)) return cel_f3(0.0f, 0.0f, 0.0f);
     float Ys = cel_pow(Yd, 1.0f / 1.2f);
     float k = 1.0f / cel_pow(Ys, 0.2f);
-    return cel_f3(celc_hlg_oetf(Fd.x * k), celc_hlg_oetf(Fd.y * k), celc_hlg_oetf(Fd.z * k));
+    /* E is clipped to the HLG signal range (a saturated colour at the peak has one channel above it) */
+    return cel_f3(celc_hlg_oetf(cel_fmin(Fd.x * k, 1.0f)), celc_hlg_oetf(cel_fmin(Fd.y * k, 1.0f)), celc_hlg_oetf(cel_fmin(Fd.z * k, 1.0f)));
 }
 
 CEL_DEVICE CelF3 celc_encode_sdr(int out, CelF3 rgb) {
@@ -253,9 +338,10 @@ CEL_DEVICE CelF3 celc_encode_sdr(int out, CelF3 rgb) {
     return cel_f3(celc_spow(rgb.x, e), celc_spow(rgb.y, e), celc_spow(rgb.z, e));
 }
 
-CEL_DEVICE CelF3 celc_output(CEL_GLOBAL const float* s, CelF3 XYZ, float xref) {
+CEL_DEVICE CelF3 celc_output(CEL_GLOBAL const float* s, CelF3 XYZ, float xref, CelF3 scene) {
     int out = celc_i(s, CEL_CS_OUTPUT);
     int hdr = celc_i(s, CEL_CS_HDR);
+    XYZ = celc_hold(s, XYZ, xref, scene);
     if (hdr == 0) {
         CelF3 rgb = celc_mat3(s, CEL_CS_MOUT, XYZ);
         rgb = celc_gamut_compress(s, rgb);
@@ -279,14 +365,14 @@ CEL_DEVICE CelF3 celc_scene_to_output(CEL_GLOBAL const float* s, CelF3 rgb, CelF
     noise = cel_f3(cel_clamp(cel_finite_or(noise.x, 0.0f), -8.0f, 8.0f), cel_clamp(cel_finite_or(noise.y, 0.0f), -8.0f, 8.0f),
                    cel_clamp(cel_finite_or(noise.z, 0.0f), -8.0f, 8.0f));
     CelcFilm f = celc_film_xyz(s, rgb, noise, hasNoise);
-    CelF3 o = celc_output(s, f.X, f.xref);
+    CelF3 o = celc_output(s, f.X, f.xref, rgb);
     return cel_f3(cel_finite_or(o.x, 0.0f), cel_finite_or(o.y, 0.0f), cel_finite_or(o.z, 0.0f));
 }
 
 /* ------------------------------------------------------------------------- Texture-Only */
 CEL_DEVICE CelF3 celc_display_decode_px(CEL_GLOBAL const float* s, CelF3 v) {
     int out = celc_i(s, CEL_CS_OUTPUT);
-    v = cel_f3(celc_sanitize(v.x), celc_sanitize(v.y), celc_sanitize(v.z));
+    v = cel_f3(celc_sanitize_d(v.x), celc_sanitize_d(v.y), celc_sanitize_d(v.z));
     if (out == CEL_OUT_709_SRGB) return cel_f3(celc_srgb_dec(v.x), celc_srgb_dec(v.y), celc_srgb_dec(v.z));
     if (out == CEL_OUT_709_G24) return cel_f3(celc_spow(v.x, 2.4f), celc_spow(v.y, 2.4f), celc_spow(v.z, 2.4f));
     if (out == CEL_OUT_PQ) return cel_f3(celc_pq_dec(v.x) * 0.01f, celc_pq_dec(v.y) * 0.01f, celc_pq_dec(v.z) * 0.01f);
@@ -302,7 +388,7 @@ CEL_DEVICE CelF3 celc_display_decode_px(CEL_GLOBAL const float* s, CelF3 v) {
 
 CEL_DEVICE CelF3 celc_display_finish_px(CEL_GLOBAL const float* s, CelF3 lin, CelF3 noise, int hasNoise) {
     int out = celc_i(s, CEL_CS_OUTPUT);
-    lin = cel_f3(celc_sanitize(lin.x), celc_sanitize(lin.y), celc_sanitize(lin.z));
+    lin = cel_f3(celc_sanitize_d(lin.x), celc_sanitize_d(lin.y), celc_sanitize_d(lin.z));
     if (hasNoise && s[CEL_CS_TX_GSIG] > 0.0f) {
         CelF3 nz = cel_f3(cel_clamp(cel_finite_or(noise.x, 0.0f), -8.0f, 8.0f), cel_clamp(cel_finite_or(noise.y, 0.0f), -8.0f, 8.0f),
                           cel_clamp(cel_finite_or(noise.z, 0.0f), -8.0f, 8.0f));

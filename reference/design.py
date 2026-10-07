@@ -4,6 +4,7 @@
     python3 reference/design.py render  <neg> <print> [process] [out.png]
     python3 reference/design.py sheet   [outdir]            # contact sheets of all stocks
     python3 reference/design.py deltae                      # Delta E 2000 distinctness tables
+    python3 reference/design.py gates                       # distinctness gates (exit 1 on failure)
 
 Scenes are generated in scene-linear Rec.2020 and encoded to Fujifilm F-Log2 C / F-Gamut C,
 then run through the full model (decode -> film -> Rec.709 gamma 2.4) exactly like footage.
@@ -174,6 +175,44 @@ def deltae(lib, verbose=True):
     return names, T, T2
 
 
+def scan_deltae(lib):
+    """mean dE2000 (24-patch chart + skin) between the colour negatives through the Lab Scan"""
+    pat = np.concatenate([scenes.chart_rgb(), scenes.skin_rgb()])
+    idx = [i for i, n in enumerate(lib.negs) if n['kind'] == 'negative']
+    labs = {}
+    for i in idx:
+        o, _ = run(lib, m.Params(neg=i, process='scan'), pat)
+        labs[i] = display_to_lab(o)
+    T = {(a, b): float(ciede2000(labs[a], labs[b]).mean()) for a in idx for b in idx if a < b}
+    return T
+
+
+def gates(lib, limit=2.0):
+    """Every negative distinct from every other on P1, every print distinct with CN 200T, and
+    every colour negative distinct through the Lab Scan: min mean dE2000 >= limit."""
+    names, T, T2 = deltae(lib, verbose=False)
+    fails = []
+    n = len(names)
+    for a in range(n):
+        for b in range(a + 1, n):
+            if T[a, b] < limit:
+                fails.append('P1: %s vs %s %.2f' % (names[a], names[b], T[a, b]))
+    for a in range(len(T2)):
+        for b in range(a + 1, len(T2)):
+            if T2[a, b] < limit:
+                fails.append('prints: %s vs %s %.2f' % (lib.prints[a]['name'], lib.prints[b]['name'], T2[a, b]))
+    S = scan_deltae(lib)
+    for (a, b), v in S.items():
+        if v < limit:
+            fails.append('Lab Scan: %s vs %s %.2f' % (lib.negs[a]['name'], lib.negs[b]['name'], v))
+    tri = lambda M: min(M[a, b] for a in range(len(M)) for b in range(a + 1, len(M)))
+    print('min mean dE2000: negatives on P1 %.2f, prints (CN 200T) %.2f, negatives through the Lab Scan %.2f'
+          % (tri(T), tri(T2), min(S.values())))
+    for f in fails:
+        print('  FAIL', f)
+    return fails
+
+
 def main():
     lib = m.load()
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'metrics'
@@ -193,6 +232,8 @@ def main():
         sheet(lib, sys.argv[2] if len(sys.argv) > 2 else OUT)
     elif cmd == 'deltae':
         deltae(lib)
+    elif cmd == 'gates':
+        sys.exit(1 if gates(lib) else 0)
 
 
 if __name__ == '__main__':

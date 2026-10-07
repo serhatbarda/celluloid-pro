@@ -40,10 +40,16 @@ LAYER_W = np.array([0.30, 0.50, 0.20])   # luminance-like weights of the R,G,B-s
 GRAIN_EPS = 0.02
 POINT = 0.025                        # log exposure per printer point
 HDR_GREY_NITS = 15.0
-HDR_E0, HDR_ER = 0.30, 0.90          # unroll starts 1 stop over grey, log10 scale of the roll
-GC_THR, GC_P = 0.85, 2.0             # gamut compression threshold / power (on saturation ratio)
+HDR_E0, HDR_ER = 0.60, 0.60          # unroll starts 2 stops over grey, log10 scale of the roll
+HDR_PEAK_STOPS = 10.0                # the unroll reaches the peak at +10 stops
+GC_THR, GC_P = 0.80, 2.0             # gamut compression threshold / power (on saturation ratio)
 SDR_KNEE = 0.95                      # SDR max-channel limiter knee (display linear)
-HDR_KNEE = 0.80                      # HDR peak limiter knee (fraction of peak)
+HDR_KNEE = 0.90                      # HDR peak limiter knee (fraction of peak)
+HOLD_N = 49                          # hue-hold anchor grid (octahedral directions)
+HOLD_NX = 512                        # hue-hold neutral table over the reference log exposure
+HOLD_X0, HOLD_X1 = -6.0, 4.0
+HOLD_W = (0.3127 / 0.3290, 1.0, (1.0 - 0.3127 - 0.3290) / 0.3290)   # D65 white XYZ
+HOLD_K = 1.3                        # hold weight 1 - exp(-HOLD_K stops^2) away from grey
 
 INPUTS = ['FLog2C', 'FLog2', 'FLog', 'DaVinciIntermediate', 'ArriLogC3', 'ArriLogC4',
           'SLog3SGamut3Cine', 'VLog', 'CanonLog3', 'BMDFilmGen5', 'ACEScct', 'LinearRec2020']
@@ -279,7 +285,10 @@ def print_sens(prt):
 
 def print_dyes(prt):
     if prt.get('_mono'):
-        e = np.ones((3, sp.NWL)) / 3.0
+        # image tone of the black & white print: flat (neutral silver) plus the print's designed
+        # 'monoTone' lobes (warm-toned papers / prints absorb a little more blue-green), unit mean
+        t = 1.0 + sp.lobes(prt.get('monoTone', []))
+        e = np.repeat((t / t.mean())[None, :], 3, 0) / 3.0
         return e
     tot, _ = dye_spectra(prt['dyes'])
     return tot
@@ -700,6 +709,10 @@ class Pipeline:
         # grey balance (points 0, exposure 0), then user offsets
         self.solve_balance()
         self.calibrate_hdr()
+        self.hold = 0.0 if self.mono else float(self.hold_strength())
+        self.hold_chroma = 0.0 if self.mono else float(self.hold_strength('chromaHold'))
+        if self.hold > 0:
+            self.bake_hold_anchor()
         if self.kind == 'print':
             pts = np.array(p.printer) - p.printExposure
             self.off_user = self.off + POINT * pts
@@ -708,7 +721,109 @@ class Pipeline:
             self.off_user = -0.075 / self.scan_gamma * pts
         else:
             self.off_user = self.off.copy()
+        if self.hold > 0:
+            self.bake_hold_neutral()
         return self
+
+    # ------------------------------------------------------------------ hue hold
+    # Every per-layer log-domain tone scale bends the path of a colour toward white (highlights)
+    # or black (shadows): orange slides to yellow, red to pink, sky blue to cyan, deep skin to red.
+    # The hue hold keeps a colour on the hue the stock gives it at mid-grey exposure: per scene
+    # chromaticity the film rendering at 18 % grey luminance (points at 0) is the anchor; away
+    # from grey the colour's chroma vector (relative to the film's own neutral at that exposure,
+    # so crossover tints and printer lights stay) is turned toward the anchor's, magnitude and
+    # luminance unchanged, by hold * (1 - exp(-(stops / 2)^2)).
+    def hold_strength(self, key='hueHold'):
+        if self.kind == 'print':
+            return self.prtd.get(key, 0.0)
+        if self.kind == 'reversal':
+            return self.negd.get(key, 0.0)
+        return self.lib.j['scanner'].get(key, 0.0)
+
+    def bake_hold_anchor(self):
+        N = HOLD_N
+        g = np.linspace(-1.0, 1.0, N)
+        u, v = np.meshgrid(g, g, indexing='xy')
+        d = sp.oct_decode(u.ravel(), v.ravel())
+        Y = d @ sp.LUM2020
+        L1 = np.abs(d).sum(1)
+        ok = Y > 0.02 * L1
+        rgb = d * np.where(ok, 0.18 / np.where(ok, Y, 1.0), 0.0)[:, None]
+        X, _ = self.film_xyz(np.where(ok[:, None], rgb, 0.18), None, self.off)
+        a = f32(X / np.maximum(X[:, 1:2], 1e-12))
+        w = np.where(ok, np.clip((Y / L1 - 0.02) / 0.08, 0.0, 1.0), 0.0)
+        Xg, _ = self.film_xyz(np.full((1, 3), 0.18), None, self.off)
+        n0 = f32(Xg[0] / Xg[0, 1])
+        self.hold_n0 = n0
+        W = np.array(HOLD_W)
+        lf = lambda x: np.where(x > 0.008856451679, np.cbrt(np.maximum(x, 0.0)), 7.787037037 * x + 0.137931034)
+        q = lf(a / W)
+        q[:, 1] = lf(1.0)
+        g = lf(n0 / W)
+        g[1] = lf(1.0)
+        d = np.stack([2.5 * ((q[:, 0] - q[:, 1]) - (g[0] - g[1])), (q[:, 1] - q[:, 2]) - (g[1] - g[2]),
+                      np.zeros(len(q)), w], 1)
+        self.hold_a = f32(d.reshape(N, N, 4))
+
+    def bake_hold_neutral(self):
+        xs = np.linspace(HOLD_X0, HOLD_X1, HOLD_NX)
+        # a neutral of scene value g has xref = log10(g) + (log10 K(grey dir) * L1 terms): sample by
+        # bisection-free construction: xref is affine in log10 g for neutrals
+        g0 = np.full((1, 3), 0.18)
+        _, xr0 = self.film_xyz(g0, None, self.off_user)
+        gs = 0.18 * 10.0 ** (xs - xr0[0])
+        X, _ = self.film_xyz(np.repeat(gs[:, None], 3, 1), None, self.off_user)
+        self.hold_n = f32((X / np.maximum(X[:, 1:2], 1e-12)).T)          # (3, NX)
+
+    def apply_hold(self, XYZ, xref, rgb_scene):
+        """Hue hold on display XYZ (D65 adapted, 1 = white), in CIELAB-like coordinates
+        f = cbrt(XYZ / W_D65), a = f_x - f_y, b = f_y - f_z (exactly CIELAB a*, b* up to the
+        factors 500 / 200): the colour's (a, b) relative to the film's neutral of the same
+        exposure and luminance is turned toward the anchor's (a, b) relative to the grey neutral,
+        its length scaled by 1 + chromaHold * t; luminance unchanged."""
+        if self.hold <= 0:
+            return XYZ
+        u, v, L1 = sp.oct_encode(rgb_scene)
+        A = lut2d(self.hold_a, u, v)
+        Ys = rgb_scene @ sp.LUM2020
+        st = np.log2(np.maximum(Ys, 1e-10) / 0.18)
+        t = self.hold * A[:, 3] * (1.0 - np.exp(-HOLD_K * st * st))
+        t = np.where(Ys > 1e-10, t, 0.0)
+        n = np.stack([lut1d(self.hold_n[c], HOLD_X0, HOLD_X1, xref) for c in range(3)], 1)
+        W = np.array(HOLD_W)
+
+        def ab(f):      # scaled like CIELAB (a* = 500 (fx - fy), b* = 200 (fy - fz)) / 200
+            return np.stack([2.5 * (f[:, 0] - f[:, 1]), f[:, 1] - f[:, 2]], 1)
+
+        def lf(x):      # CIELAB f
+            return np.where(x > 0.008856451679, np.cbrt(np.maximum(x, 0.0)), 7.787037037 * x + 0.137931034)
+
+        def lfinv(f):
+            return np.where(f > 0.206896552, f ** 3, (f - 0.137931034) * 0.128418549)
+        Y = XYZ[:, 1]
+        f = lf(XYZ / W)
+        fy = f[:, 1]
+        fn = lf(n * Y[:, None] / W)
+        fn[:, 1] = fy
+        abn = ab(fn)
+        c = ab(f) - abn
+        ca = A[:, :2]
+        cn = np.linalg.norm(c, axis=1)
+        an = np.linalg.norm(ca, axis=1)
+        good = (cn > 1e-9) & (an > 1e-9) & (Y > 1e-10) & (Ys > 1e-10)
+        sst = lambda e0, e1, x: (lambda q: q * q * (3 - 2 * q))(np.clip((x - e0) / (e1 - e0), 0.0, 1.0))
+        t = t * sst(0.002, 0.008, an)
+        hc = np.arctan2(c[:, 1], c[:, 0])
+        dh = np.arctan2(ca[:, 1], ca[:, 0]) - hc
+        dh = np.where(dh > np.pi, dh - 2 * np.pi, np.where(dh < -np.pi, dh + 2 * np.pi, dh))
+        t = t * (1.0 - sst(0.5 * np.pi, 0.9 * np.pi, np.abs(dh)))
+        h = hc + t * dh
+        k = cn * (1.0 + self.hold_chroma * t * (0.3 + 0.7 * sst(-0.5, 0.5, st)) * (1.0 - sst(0.12, 0.30, cn)))
+        c2 = abn + np.stack([np.cos(h), np.sin(h)], 1) * k[:, None]
+        f2 = np.stack([c2[:, 0] * 0.4 + fy, fy, fy - c2[:, 1]], 1)
+        out = W * lfinv(f2)
+        out[:, 1] = Y
+        return np.where(good[:, None], out, XYZ)
 
     # ------------------------------------------------------------------ scan calibration
     def scan_prepare(self, neg):
@@ -729,13 +844,25 @@ class Pipeline:
         gam = (interp_uniform(D[:, 1], SCN_XA, SCN_XB, gx + h) - interp_uniform(D[:, 1], SCN_XA, SCN_XB, gx - h)) / (2 * h)
         self.sd0 = f32(D[0].copy())
         self.sd1 = f32(D[-1].copy())
+        # A part of the negative's own crossover is kept (lab scans are not perfectly neutral at
+        # every density): each channel blends the neutral-referenced inversion with its own
+        # per-channel inversion (own grey density and grey gamma), weight = scan crossover.
+        alpha = 0.0 if self.mono else float(neg.get('scanCrossover', sc.get('crossover', 0.0)))
+        # stock-specific scan contrast (the lab's per-stock scanner profile): slope of the inverted
+        # log exposure relative to the G channel's grey gamma
+        contrast = float(neg.get('scanContrast', 1.0))
         tab = np.zeros((3, N_CURVE))
         for j in range(3):
             t = self.sd0[j] + (self.sd1[j] - self.sd0[j]) * np.arange(N_CURVE) / (N_CURVE - 1)
             xj = invert_monotone(xs, D[:, j], t)
-            tab[j] = (interp_uniform(D[:, 1], SCN_XA, SCN_XB, xj) - g_grey) / gam
+            neutral = (interp_uniform(D[:, 1], SCN_XA, SCN_XB, xj) - g_grey) / gam
+            jg = interp_uniform(D[:, j], SCN_XA, SCN_XB, gx)
+            jgam = (interp_uniform(D[:, j], SCN_XA, SCN_XB, gx + h) - interp_uniform(D[:, j], SCN_XA, SCN_XB, gx - h)) / (2 * h)
+            own = (interp_uniform(D[:, j], SCN_XA, SCN_XB, xj) - jg) / jgam
+            tab[j] = ((1.0 - alpha) * neutral + alpha * own) * contrast
         self.sinv = f32(tab)
         self.Mscan = np.eye(3) if self.mono else np.array(neg.get('scanMatrix', np.eye(3).tolist()))
+        self.Mscan2 = np.zeros((3, 3)) if self.mono else np.array(neg.get('scanRoot', np.zeros((3, 3)).tolist()))
         cv = sc['curve']
         self.scan_curve_c = cv
         self.scan_gamma = cv['gamma']
@@ -758,6 +885,7 @@ class Pipeline:
         enc = np.clip(np.where(np.isfinite(enc), enc, 0.0), -65504.0, 65504.0)
         with np.errstate(over='ignore', invalid='ignore'):
             lin = decode_transfer(self.p.input, enc)
+            lin = np.where(np.isnan(lin), 0.0, np.clip(lin, -65504.0, 65504.0))   # == kernel (float32 overflow)
             out = (lin @ self.Min.T) * self.gain
         return np.clip(np.where(np.isfinite(out), out, 0.0), -65504.0, 65504.0)
 
@@ -804,7 +932,9 @@ class Pipeline:
             ds = -lut3d(self.slut, 0.0, self.slut_max, d) + sil[:, None]
             o = self.off_user if off is None else off
             v = np.stack([lut1d(self.sinv[j], self.sd0[j], self.sd1[j], ds[:, j]) for j in range(3)], 1) + o[None, :]
-            e = (10.0 ** v) @ self.Mscan.T
+            lin = 10.0 ** v
+            rp = np.sqrt(np.stack([lin[:, 0] * lin[:, 1], lin[:, 1] * lin[:, 2], lin[:, 0] * lin[:, 2]], 1))
+            e = lin @ self.Mscan.T + rp @ self.Mscan2.T          # root-polynomial lab correction
             e = smooth_floor(e, 1e-3)
             w = np.log10(e)
             Dd = lut1d_rows(np.stack([self.scurve] * 3), SCN_W0, SCN_W1, w)
@@ -890,15 +1020,19 @@ class Pipeline:
         grey = np.full((1, 3), 0.18)
         X, _ = self.film_xyz(grey, None, self.off)
         self.Ygrey = X[0, 1]
-        Xw, _ = self.film_xyz(np.full((1, 3), 0.18 * 2.0 ** 14), None, self.off)
+        # the unroll reaches the display peak at +10 stops over grey (speculars use the full range)
+        Xw, _ = self.film_xyz(np.full((1, 3), 0.18 * 2.0 ** HDR_PEAK_STOPS), None, self.off)
         self.Ywhite = Xw[0, 1]
         self.Lref = HDR_GREY_NITS / self.Ygrey
-        self.Gmax = max(0.0, math.log10(self.peak / (self.Lref * self.Ywhite)))
+        t = (HDR_PEAK_STOPS * math.log10(2.0) - HDR_E0) / HDR_ER
+        self.Gmax = max(0.0, math.log10(self.peak / (self.Lref * self.Ywhite))) * (1.0 + t * t) / (t * t)
 
     # ------------------------------------------------------------------ output stage
     def gamut_compress(self, rgb, lum):
         Y = rgb @ lum
-        mn = rgb.min(1)
+        e = 0.02 * Y                     # smooth minimum (== ColorKernels.h celc_gamut_compress)
+        m1 = 0.5 * (rgb[:, 0] + rgb[:, 1] - np.sqrt((rgb[:, 0] - rgb[:, 1]) ** 2 + e * e))
+        mn = 0.5 * (m1 + rgb[:, 2] - np.sqrt((m1 - rgb[:, 2]) ** 2 + e * e))
         Ys = np.maximum(Y, 1e-10)
         s = np.where(Y > 1e-10, (Y - mn) / Ys, 0.0)
         x = np.maximum(s - GC_THR, 0.0) / (1.0 - GC_THR)
@@ -911,9 +1045,11 @@ class Pipeline:
         x = np.maximum(rgb - knee, 0.0) / (top - knee)
         return np.where(rgb > knee, knee + (top - knee) * np.tanh(x), rgb)
 
-    def output(self, XYZ, xref):
+    def output(self, XYZ, xref, rgb_scene=None):
         lum = self.Mout_lum()
         if not self.hdr:
+            if rgb_scene is not None:
+                XYZ = self.apply_hold(XYZ, xref, rgb_scene)
             rgb = XYZ @ self.Mout.T
             rgb = self.gamut_compress(rgb, lum)
             rgb = self.limit(rgb, SDR_KNEE, 1.0)
@@ -921,8 +1057,9 @@ class Pipeline:
         e = xref - LOG10_018
         t = np.maximum(e - HDR_E0, 0.0) / HDR_ER
         G = self.Gmax * t * t / (1.0 + t * t)
-        nits = XYZ * (self.Lref * 10.0 ** (self.p.hdrUnroll * G))[:, None]
-        rgb = nits @ self.Mout.T
+        if rgb_scene is not None:
+            XYZ = self.apply_hold(XYZ, xref, rgb_scene)
+        rgb = (XYZ @ self.Mout.T) * (self.Lref * 10.0 ** (self.p.hdrUnroll * G))[:, None]
         rgb = self.gamut_compress(rgb, lum)
         rgb = self.limit(rgb, HDR_KNEE * self.peak, self.peak)
         if self.out == 'Rec2100_PQ':
@@ -947,7 +1084,7 @@ class Pipeline:
         Ys = np.maximum(Yd, 1e-12) ** (1.0 / 1.2)
         E = Fd / np.maximum(Ys ** 0.2, 1e-12)[:, None]   # E = Fd / (alpha * Ys^(gamma-1)), alpha = 1
         E = np.where(Yd[:, None] > 1e-12, E, 0.0)
-        return hlg_oetf(E)
+        return hlg_oetf(np.minimum(E, 1.0))       # signal range (== kernel)
 
     # ------------------------------------------------------------------ full pixel
     def process(self, enc, noise=None):
@@ -962,7 +1099,7 @@ class Pipeline:
         if noise is not None:
             noise = np.clip(np.where(np.isfinite(noise), noise, 0.0), -8.0, 8.0)
         XYZ, xref = self.film_xyz(rgb, noise)
-        out = self.output(XYZ, xref)
+        out = self.output(XYZ, xref, rgb)
         return np.where(np.isfinite(out), out, 0.0)
 
     # ------------------------------------------------------------------ Texture-Only

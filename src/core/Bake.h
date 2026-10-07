@@ -21,6 +21,8 @@ constexpr double kLayerW[3] = {0.30, 0.50, 0.20};
 constexpr double kLog10Grey = -0.7447274948966939;
 constexpr double kPoint = 0.025;
 constexpr double kHdrGreyNits = 15.0;
+constexpr int kHoldN = 49;                         // hue-hold anchor grid (octahedral)
+constexpr int kHoldNX = 512;                       // hue-hold neutral table
 
 double dev(double y, double gamma, double k, double R, double p);
 stocks::CurveDef pushCurve(const stocks::CurveDef& c, double push, bool reversal);

@@ -16,6 +16,9 @@
  *                                                                       scan: log10 rel. exposure -> display density
  *   SC   (scan inv.)   3 x N                                            scanner density in [SD0_c, SD1_c] -> log10
  *                                                                       exposure relative to grey (neutral referenced)
+ *   HA   (hue hold)    N x N x 4, row = v, column = u (as OCT)            scene direction -> CIELAB-scaled (a, b) of the
+ *                                                                       film at grey luminance rel. to its neutral, 0, w
+ *   HN   (hue hold)    3 x N                                            reference log exposure -> neutral XYZ (Y = 1)
  *   PJ   (projection)  K x 7, per spectral sample k (10 nm, 380..780):   [base density, eps_0, eps_1, eps_2,
  *                                                                        w_X, w_Y, w_Z] of the print dyes (or
  *                                                                        reversal dyes); XYZ is integrated per
@@ -26,7 +29,7 @@
 #define CEL_COLOR_STATE_H
 
 #define CEL_CS_MAGIC_VALUE   7341.0f
-#define CEL_CS_LAYOUT_VALUE  2.0f
+#define CEL_CS_LAYOUT_VALUE  3.0f
 #define CEL_CS_HEADER        128
 
 /* header indices */
@@ -82,16 +85,30 @@
 #define CEL_CS_TX_PEAK      106  /* Texture-Only: display-linear encode scale for HDR (nits per unit = 100) */
 #define CEL_CS_SC_OFF       107  /* scan inversion LUT (3 x N): scanner density -> log10 exposure rel. grey */
 #define CEL_CS_SC_N         108
-/* 109..127 reserved */
+#define CEL_CS_HOLD         109  /* hue hold strength (0 = off) */
+#define CEL_CS_HOLD_CHROMA  110  /* chroma hold (chroma x (1 + this * t)) */
+#define CEL_CS_HOLD_A_OFF   111  /* anchor block: N x N x 4 (octahedral grid like OCT): CIELAB-scaled (a, b)
+                                    of the film rendering at 18 % grey luminance (Y = 1) relative to the */
+#define CEL_CS_HOLD_A_N     112  /*   grey neutral (see celc_hold), 0, validity weight */
+#define CEL_CS_HOLD_N_OFF   113  /* neutral block: 3 x N over [CEL_HOLD_X0, CEL_HOLD_X1] of the reference */
+#define CEL_CS_HOLD_N_N     114  /*   log exposure: XYZ of the film's neutral (Y = 1) */
+#define CEL_CS_HOLD_N0      115  /* 115..117 XYZ (Y = 1) of the film's neutral at 18 % grey, points 0 (info) */
+#define CEL_CS_MSCAN2       118  /* 118..126 scan root-polynomial terms: e += M2 * (sqrt(rg), sqrt(gb), sqrt(rb)) */
+/* 127 reserved */
 
 /* model constants shared by host and kernels (== reference/model.py) */
 #define CEL_LOG10_018      (-0.7447274948966939f)
 #define CEL_GRAIN_EPS      0.02f
-#define CEL_HDR_E0         0.30f
-#define CEL_HDR_ER         0.90f
-#define CEL_GC_THR         0.85f
+#define CEL_HDR_E0         0.60f
+#define CEL_HDR_ER         0.60f
+#define CEL_GC_THR         0.80f
 #define CEL_SDR_KNEE       0.95f
-#define CEL_HDR_KNEE       0.80f
+#define CEL_HDR_KNEE       0.90f
 #define CEL_SCAN_FLOOR     1.0e-3f
+#define CEL_HOLD_X0        (-6.0f)
+#define CEL_HOLD_X1        4.0f
+#define CEL_HOLD_K         1.3f      /* hold weight t = hold * (1 - exp(-K stops^2)) */
+#define CEL_D65_X          0.95045592705167f
+#define CEL_D65_Z          1.08905775075988f
 
 #endif /* CEL_COLOR_STATE_H */

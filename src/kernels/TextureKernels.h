@@ -177,7 +177,7 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_s2d(float x, float x0, float p, float Yk
  * sensitive) bottom layer.  Weighted towards red light.  Above the threshold T the energy is the
  * linear excess (halation is a fixed fraction of the light, so a +8-stop practical carries ~40x the
  * energy of a +4-stop sky) eased in by a knee in STOPS over the threshold:
- *     s = log2(yh / T),   e = (yh - T) * s^2 / (s^2 + k^2)        (k = knee in stops; C1 at s = 0)
+ *     s = log2(yh / T),   e = (yh - T) * s^2 / (s^2 + k^2)        (k = knee in stops, 2; C1 at s = 0)
  * so broad areas just above the threshold (bright overcast skies) add almost nothing while
  * practicals and speculars keep their full glow; extreme energies are compressed rationally
  * towards emax. */
