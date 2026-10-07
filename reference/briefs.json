@@ -40,7 +40,8 @@
      -1.8
     ]
    ],
-   "scan_sat": 1.04
+   "scan_sat": 1.04,
+   "yellow_weight": 3.0
   },
   "CN 200T Studio Tungsten": {
    "saturation": 1.06,
@@ -69,7 +70,8 @@
     ]
    ],
    "scan_sat": 0.95,
-   "scan_hue_bias": -3.5
+   "scan_hue_bias": -3.5,
+   "yellow_weight": 3.0
   },
   "CN 250D Soft Daylight": {
    "saturation": 0.74,
@@ -351,7 +353,8 @@
     "neutral"
    ],
    "scan_sat": 1.03,
-   "scan_hue_bias": 3.0
+   "scan_hue_bias": 3.0,
+   "yellow_weight": 3.0
   },
   "C41 Consumer 200": {
    "saturation": 1.38,
@@ -410,7 +413,8 @@
     "colour",
     "neutral"
    ],
-   "scan_sat": 1.04
+   "scan_sat": 1.04,
+   "yellow_weight": 3.0
   },
   "RV 100 Slide": {
    "saturation": 1.38,
