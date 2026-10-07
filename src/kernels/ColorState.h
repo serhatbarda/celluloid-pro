@@ -16,14 +16,17 @@
  *                                                                       scan: log10 rel. exposure -> display density
  *   SC   (scan inv.)   3 x N                                            scanner density in [SD0_c, SD1_c] -> log10
  *                                                                       exposure relative to grey (neutral referenced)
- *   PJ   (projection)  N^3 x 3                                          dye amounts [0, PJ_MAX]^3 -> log10 XYZ
- *                                                                       (print dyes, or reversal dyes)
+ *   PJ   (projection)  K x 7, per spectral sample k (10 nm, 380..780):   [base density, eps_0, eps_1, eps_2,
+ *                                                                        w_X, w_Y, w_Z] of the print dyes (or
+ *                                                                        reversal dyes); XYZ is integrated per
+ *                                                                        pixel (celc_project), dye amounts
+ *                                                                        clamped to [0, PJ_MAX]
  */
 #ifndef CEL_COLOR_STATE_H
 #define CEL_COLOR_STATE_H
 
 #define CEL_CS_MAGIC_VALUE   7341.0f
-#define CEL_CS_LAYOUT_VALUE  1.0f
+#define CEL_CS_LAYOUT_VALUE  2.0f
 #define CEL_CS_HEADER        128
 
 /* header indices */
@@ -60,8 +63,9 @@
 #define CEL_CS_PMIN         56   /* 56..58 print D-min (dye) */
 #define CEL_CS_PB           59   /* print silver factor */
 #define CEL_CS_PJ_OFF       60
-#define CEL_CS_PJ_N         61
+#define CEL_CS_PJ_N         61   /* number of spectral samples K */
 #define CEL_CS_PJ_MAX       62
+#define CEL_CS_PJ_STRIDE    7    /* floats per spectral sample in the PJ block */
 #define CEL_CS_MXYZ         63   /* 63..71 film colour -> D65-adapted display XYZ (CAT16 / scan Rec.2020) */
 #define CEL_CS_MOUT         72   /* 72..80 display XYZ -> linear output RGB */
 #define CEL_CS_LUM          81   /* 81..83 luminance weights of the output RGB */

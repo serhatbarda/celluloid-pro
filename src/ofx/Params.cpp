@@ -207,9 +207,10 @@ std::vector<ParamDef> build() {
           "Spread of the glow in pixels at 1920 px image width (automatically scaled for other resolutions "
           "and proxy render scales).",
           true);
-    b.dbl(id::halationThreshold, "Halation Threshold", 2.5, 0.0, 6.0, 0.05, 2,
-          "How bright a highlight must be before it halates, in stops above middle grey (soft knee). Lower "
-          "values let more of the image glow; higher values reserve it for light sources and speculars.",
+    b.dbl(id::halationThreshold, "Halation Threshold", 3.5, 0.0, 6.0, 0.05, 2,
+          "How bright a highlight must be before it halates, in stops above middle grey. The glow eases in over "
+          "about a stop and a half above it, so broad bright areas (an overcast sky) barely halate while light "
+          "sources and speculars glow fully. Lower values let more of the image glow.",
           true);
     b.dbl(id::halationHue, "Halation Hue", 0.0, -1.0, 1.0, 0.01, 2,
           "Colour of the glow: -1 deep red, 0 the classic red-orange, +1 orange-yellow.", true);

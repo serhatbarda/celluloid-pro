@@ -35,7 +35,7 @@ PRT_U0, PRT_U1 = -5.0, 3.0          # print curve domain (log10 print exposure i
 SCN_W0, SCN_W1 = -6.0, 4.0          # scanner tone curve domain (log10 relative to grey)
 SCN_XA, SCN_XB = -6.0, 3.5          # neutral ramp sampled for the scan inversion (log10 E)
 SCN_NFWD = 1024
-N_LUT3 = 48
+N_LUT3 = 64                          # printer / scanner dye LUTs (projection: per-pixel spectral sum)
 LAYER_W = np.array([0.30, 0.50, 0.20])   # luminance-like weights of the R,G,B-sensitive layers
 GRAIN_EPS = 0.02
 POINT = 0.025                        # log exposure per printer point
@@ -557,15 +557,25 @@ def projection_white(lib, base, lamp):
 
 
 def bake_projection_lut(lib, eps, base, dmax, lamp, fog):
-    """log10 XYZ of dye densities under the projector lamp; Y normalised so that the clear
-    (unexposed, processed) film -- support base + dye fog -- is display white 1.0."""
-    N = N_LUT3
-    g = np.linspace(0.0, dmax, N)
-    Fs = [10.0 ** (-(g[:, None] * eps[i][None, :])) for i in range(3)]
-    dclear = base + fog @ eps
-    Yb = sp.XYZ_of(lamp * 10.0 ** (-dclear))[1]
-    w = (sp.CMF.T * lamp[None, :]) / Yb
-    return bake_dye_lut(Fs, base, w)
+    """Spectral projection table (== ColorState.h PJ block, K = 41 samples x 7): every other sample
+    of the 5 nm grid (10 nm, trapezoid weights): base density, the three dye absorptions and
+    CMF x lamp weights, Y normalised so that the clear (unexposed, processed) film -- support
+    base + dye fog -- is display white 1.0 under the same quadrature. XYZ is integrated per pixel
+    (project()), so there is no 3D-LUT interpolation on this stage."""
+    sel = np.arange(0, sp.NWL, 2)
+    q = np.full(len(sel), 2.0)
+    q[0] = q[-1] = 1.0
+    w = sp.CMF[sel] * (lamp[sel] * q)[:, None]               # (K,3)
+    dclear = base[sel] + fog @ eps[:, sel]
+    Yb = (10.0 ** (-dclear)) @ w[:, 1]
+    return np.concatenate([base[sel, None], eps[:, sel].T, w / Yb], 1)     # (K,7)
+
+
+def project(tab, dmax, D, nd):
+    """== celc_project: XYZ = sum_k w(k) 10^-(base(k) + D . eps(k) + nd), D clamped to [0, dmax]."""
+    D = np.clip(D, 0.0, dmax)
+    dens = tab[None, :, 0] + nd[:, None] + D @ tab[:, 1:4].T  # (n,L)
+    return (10.0 ** (-dens)) @ tab[:, 4:7]
 
 
 def cat_to_d65(lamp):
@@ -787,13 +797,9 @@ class Pipeline:
             h = lut3d(self.plut, 0.0, self.plut_max, d) + o[None, :] - sil[:, None]
             P = lut1d_rows(self.pcurve, PRT_U0, PRT_U1, h)
             ps = self.pb * (np.maximum(P - self.pmin[None, :], 0.0) @ LAYER_W)
-            lx = lut3d(self.jlut, 0.0, self.pdmax, P)
-            XYZ = 10.0 ** (lx - ps[:, None])
-            XYZ = XYZ @ self.Mcat.T
+            XYZ = project(self.jlut, self.pdmax, P, ps) @ self.Mcat.T
         elif self.kind == 'reversal':
-            lx = lut3d(self.jlut, 0.0, self.pdmax, d)
-            XYZ = 10.0 ** (lx - sil[:, None])
-            XYZ = XYZ @ self.Mcat.T
+            XYZ = project(self.jlut, self.pdmax, d, sil) @ self.Mcat.T
         else:
             ds = -lut3d(self.slut, 0.0, self.slut_max, d) + sil[:, None]
             o = self.off_user if off is None else off

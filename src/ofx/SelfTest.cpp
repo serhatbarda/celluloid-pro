@@ -76,7 +76,7 @@ int main() {
         {"printBleach", "groupPrint", 0, 1, 0},
         {"halationAmount", "groupHalation", 0, 2, 0.5},
         {"halationRadius", "groupHalation", 2, 80, 20},
-        {"halationThreshold", "groupHalation", 0, 6, 2.5},
+        {"halationThreshold", "groupHalation", 0, 6, 3.5},
         {"halationHue", "groupHalation", -1, 1, 0},
         {"bloomAmount", "groupBloom", 0, 2, 0.15},
         {"bloomRadius", "groupBloom", 5, 200, 40},

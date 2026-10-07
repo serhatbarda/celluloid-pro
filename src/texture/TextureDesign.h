@@ -91,14 +91,14 @@ constexpr int    kBloomScales = 4;
 constexpr double kBloomRel[kBloomScales] = {0.25, 0.5, 1.0, 2.0};
 constexpr double kBloomW[kBloomScales]   = {0.16, 0.24, 0.32, 0.28};
 constexpr int    kHalScales = 6;
-constexpr double kHalRel[kHalScales] = {0.15, 0.3, 0.6, 1.2, 2.4, 4.8};
-constexpr double kHalW[kHalScales]   = {0.17, 0.22, 0.22, 0.18, 0.13, 0.08};
+constexpr double kHalRel[kHalScales] = {0.2, 0.35, 0.6, 1.0, 1.8, 3.2};
+constexpr double kHalW[kHalScales]   = {0.16, 0.24, 0.24, 0.18, 0.12, 0.06};
 GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h);
 
 struct HalationLook {
     float tint[3];               // added light colour (red = 1)
     float gain;                  // per unit halationAmount
-    float threshold, knee, emax; // energy (scene-linear)
+    float threshold, knee, emax; // threshold / emax scene-linear, knee in stops over the threshold
     float srcW[3];               // halation source weights
 };
 HalationLook halationLook(float amount, float thresholdStops, float hue);

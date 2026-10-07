@@ -245,6 +245,31 @@ def highlights(w, h):
     return out, pts
 
 
+def halation_daylight(w, h):
+    """Halation acceptance scene (1920-px-relative sizes): a bright overcast sky (+4.2 stops, as
+    in a person-against-the-sky shot) above a dark window and a skin patch that touch it, plus a
+    +8-stop practical (small disc) on a dark wall in the lower half. Returns (image, regions)."""
+    lin = np.full((h, w, 3), 0.03)
+    s = w / 1920.0
+    sky = 0.18 * 2.0 ** 4.2 * np.array([0.96, 1.0, 1.12])
+    lin[: int(h * 0.4)] = sky
+    y0 = int(h * 0.4)
+    win = (slice(y0, y0 + int(140 * s)), slice(int(w * 0.10), int(w * 0.30)))
+    lin[win] = 0.012
+    skin_lin = lab_to_fgc_linear(58, 15, 21)
+    sk = (slice(y0, y0 + int(200 * s)), slice(int(w * 0.45), int(w * 0.65)))
+    lin[sk] = skin_lin
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float64)
+    cx, cy, r = w * 0.8, h * 0.75, 6.0 * s
+    lin[np.hypot(xx - cx, yy - cy) < r] = 0.18 * 2.0 ** 8
+    out = np.zeros((h, w, 4), np.float32)
+    out[..., :3] = C.flog2_encode(lin).astype(np.float32)
+    out[..., 3] = 1.0
+    regions = dict(window=(slice(y0 + int(4 * s), win[0].stop - int(4 * s)), slice(win[1].start + int(4 * s), win[1].stop - int(4 * s))),
+                   skin=(slice(y0, sk[0].stop), sk[1]), practical=(cx, cy, r, s))
+    return out, regions
+
+
 def grey_field(w, h, lin=0.18):
     out = np.zeros((h, w, 4), np.float32)
     out[..., :3] = np.float32(C.flog2_encode(lin))

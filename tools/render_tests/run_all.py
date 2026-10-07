@@ -43,7 +43,7 @@ SPEC7 = [
     ("printerR", "double", 0.0, -12, 12), ("printerG", "double", 0.0, -12, 12), ("printerB", "double", 0.0, -12, 12),
     ("printExposure", "double", 0.0, -12, 12), ("printBleach", "double", 0.0, 0, 1),
     ("halationAmount", "double", 0.5, 0, 2), ("halationRadius", "double", 20, 2, 80),
-    ("halationThreshold", "double", 2.5, 0, 6), ("halationHue", "double", 0.0, -1, 1),
+    ("halationThreshold", "double", 3.5, 0, 6), ("halationHue", "double", 0.0, -1, 1),
     ("bloomAmount", "double", 0.15, 0, 2), ("bloomRadius", "double", 40, 5, 200),
     ("grainEnable", "bool", True, None, None), ("grainFormat", "choice", r"S(uper)?\s*35", None, None),
     ("grainAmount", "double", 1.0, 0, 3), ("grainSize", "double", 1.0, 0.5, 3), ("grainSoftness", "double", 0.5, 0, 1),
@@ -220,6 +220,8 @@ class Suite:
         self.scene("grey", S.grey_field(960, 540))   # HD-like frame: grain sizes are relative to the frame
         self.scene("display", S.display_scene(480, 270))
         self.scene("natural960", S.natural(960, 540))
+        img, self.hal_regions = S.halation_daylight(1920, 1080)
+        self.scene("halation_day", img)
 
     # ================================================================== groups
     def g_conformance(self):
@@ -719,7 +721,22 @@ class Suite:
         L.append(self.line("txs_all", "natural_sheet", {"mode": full, "halationAmount": 1.0, "bloomAmount": 0.6, "grainAmount": 1.5,
                                                         "acutanceAmount": 0.8, "weaveAmount": 1.0, "vignette": 0.5}, png=True, time_=3))
         L.append(self.line("txs_off", "natural_sheet", off, png=True, time_=3))
+        # halation acceptance at the DEFAULT halation settings (only halation on)
+        hal_def = {k: v for k, v in off.items() if k != "halationAmount"}
+        L.append(self.line("tx_hd_off", "halation_day", off))
+        L.append(self.line("tx_hd_def", "halation_day", hal_def))
         self.batch("texture", L)
+        d = self.load("tx_hd_def", "halation_day")[..., :3] - self.load("tx_hd_off", "halation_day")[..., :3]
+        rg = d[..., 0] - d[..., 1]
+        wr, sr = self.hal_regions["window"], self.hal_regions["skin"]
+        cx, cy, r, s = self.hal_regions["practical"]
+        pr = float(d[int(cy), int(cx + r + 6 * s), 0])
+        self.check(g, "halation (default): overcast sky does not flood a dark window red", float(rg[wr].max()) <= 0.02,
+                   "window max d(R-G) %.4f" % float(rg[wr].max()), "<= 0.02")
+        self.check(g, "halation (default): skin against the sky keeps its colour", float(d[..., 0][sr].max()) <= 0.03,
+                   "skin edge max dR %.4f" % float(d[..., 0][sr].max()), "<= 0.03")
+        self.check(g, "halation (default): +8-stop practical glows clearly", pr >= 0.08,
+                   "dR 6 px outside the source %.3f" % pr, ">= 0.08")
         base = self.load("tx_base_hl", "highlights")
         h, w = base.shape[:2]
         r_spot = max(1.5, h * 0.01)

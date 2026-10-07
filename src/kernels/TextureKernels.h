@@ -174,12 +174,19 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_s2d(float x, float x0, float p, float Yk
 
 /* ---- halation / bloom sources ---------------------------------------------------------------
  * Halation energy: light that reaches the film base and is reflected back into the (mostly red
- * sensitive) bottom layer.  Weighted towards red light; soft knee at threshold T (quadratic
- * knee of half width k); extreme energies compressed rationally towards emax. */
+ * sensitive) bottom layer.  Weighted towards red light.  Above the threshold T the energy is the
+ * linear excess (halation is a fixed fraction of the light, so a +8-stop practical carries ~40x the
+ * energy of a +4-stop sky) eased in by a knee in STOPS over the threshold:
+ *     s = log2(yh / T),   e = (yh - T) * s^2 / (s^2 + k^2)        (k = knee in stops; C1 at s = 0)
+ * so broad areas just above the threshold (bright overcast skies) add almost nothing while
+ * practicals and speculars keep their full glow; extreme energies are compressed rationally
+ * towards emax. */
 CEL_DEVICE CEL_TXH_INLINE float cel_txh_hal_energy(CelF4 v, float T, float k, float emax, float wr, float wg, float wb) {
     float yh = cel_txh_max(wr * v.x + wg * v.y + wb * v.z, 0.0f);
-    float q = cel_txh_clampf(yh - T + k, 0.0f, 2.0f * k);
-    float e = cel_txh_max(q * q / (4.0f * k), yh - T);
+    if (!(yh > T)) return 0.0f;
+    float s = cel_log2(yh / T);
+    float s2 = s * s;
+    float e = (yh - T) * s2 / (s2 + k * k);
     return e * emax / (emax + e);
 }
 /* Bloom source: the image itself (diffusion is linear), with super-bright values compressed
@@ -348,7 +355,7 @@ CEL_DEVICE void cel_k_tx_pyr_up_add(CEL_KERNEL_PARAMS) {
  * builds level 1). Each texel is sanitised and turned into
  *   xyz = bloom source (cel_txh_bloom_src), w = halation energy (cel_txh_hal_energy),
  * BEFORE any filtering, so thin bright lines keep their full halation energy.
- *   f[0] = threshold T   f[1] = knee half width k   f[2] = emax   f[3] = bloom bmax
+ *   f[0] = threshold T   f[1] = knee k (stops over T)   f[2] = emax   f[3] = bloom bmax
  *   f[4..6] = halation source weights (r, g, b) */
 CEL_DEVICE void cel_k_tx_hb_prefilter(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();

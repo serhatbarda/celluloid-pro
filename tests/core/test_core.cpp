@@ -7,6 +7,7 @@
 #include "core/Spectral.h"
 #include "kernels/ColorKernels.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -225,6 +226,67 @@ static void testMonotonic() {
                 }
             }
     std::printf("  non-monotonic ramps: %d\n", bad);
+}
+
+// CIELAB (D65) -> scene-linear Rec.2020 (Y = L*-relative luminance, white Y = 1)
+static spec::Vec3 labToRec2020(double L, double a, double b) {
+    const double W[3] = {0.3127 / 0.3290, 1.0, (1 - 0.3127 - 0.3290) / 0.3290};
+    double fy = (L + 16) / 116, fx = fy + a / 500, fz = fy - b / 200;
+    auto finv = [](double f) { return f > 6.0 / 29 ? f * f * f : 3 * (6.0 / 29) * (6.0 / 29) * (f - 4.0 / 29); };
+    spec::Vec3 X = {finv(fx) * W[0], finv(fy) * W[1], finv(fz) * W[2]};
+    return spec::npm(spec::Gamut::Rec2020).inverse() * X;
+}
+
+// smoothness of the tone/colour scale (no LUT-interpolation sawtooth that a later grade would turn
+// into Mach bands): along fine exposure ramps the local slope of every output channel may deviate
+// from its 61-sample running mean by at most 5 % of the local mean |slope| (where the channel
+// moves at all), for every print pair and the reversal stock
+static void testSmoothness() {
+    std::printf("[smoothness: slope ripple along exposure ramps, all print pairs]\n");
+    struct Ramp { const char* name; double L, a, b, s0, s1; bool neutral; };
+    const Ramp ramps[] = {{"neutral", 0, 0, 0, -8, 8, true}, {"sky", 50, -3, -22, -3, 5, false}, {"blue", 29, 18, -50, -4, 6, false},
+                          {"skin", 62, 15, 21, -6, 6, false}};
+    const int N = 4096, Wn = 61;
+    auto negs = negativeStocks();
+    int np = int(printStockNames().size());
+    double worst = 0;
+    std::string wname;
+    for (int n = 0; n < int(negs.size()); ++n)
+        for (int p = 0; p < np; ++p) {
+            if (negs[size_t(n)].reversal && p > 0) continue;
+            Pipeline P;
+            P.prepare(lpFor(n, p, Process::NegativeToPrint, OutputSpace::Rec709_G24));
+            for (const Ramp& r : ramps) {
+                spec::Vec3 c = r.neutral ? spec::Vec3{0.18, 0.18, 0.18} : labToRec2020(r.L, r.a, r.b);
+                std::vector<float> o(size_t(N) * 3);
+                for (int k = 0; k < N; ++k) {
+                    double g = std::pow(2.0, r.s0 + (r.s1 - r.s0) * k / (N - 1));
+                    Float3 v = P.sceneToOutput({float(c[0] * g), float(c[1] * g), float(c[2] * g)}, {0, 0, 0});
+                    o[size_t(k) * 3] = v.r; o[size_t(k) * 3 + 1] = v.g; o[size_t(k) * 3 + 2] = v.b;
+                }
+                for (int ch = 0; ch < 3; ++ch) {
+                    std::vector<double> sl(size_t(N - 1)), sm(size_t(N - 1), 0.0), am(size_t(N - 1), 0.0);
+                    for (int k = 0; k < N - 1; ++k) sl[size_t(k)] = double(o[size_t(k + 1) * 3 + ch]) - o[size_t(k) * 3 + ch];
+                    for (int k = Wn / 2; k < N - 1 - Wn / 2; ++k) {
+                        double a = 0, b = 0;
+                        for (int j = -Wn / 2; j <= Wn / 2; ++j) { a += sl[size_t(k + j)]; b += std::fabs(sl[size_t(k + j)]); }
+                        sm[size_t(k)] = a / Wn; am[size_t(k)] = b / Wn;
+                    }
+                    std::vector<double> sorted(am.begin() + Wn, am.end() - Wn);
+                    std::nth_element(sorted.begin(), sorted.begin() + sorted.size() / 2, sorted.end());
+                    double med = sorted[sorted.size() / 2];
+                    double w = 0;
+                    for (int k = Wn; k < N - 1 - Wn; ++k) {
+                        float v = o[size_t(k) * 3 + ch];
+                        if (v < 0.03f || v > 0.95f || am[size_t(k)] < 0.15 * med || am[size_t(k)] <= 0) continue;
+                        w = std::max(w, std::fabs(sl[size_t(k)] - sm[size_t(k)]) / am[size_t(k)]);
+                    }
+                    CHECK(w <= 0.05, "slope ripple %.3f > 0.05: neg %d print %d ramp %s channel %d", w, n, p, r.name, ch);
+                    if (w > worst) { worst = w; wname = std::to_string(n) + "/" + std::to_string(p) + " " + r.name; }
+                }
+            }
+        }
+    std::printf("  worst slope ripple %.4f (%s)\n", worst, wname.c_str());
 }
 
 // ----------------------------------------------------------------------- 4. robustness sweep
@@ -639,6 +701,7 @@ int main(int argc, char** argv) {
     testToneScale();
     testNeutrality();
     if (!quick) testMonotonic();
+    if (!quick) testSmoothness();
     testRobustness();
     testTextureOnlyIdentity();
     testHDR();

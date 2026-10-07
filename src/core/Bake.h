@@ -16,7 +16,7 @@ constexpr double kPrtU0 = -5.0, kPrtU1 = 3.0;
 constexpr double kScnW0 = -6.0, kScnW1 = 4.0;
 constexpr double kScnXA = -6.0, kScnXB = 3.5;     // neutral ramp sampled for the scan inversion
 constexpr int kScnNFwd = 1024;
-constexpr int kNLut3 = 48;
+constexpr int kNLut3 = 64;            // printer / scanner dye LUTs (projection is integrated per pixel)
 constexpr double kLayerW[3] = {0.30, 0.50, 0.20};
 constexpr double kLog10Grey = -0.7447274948966939;
 constexpr double kPoint = 0.025;
@@ -33,13 +33,13 @@ struct Lut { std::vector<float> data; int n = 0; double maxv = 0.0; };
 // cached blocks (immutable once built)
 struct ExposureBake { Lut oct; };                       // octahedral K LUT, N x N x 3
 struct DyeLutBake { Lut lut; };                         // N^3 x 3 log10 exposures / XYZ
-struct ProjBake { Lut lut; spec::Mat3 cat; double pmin[3]; std::vector<float> pcurve; };   // pcurve: print curves 3 x kNCurve
+struct ProjBake { Lut lut; /* spectral PJ table K x 7, n = K, maxv = dye domain */ spec::Mat3 cat; double pmin[3]; std::vector<float> pcurve; };   // pcurve: print curves 3 x kNCurve
 
 std::shared_ptr<const ExposureBake> exposureLut(int neg);
 std::shared_ptr<const DyeLutBake> printLut(int neg, int prt);        // printer: neg dyes -> print log H
 std::shared_ptr<const DyeLutBake> scanLut(int neg);                  // scanner: neg dyes -> log10 channel exposure
-std::shared_ptr<const ProjBake> projectionLut(int prt, bool mono);   // print dyes -> log10 XYZ
-std::shared_ptr<const ProjBake> reversalLut(int neg);                // reversal dyes -> log10 XYZ
+std::shared_ptr<const ProjBake> projectionLut(int prt, bool mono);   // print dyes -> spectral projection table
+std::shared_ptr<const ProjBake> reversalLut(int neg);                // reversal dyes -> spectral projection table
 
 double negLutMax(const stocks::NegDef& n);
 double printLutMax(const stocks::PrintDef& p);

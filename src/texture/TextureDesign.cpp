@@ -352,10 +352,10 @@ HalationLook halationLook(float amount, float thresholdStops, float hue) {
     double t = hh < 0.0 ? hh + 1.0 : hh;
     for (int c = 0; c < 3; ++c) L.tint[c] = float(A[i0][c] + (A[i0 + 1][c] - A[i0][c]) * t);
     double am = std::isfinite(amount) ? std::max(0.0, double(amount)) : 0.0;
-    L.gain = float(am * 0.60);
-    double th = std::isfinite(thresholdStops) ? std::min(12.0, std::max(-4.0, double(thresholdStops))) : 2.5;
+    L.gain = float(am * 0.24);
+    double th = std::isfinite(thresholdStops) ? std::min(12.0, std::max(-4.0, double(thresholdStops))) : 3.5;
     L.threshold = float(0.18 * std::exp2(th));
-    L.knee = 0.5f * L.threshold;
+    L.knee = 1.75f;
     L.emax = 32.f;
     L.srcW[0] = 0.60f; L.srcW[1] = 0.30f; L.srcW[2] = 0.10f;
     return L;

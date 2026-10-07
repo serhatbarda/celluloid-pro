@@ -159,6 +159,25 @@ CEL_DEVICE CelcNeg celc_negative(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noi
 
 CEL_DEVICE CelF3 celc_pow10_3(CelF3 v) { return cel_f3(celc_pow10(v.x), celc_pow10(v.y), celc_pow10(v.z)); }
 
+/* projection: XYZ of a processed film (print, or reversal original) with dye amounts D under the
+ * projector, integrated per pixel over the K spectral samples of the PJ block (no 3D LUT, so
+ * smooth gradients stay smooth after any later grade):
+ *   XYZ_c = sum_k w_c(k) 10^-(base(k) + sum_i D_i eps_i(k) + nd)       (nd = retained silver)
+ * D is clamped to the designed density domain [0, PJ_MAX]. */
+CEL_DEVICE CelF3 celc_project(CEL_GLOBAL const float* s, CelF3 D, float nd) {
+    int off = celc_i(s, CEL_CS_PJ_OFF), K = celc_i(s, CEL_CS_PJ_N);
+    float mx = s[CEL_CS_PJ_MAX];
+    float d0 = cel_clamp(D.x, 0.0f, mx), d1 = cel_clamp(D.y, 0.0f, mx), d2 = cel_clamp(D.z, 0.0f, mx);
+    float X = 0.0f, Y = 0.0f, Z = 0.0f;
+    CEL_GLOBAL const float* q = s + off;
+    for (int k = 0; k < K; ++k) {
+        float t = celc_pow10(-(q[0] + nd + d0 * q[1] + d1 * q[2] + d2 * q[3]));
+        X += q[4] * t; Y += q[5] * t; Z += q[6] * t;
+        q += CEL_CS_PJ_STRIDE;
+    }
+    return cel_f3(X, Y, Z);
+}
+
 /* scene-linear Rec.2020 -> D65-adapted display XYZ (1 = display white); xref out for HDR */
 typedef struct { CelF3 X; float xref; } CelcFilm;
 
@@ -173,13 +192,9 @@ CEL_DEVICE CelcFilm celc_film_xyz(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 no
         float ps = s[CEL_CS_PB] * (s[CEL_CS_LW] * cel_fmax(P.x - s[CEL_CS_PMIN], 0.0f) +
                                    s[CEL_CS_LW + 1] * cel_fmax(P.y - s[CEL_CS_PMIN + 1], 0.0f) +
                                    s[CEL_CS_LW + 2] * cel_fmax(P.z - s[CEL_CS_PMIN + 2], 0.0f));
-        CelF3 lx = celc_lut3(s, celc_i(s, CEL_CS_PJ_OFF), celc_i(s, CEL_CS_PJ_N), s[CEL_CS_PJ_MAX], P);
-        X = celc_pow10_3(cel_f3(lx.x - ps, lx.y - ps, lx.z - ps));
-        X = celc_mat3(s, CEL_CS_MXYZ, X);
+        X = celc_mat3(s, CEL_CS_MXYZ, celc_project(s, P, ps));
     } else if (kind == 2) {
-        CelF3 lx = celc_lut3(s, celc_i(s, CEL_CS_PJ_OFF), celc_i(s, CEL_CS_PJ_N), s[CEL_CS_PJ_MAX], ng.d);
-        X = celc_pow10_3(cel_f3(lx.x - ng.silver, lx.y - ng.silver, lx.z - ng.silver));
-        X = celc_mat3(s, CEL_CS_MXYZ, X);
+        X = celc_mat3(s, CEL_CS_MXYZ, celc_project(s, ng.d, ng.silver));
     } else {
         CelF3 ls = celc_lut3(s, celc_i(s, CEL_CS_PL_OFF), celc_i(s, CEL_CS_PL_N), s[CEL_CS_PL_MAX], ng.d);
         int sco = celc_i(s, CEL_CS_SC_OFF), scn = celc_i(s, CEL_CS_SC_N);
