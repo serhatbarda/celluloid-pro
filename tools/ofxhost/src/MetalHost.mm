@@ -17,7 +17,14 @@ MetalHost::~MetalHost() {
 }
 
 bool MetalHost::init(std::string& err) {
+    // a command-line tool (CI VM, no window server session) may get nil from the default-device
+    // call while devices exist: fall back to the first device of MTLCopyAllDevices
     id<MTLDevice> dev = MTLCreateSystemDefaultDevice();
+    if (!dev) {
+        NSArray<id<MTLDevice>>* all = MTLCopyAllDevices();
+        if (all && [all count] > 0) dev = [[all objectAtIndex:0] retain];
+        [all release];
+    }
     if (!dev) { err = "no Metal device"; return false; }
     id<MTLCommandQueue> q = [dev newCommandQueue];
     if (!q) { [dev release]; err = "newCommandQueue failed"; return false; }
