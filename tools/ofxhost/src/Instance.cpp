@@ -471,7 +471,7 @@ bool Instance::sourceForTime(double time, double scale, RGBAF& storage, const RG
             const auto sz = std::filesystem::file_size(fp, ec);
             if (!ec) {
                 const auto mt = std::filesystem::last_write_time(fp, ec);
-                if (!ec) key += "|" + std::to_string(sz) + "|" + std::to_string(mt.time_since_epoch().count());
+                if (!ec) key += "|" + std::to_string(static_cast<unsigned long long>(sz)) + "|" + std::to_string(static_cast<long long>(mt.time_since_epoch().count()));
             }
         }
         key += "|" + std::to_string(source_.w) + "x" + std::to_string(source_.h) + "@" + std::to_string(scale);
