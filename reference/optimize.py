@@ -287,8 +287,12 @@ def optimise_scan(idx, write=False, verbose=True):
             * np.where(yel, np.where(hdeg < 100, 4.0, 2.0), 1.0) * np.where(SCAN_IS_SKY, 3.0, 1.0)
         rc = np.log(np.maximum(Cout, 0.5) / np.maximum(c_t, 0.5)) / 0.05 * np.where(SCAN_IS_SAT & ~yel, 0.2, 1.0) \
             * np.where(yel, 2.0, 1.0)
-        return np.concatenate([(dh - dh_t) / 4.0 * wh, rc, x * 0.5])
-    r = least_squares(res, np.zeros(15), bounds=(-0.8, 0.8), diff_step=1e-3)
+        # saturated primaries / secondaries (neon, lights) must keep their hue too: the root terms
+        # are kept small and the saturated set's hue is weighted fully
+        sat_h = np.where(SCAN_IS_SAT, dh / 6.0, 0.0)
+        return np.concatenate([(dh - dh_t) / 4.0 * wh, sat_h, rc, x[:6] * 0.5, x[6:] * 2.0])
+    lo = np.concatenate([np.full(6, -0.8), np.full(9, -0.3)])
+    r = least_squares(res, np.zeros(15), bounds=(lo, -lo), diff_step=1e-3)
     M, M2 = mat(r.x)
     if verbose:
         P.Mscan, P.Mscan2 = M, M2
