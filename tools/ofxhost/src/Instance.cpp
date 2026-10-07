@@ -11,12 +11,44 @@
 #include <cstring>
 #include <thread>
 
-#include <sys/stat.h>
+#include <filesystem>
 
 namespace ofxhost {
 
 void registerImage(HostImage* img);
 void unregisterImage(HostImage* img);
+
+// GPU buffer operations of the active mode (OpenCL buffers / images, Metal buffers)
+static void* gpuCreate(GpuMode m, const ImageMemory& mem, const PixelFormat& f, std::string& err) {
+    Host& H = Host::get();
+    if (m == GpuMode::Metal) return H.mtl->createBuffer(mem.bytes(), err);
+    if (m == GpuMode::OpenCLImages)
+        return H.cl->createImage2D(mem.width(), mem.height(), f.nComps(), f.depth == kOfxBitDepthFloat || f.depth == kOfxBitDepthHalf,
+                                   f.bytesPerComp(), err);
+    return H.cl->createBuffer(mem.bytes(), err);
+}
+static bool gpuUpload(GpuMode m, void* g, const ImageMemory& mem, std::string& err) {
+    Host& H = Host::get();
+    if (m == GpuMode::Metal) return H.mtl->upload(g, mem.data, mem.bytes(), err);
+    if (m == GpuMode::OpenCLImages) return H.cl->uploadImage(g, mem.data, mem.width(), mem.height(), mem.rowBytes, err);
+    return H.cl->upload(g, mem.data, mem.bytes(), err);
+}
+static bool gpuDownload(GpuMode m, void* g, ImageMemory& mem, std::string& err) {
+    Host& H = Host::get();
+    if (m == GpuMode::Metal) return H.mtl->download(g, mem.data, mem.bytes(), err);
+    if (m == GpuMode::OpenCLImages) return H.cl->downloadImage(g, mem.data, mem.width(), mem.height(), mem.rowBytes, err);
+    return H.cl->download(g, mem.data, mem.bytes(), err);
+}
+static void gpuRelease(GpuMode m, void* g) {
+    Host& H = Host::get();
+    if (!g) return;
+    if (m == GpuMode::Metal) H.mtl->release(g);
+    else H.cl->release(g);
+}
+static bool gpuFinish(GpuMode m, std::string& err) {
+    Host& H = Host::get();
+    return m == GpuMode::Metal ? H.mtl->finish(err) : H.cl->finish(err);
+}
 
 static double msSince(std::chrono::steady_clock::time_point t0) {
     return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -432,10 +464,16 @@ bool Instance::sourceForTime(double time, double scale, RGBAF& storage, const RG
     const int Hh = std::max(1, int(std::lround(projH_ * scale)));
     if (source_.spec.empty()) { err = "no input (--in) given"; return false; }
     if (!source_.sequence() && source_.spec.rfind("pattern:", 0) != 0) {
-        struct stat st {};
         std::string key = source_.spec;
-        if (stat(source_.spec.c_str(), &st) == 0)
-            key += "|" + std::to_string(st.st_size) + "|" + std::to_string(st.st_mtim.tv_sec) + "." + std::to_string(st.st_mtim.tv_nsec);
+        {
+            std::error_code ec;
+            const std::filesystem::path fp = std::filesystem::u8path(source_.spec);
+            const auto sz = std::filesystem::file_size(fp, ec);
+            if (!ec) {
+                const auto mt = std::filesystem::last_write_time(fp, ec);
+                if (!ec) key += "|" + std::to_string(sz) + "|" + std::to_string(mt.time_since_epoch().count());
+            }
+        }
         key += "|" + std::to_string(source_.w) + "x" + std::to_string(source_.h) + "@" + std::to_string(scale);
         auto it = sourceFileCache_.find(key);
         if (it == sourceFileCache_.end()) {
@@ -474,7 +512,6 @@ static void fillImageProps(PropertySet& p, const PixelFormat& f, const std::stri
 
 OfxStatus Instance::clipGetImage(Clip* c, double time, const OfxRectD*, OfxPropertySetHandle* out) {
     if (!c->connected()) return kOfxStatFailed;
-    Host& H = Host::get();
     std::unique_ptr<HostImage> img(new HostImage);
     img->clip = c;
     PixelFormat f = c->format();
@@ -529,17 +566,10 @@ OfxStatus Instance::clipGetImage(Clip* c, double time, const OfxRectD*, OfxPrope
             } else {
                 std::string err;
                 auto t0 = std::chrono::steady_clock::now();
-                bool images = rs_.gpuMode == GpuMode::OpenCLImages;
-                if (images) {
-                    clm = H.cl->createImage2D(mem->width(), mem->height(), f.nComps(), f.depth == kOfxBitDepthFloat || f.depth == kOfxBitDepthHalf,
-                                              f.bytesPerComp(), err);
-                    if (clm && !H.cl->uploadImage(clm, mem->data, mem->width(), mem->height(), mem->rowBytes, err)) { H.cl->release(clm); clm = nullptr; }
-                } else {
-                    clm = H.cl->createBuffer(mem->bytes(), err);
-                    if (clm && !H.cl->upload(clm, mem->data, mem->bytes(), err)) { H.cl->release(clm); clm = nullptr; }
-                }
+                clm = gpuCreate(rs_.gpuMode, *mem, f, err);
+                if (clm && !gpuUpload(rs_.gpuMode, clm, *mem, err)) { gpuRelease(rs_.gpuMode, clm); clm = nullptr; }
                 rs_.uploadMs += msSince(t0);
-                if (!clm) { diag().warn("OpenCL source upload failed: " + err); return kOfxStatErrMemory; }
+                if (!clm) { diag().warn("GPU source upload failed: " + err); return kOfxStatErrMemory; }
                 rs_.srcCl[key] = clm;
             }
             img->clMem = clm;
@@ -582,12 +612,14 @@ PropertySet Instance::makeRenderArgs(double time, double scale, const OfxRectI& 
     a.defInt(kOfxImageEffectPropInteractiveRenderStatus, H.opt.interactive ? 1 : 0, true);
     a.defInt(kOfxImageEffectPropRenderQualityDraft, draft ? 1 : 0, true);
     a.defInt(kOfxImageEffectPropOpenGLEnabled, 0, true);
-    a.defInt(kOfxImageEffectPropOpenCLEnabled, gpuEnabled ? 1 : 0, true);
-    a.defPointer(kOfxImageEffectPropOpenCLCommandQueue, gpuEnabled && H.cl ? H.cl->queue() : nullptr, true);
+    const bool metal = gpuEnabled && H.mtl;
+    const bool opencl = gpuEnabled && !metal && H.cl;
+    a.defInt(kOfxImageEffectPropOpenCLEnabled, opencl ? 1 : 0, true);
+    a.defPointer(kOfxImageEffectPropOpenCLCommandQueue, opencl ? H.cl->queue() : nullptr, true);
     a.defInt(kOfxImageEffectPropCudaEnabled, 0, true);
     a.defPointer(kOfxImageEffectPropCudaStream, nullptr, true);
-    a.defInt(kOfxImageEffectPropMetalEnabled, 0, true);
-    a.defPointer(kOfxImageEffectPropMetalCommandQueue, nullptr, true);
+    a.defInt(kOfxImageEffectPropMetalEnabled, metal ? 1 : 0, true);
+    a.defPointer(kOfxImageEffectPropMetalCommandQueue, metal ? H.mtl->queue() : nullptr, true);
     return a;
 }
 
@@ -601,12 +633,14 @@ PropertySet Instance::makeSequenceArgs(double first, double last, double scale, 
     a.defInt(kOfxImageEffectPropSequentialRenderStatus, 0, true);
     a.defInt(kOfxImageEffectPropInteractiveRenderStatus, H.opt.interactive ? 1 : 0, true);
     a.defInt(kOfxImageEffectPropOpenGLEnabled, 0, true);
-    a.defInt(kOfxImageEffectPropOpenCLEnabled, gpuEnabled ? 1 : 0, true);
-    a.defPointer(kOfxImageEffectPropOpenCLCommandQueue, gpuEnabled && H.cl ? H.cl->queue() : nullptr, true);
+    const bool metal = gpuEnabled && H.mtl;
+    const bool opencl = gpuEnabled && !metal && H.cl;
+    a.defInt(kOfxImageEffectPropOpenCLEnabled, opencl ? 1 : 0, true);
+    a.defPointer(kOfxImageEffectPropOpenCLCommandQueue, opencl ? H.cl->queue() : nullptr, true);
     a.defInt(kOfxImageEffectPropCudaEnabled, 0, true);
     a.defPointer(kOfxImageEffectPropCudaStream, nullptr, true);
-    a.defInt(kOfxImageEffectPropMetalEnabled, 0, true);
-    a.defPointer(kOfxImageEffectPropMetalCommandQueue, nullptr, true);
+    a.defInt(kOfxImageEffectPropMetalEnabled, metal ? 1 : 0, true);
+    a.defPointer(kOfxImageEffectPropMetalCommandQueue, metal ? H.mtl->queue() : nullptr, true);
     return a;
 }
 
@@ -624,11 +658,13 @@ bool Instance::render(const RenderRequest& rq, std::vector<FrameResult>& results
     bool gpu = rq.gpu != GpuMode::None;
     GpuMode gm = rq.gpu;
     if (gpu) {
-        if (!H.cl || !H.cl->ready()) { err = "--gpu requested but no OpenCL context is available"; return false; }
-        const char* flag = gm == GpuMode::OpenCLBuffers ? kOfxImageEffectPropOpenCLRenderSupported : kOfxImageEffectPropOpenCLSupported;
+        if (gm == GpuMode::Metal ? (!H.mtl || !H.mtl->ready()) : (!H.cl || !H.cl->ready())) {
+            err = std::string("--gpu ") + gpuModeName(gm) + " requested but no such device context is available";
+            return false;
+        }
+        const char* flag = gpuSupportFlag(gm);
         if (!supportsFlag(effect_.get(), contextDescriptor(), flag)) {
-            std::string what = gm == GpuMode::OpenCLBuffers ? "OpenCL buffers (kOfxImageEffectPropOpenCLRenderSupported)"
-                                                            : "OpenCL images (kOfxImageEffectPropOpenCLSupported)";
+            std::string what = std::string(gpuModeName(gm)) + " (" + flag + ")";
             if (!rq.gpuFallbackToCpu) { err = "plug-in does not declare " + what; return false; }
             diag().warn("plug-in does not declare " + what + "; rendering on CPU");
             gpu = false;
@@ -651,7 +687,7 @@ bool Instance::render(const RenderRequest& rq, std::vector<FrameResult>& results
         RGBAF outImg;
         if (rq2.gpu != GpuMode::None) {
             // the plug-in may switch its GPU support off on the instance (OFX 1.4) after a failure
-            const char* flag = rq2.gpu == GpuMode::OpenCLBuffers ? kOfxImageEffectPropOpenCLRenderSupported : kOfxImageEffectPropOpenCLSupported;
+            const char* flag = gpuSupportFlag(rq2.gpu);
             if (!supportsFlag(effect_.get(), contextDescriptor(), flag)) {
                 if (!rq.gpuFallbackToCpu) {
                     err = std::string("plug-in withdrew ") + flag + " before t=" + std::to_string(rq.times[fi]);
@@ -808,7 +844,7 @@ bool Instance::renderFrame(const RenderRequest& rq, double time, FrameResult& fr
 
     for (int rep = 0; rep < std::max(1, rq.repeat); ++rep) {
         bool gpu = rq.gpu != GpuMode::None;
-        fr.gpu = rq.gpu == GpuMode::OpenCLBuffers ? "opencl-buffers" : (rq.gpu == GpuMode::OpenCLImages ? "opencl-images" : "cpu");
+        fr.gpu = gpuModeName(rq.gpu);
         auto tTotal = std::chrono::steady_clock::now();
         rs_ = RenderState{};
         rs_.time = time;
@@ -821,23 +857,16 @@ bool Instance::renderFrame(const RenderRequest& rq, double time, FrameResult& fr
         std::string e2;
         if (gpu) {
             const PixelFormat f = outClip->format();
-            if (rq.gpu == GpuMode::OpenCLImages)
-                rs_.outCl = H.cl->createImage2D(rs_.outMem->width(), rs_.outMem->height(), f.nComps(),
-                                                f.depth == kOfxBitDepthFloat || f.depth == kOfxBitDepthHalf, f.bytesPerComp(), e2);
-            else
-                rs_.outCl = H.cl->createBuffer(rs_.outMem->bytes(), e2);
-            if (!rs_.outCl) { err = "OpenCL output allocation failed: " + e2; return false; }
+            rs_.outCl = gpuCreate(rq.gpu, *rs_.outMem, f, e2);
+            if (!rs_.outCl) { err = "GPU output allocation failed: " + e2; return false; }
             if (H.opt.sentinel) {
-                bool okFill = rq.gpu == GpuMode::OpenCLImages
-                                  ? H.cl->uploadImage(rs_.outCl, rs_.outMem->data, rs_.outMem->width(), rs_.outMem->height(), rs_.outMem->rowBytes, e2)
-                                  : H.cl->upload(rs_.outCl, rs_.outMem->data, rs_.outMem->bytes(), e2);
-                if (!okFill) diag().warn("sentinel upload failed: " + e2);
+                if (!gpuUpload(rq.gpu, rs_.outCl, *rs_.outMem, e2)) diag().warn("sentinel upload failed: " + e2);
             }
         }
         inRender_ = true;
         double actMs = 0;
         auto tAct = std::chrono::steady_clock::now();
-        const char* gpuFlag = rq.gpu == GpuMode::OpenCLImages ? kOfxImageEffectPropOpenCLSupported : kOfxImageEffectPropOpenCLRenderSupported;
+        const char* gpuFlag = gpuSupportFlag(rq.gpu);
         const bool gpuBefore = gpu && supportsFlag(effect_.get(), contextDescriptor(), gpuFlag);
         if (!gpu && frameThreading && safety != kOfxImageEffectRenderUnsafe && (win.y2 - win.y1) >= 16) {
             unsigned n = std::min<unsigned>(std::max(1u, std::thread::hardware_concurrency()), unsigned(win.y2 - win.y1) / 8u);
@@ -872,18 +901,16 @@ bool Instance::renderFrame(const RenderRequest& rq, double time, FrameResult& fr
         bool gpuOk = true;
         if (gpu) {
             auto tf = std::chrono::steady_clock::now();
-            if (!H.cl->finish(e2)) { diag().warn(e2); gpuOk = false; }
+            if (!gpuFinish(rq.gpu, e2)) { diag().warn(e2); gpuOk = false; }
             finMs = msSince(tf);
             if (st == kOfxStatOK && gpuOk) {
                 auto td = std::chrono::steady_clock::now();
-                bool okd = rq.gpu == GpuMode::OpenCLImages
-                               ? H.cl->downloadImage(rs_.outCl, rs_.outMem->data, rs_.outMem->width(), rs_.outMem->height(), rs_.outMem->rowBytes, e2)
-                               : H.cl->download(rs_.outCl, rs_.outMem->data, rs_.outMem->bytes(), e2);
+                bool okd = gpuDownload(rq.gpu, rs_.outCl, *rs_.outMem, e2);
                 fr.downloadMs = msSince(td);
-                if (!okd) { err = "OpenCL download failed: " + e2; gpuOk = false; }
+                if (!okd) { err = "GPU download failed: " + e2; gpuOk = false; }
             }
-            for (auto& kv : rs_.srcCl) H.cl->release(kv.second);
-            H.cl->release(rs_.outCl);
+            for (auto& kv : rs_.srcCl) gpuRelease(rq.gpu, kv.second);
+            gpuRelease(rq.gpu, rs_.outCl);
             rs_.srcCl.clear();
             rs_.outCl = nullptr;
             fr.uploadMs = rs_.uploadMs;

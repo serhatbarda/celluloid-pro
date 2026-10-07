@@ -12,9 +12,19 @@
 #include "ofxDialog.h"
 #include "ofxParametricParam.h"
 
-#include <dlfcn.h>
-#include <sys/stat.h>
-#include <dirent.h>
+#if defined(_WIN32)
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+#  include <windows.h>
+#  include <malloc.h>
+#else
+#  include <dlfcn.h>
+#endif
+#include <filesystem>
 
 #include <algorithm>
 #include <atomic>
@@ -25,6 +35,24 @@
 #include <thread>
 
 namespace ofxhost {
+
+// ================================================================== GPU modes
+const char* gpuSupportFlag(GpuMode m) {
+    switch (m) {
+    case GpuMode::OpenCLBuffers: return kOfxImageEffectPropOpenCLRenderSupported;
+    case GpuMode::OpenCLImages: return kOfxImageEffectPropOpenCLSupported;
+    case GpuMode::Metal: return kOfxImageEffectPropMetalRenderSupported;
+    default: return "";
+    }
+}
+const char* gpuModeName(GpuMode m) {
+    switch (m) {
+    case GpuMode::OpenCLBuffers: return "opencl-buffers";
+    case GpuMode::OpenCLImages: return "opencl-images";
+    case GpuMode::Metal: return "metal";
+    default: return "cpu";
+    }
+}
 
 // ================================================================== status names
 const char* statusName(OfxStatus st) {
@@ -71,6 +99,7 @@ void Host::init() {
     if (opt.depths.empty()) opt.depths = {kOfxBitDepthFloat, kOfxBitDepthHalf, kOfxBitDepthShort, kOfxBitDepthByte};
     if (opt.components.empty()) opt.components = {kOfxImageComponentRGBA, kOfxImageComponentRGB, kOfxImageComponentAlpha};
     clAvailable = OpenCLHost::compiledIn();
+    mtlAvailable = MetalHost::compiledIn();
     PropertySet& p = props;
     p.defString(kOfxPropType, kOfxTypeImageEffectHost, true);
     p.defString(kOfxPropName, opt.hostName, true);
@@ -115,7 +144,7 @@ void Host::init() {
     p.defString(kOfxImageEffectPropOpenCLSupported, (clAvailable && opt.advertiseOpenCLImages) ? "true" : "false", true);
     p.defString(kOfxImageEffectPropCudaRenderSupported, "false", true);
     p.defString(kOfxImageEffectPropCudaStreamSupported, "false", true);
-    p.defString(kOfxImageEffectPropMetalRenderSupported, "false", true);
+    p.defString(kOfxImageEffectPropMetalRenderSupported, mtlAvailable ? "true" : "false", true);
     p.setInstanceSemantics(true);
 
     ofxHost.host = props.handle();
@@ -128,12 +157,21 @@ namespace {
 OfxStatus memoryAlloc(void*, size_t nBytes, void** data) {
     if (!data) return kOfxStatErrBadHandle;
     void* p = nullptr;
+#if defined(_WIN32)
+    p = _aligned_malloc(nBytes ? nBytes : 1, 64);
+    if (!p) { *data = nullptr; return kOfxStatErrMemory; }
+#else
     if (posix_memalign(&p, 64, nBytes ? nBytes : 1) != 0) { *data = nullptr; return kOfxStatErrMemory; }
+#endif
     *data = p;
     return kOfxStatOK;
 }
 OfxStatus memoryFree(void* data) {
+#if defined(_WIN32)
+    _aligned_free(data);
+#else
     std::free(data);
+#endif
     return kOfxStatOK;
 }
 OfxMemorySuiteV1 g_memorySuite = {memoryAlloc, memoryFree};
@@ -592,40 +630,71 @@ void unregisterImage(HostImage* img) {
 
 // ================================================================== binaries
 static bool isDir(const std::string& p) {
-    struct stat st;
-    return stat(p.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+    std::error_code ec;
+    return std::filesystem::is_directory(std::filesystem::u8path(p), ec);
+}
+
+// OFX bundle architecture folders of the platform this host runs on (OFX "Packaging")
+static std::vector<std::string> archDirs() {
+#if defined(_WIN32)
+    return {"Win64"};
+#elif defined(__APPLE__)
+    return {"MacOS"};
+#else
+    return {"Linux-x86-64", "Linux-x86_64", "Linux-aarch64"};
+#endif
+}
+
+static void* openLibrary(const std::string& path, std::string& err) {
+#if defined(_WIN32)
+    std::wstring w = std::filesystem::u8path(path).wstring();
+    HMODULE h = ::LoadLibraryExW(w.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+    if (!h) err = "LoadLibraryExW failed (error " + std::to_string(::GetLastError()) + ")";
+    return reinterpret_cast<void*>(h);
+#else
+    void* h = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (!h) err = std::string("dlopen failed: ") + dlerror();
+    return h;
+#endif
+}
+
+static void* librarySymbol(void* lib, const char* name) {
+#if defined(_WIN32)
+    return reinterpret_cast<void*>(::GetProcAddress(static_cast<HMODULE>(lib), name));
+#else
+    return dlsym(lib, name);
+#endif
 }
 
 bool PluginBinary::open(const std::string& pathOrBundle, std::string& err) {
     std::string p = pathOrBundle;
-    while (p.size() > 1 && p.back() == '/') p.pop_back();
+    while (p.size() > 1 && (p.back() == '/' || p.back() == '\\')) p.pop_back();
     if (isDir(p)) {
         bundlePath = p;
-        std::string arch = p + "/Contents/Linux-x86-64";
-        if (!isDir(arch)) arch = p + "/Contents/Linux-x86_64";
-        DIR* d = opendir(arch.c_str());
-        if (!d) { err = "bundle has no Contents/Linux-x86-64 directory: " + p; return false; }
-        struct dirent* de;
-        while ((de = readdir(d)) != nullptr) {
-            std::string n = de->d_name;
+        std::string arch;
+        for (const std::string& a : archDirs())
+            if (isDir(p + "/Contents/" + a)) { arch = p + "/Contents/" + a; break; }
+        if (arch.empty()) { err = "bundle has no Contents/" + archDirs()[0] + " directory: " + p; return false; }
+        std::error_code ec;
+        for (const auto& de : std::filesystem::directory_iterator(std::filesystem::u8path(arch), ec)) {
+            std::string n = de.path().filename().u8string();
             if (n.size() > 4 && n.substr(n.size() - 4) == ".ofx") { path = arch + "/" + n; break; }
         }
-        closedir(d);
         if (path.empty()) { err = "no .ofx binary in " + arch; return false; }
     } else {
         path = p;
         // derive the bundle root from .../X.ofx.bundle/Contents/<arch>/X.ofx
-        size_t k = p.find(".ofx.bundle/");
+        size_t k = p.find(".ofx.bundle");
         if (k != std::string::npos) bundlePath = p.substr(0, k + 11);
     }
-    dl = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
-    if (!dl) { err = std::string("dlopen failed: ") + dlerror(); return false; }
+    dl = openLibrary(path, err);
+    if (!dl) return false;
     using SetHostFn = OfxStatus (*)(const OfxHost*);
     using NumFn = int (*)();
     using GetFn = OfxPlugin* (*)(int);
-    auto setHost = reinterpret_cast<SetHostFn>(dlsym(dl, "OfxSetHost"));
-    auto num = reinterpret_cast<NumFn>(dlsym(dl, "OfxGetNumberOfPlugins"));
-    auto getp = reinterpret_cast<GetFn>(dlsym(dl, "OfxGetPlugin"));
+    auto setHost = reinterpret_cast<SetHostFn>(librarySymbol(dl, "OfxSetHost"));
+    auto num = reinterpret_cast<NumFn>(librarySymbol(dl, "OfxGetNumberOfPlugins"));
+    auto getp = reinterpret_cast<GetFn>(librarySymbol(dl, "OfxGetPlugin"));
     if (!num || !getp) { err = "binary does not export OfxGetNumberOfPlugins/OfxGetPlugin"; return false; }
     if (setHost) {
         OfxStatus st = setHost(&Host::get().ofxHost);

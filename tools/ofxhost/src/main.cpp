@@ -59,10 +59,11 @@ input / render
   --time T                  render one frame at time T (default 0)
   --frames A:B[:STEP]       render frames A..B inclusive (BeginSequenceRender spans all)
   --render-scale S          render scale (images are S*W x S*H; source is area-downsampled)
-  --gpu none|opencl|opencl-images
+  --gpu none|opencl|opencl-images|metal
                             OpenCL render like Resolve: host context + in-order queue,
                             cl_mem buffers in kOfxImagePropData (opencl) or cl_mem images in
-                            kOfxImageEffectPropOpenCLImage (opencl-images)
+                            kOfxImageEffectPropOpenCLImage (opencl-images); metal (macOS): host
+                            MTLCommandQueue + MTLBuffers in kOfxImagePropData
   --gpu-fallback            render on CPU if the plug-in lacks / fails the GPU path
   --cl-platform N --cl-device N   pick the OpenCL device (default: first GPU, else first)
   --repeat N                render each frame N times (timing statistics)
@@ -226,7 +227,8 @@ bool parseArgs(const std::vector<std::string>& args, size_t start, Job& job, Glo
             if (*v == "none" || *v == "cpu") job.gpu = GpuMode::None;
             else if (*v == "opencl" || *v == "opencl-buffers") job.gpu = GpuMode::OpenCLBuffers;
             else if (*v == "opencl-images") job.gpu = GpuMode::OpenCLImages;
-            else { err = "unknown --gpu mode '" + *v + "' (none, opencl, opencl-images; CUDA/Metal need their platforms)"; return false; }
+            else if (*v == "metal") job.gpu = GpuMode::Metal;
+            else { err = "unknown --gpu mode '" + *v + "' (none, opencl, opencl-images, metal)"; return false; }
         } else if (a == "--gpu-fallback") {
             job.gpuFallback = true;
         } else if (a == "--repeat") {
@@ -642,8 +644,21 @@ int main(int argc, char** argv) {
 
     // OpenCL context (only if some job wants it)
     std::unique_ptr<OpenCLHost> cl;
-    bool wantCl = false;
-    for (auto& j : jobs) wantCl = wantCl || j.gpu != GpuMode::None;
+    std::unique_ptr<MetalHost> mtl;
+    bool wantCl = false, wantMtl = false;
+    for (auto& j : jobs) {
+        wantCl = wantCl || j.gpu == GpuMode::OpenCLBuffers || j.gpu == GpuMode::OpenCLImages;
+        wantMtl = wantMtl || j.gpu == GpuMode::Metal;
+    }
+    if (wantMtl) {
+        mtl.reset(new MetalHost);
+        if (!mtl->init(err)) {
+            std::fprintf(stderr, "ofxhost: Metal init failed: %s\n", err.c_str());
+            return 1;
+        }
+        H.mtl = mtl.get();
+        std::printf("Metal: %s\n", mtl->deviceName().c_str());
+    }
     if (wantCl) {
         cl.reset(new OpenCLHost);
         if (!cl->init(g.clPlatform, g.clDevice, err)) {
@@ -833,7 +848,7 @@ int main(int argc, char** argv) {
             j.kv("label", r.job.label);
             j.kv("error", r.error);
             j.kv("renderScale", r.job.scale);
-            j.kv("gpuRequested", std::string(r.job.gpu == GpuMode::None ? "none" : r.job.gpu == GpuMode::OpenCLBuffers ? "opencl" : "opencl-images"));
+            j.kv("gpuRequested", std::string(r.job.gpu == GpuMode::None ? "none" : r.job.gpu == GpuMode::OpenCLBuffers ? "opencl" : gpuModeName(r.job.gpu)));
             j.key("ops").beginArray();
             for (auto& op : r.job.ops) {
                 j.beginObject();

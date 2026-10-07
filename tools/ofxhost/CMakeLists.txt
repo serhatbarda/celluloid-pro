@@ -13,13 +13,19 @@ else()
   set(OFXHOST_STANDALONE OFF)
 endif()
 
-if(NOT (UNIX AND NOT APPLE))
-  message(STATUS "ofxhost: the headless test host is Linux-only (dlopen of Linux-x86-64 bundles); skipping")
-  return()
+# Linux: the full workbench host (OpenCL GPU path via POCL, SDK example plug-ins, render tests).
+# macOS / Windows: the same host for the CI smoke test of the shipping bundle (macOS also drives the
+# plug-in's Metal path with a host MTLCommandQueue + MTLBuffers).
+set(_ofxhost_linux OFF)
+if(UNIX AND NOT APPLE)
+  set(_ofxhost_linux ON)
 endif()
-
-option(OFXHOST_BUILD_SDK_PLUGINS "Build OpenFX SDK example plug-ins and the host self-tests" ${OFXHOST_STANDALONE})
-option(OFXHOST_WITH_OPENCL "Enable the OpenCL GPU render path of the host" ON)
+if(_ofxhost_linux)
+  option(OFXHOST_BUILD_SDK_PLUGINS "Build OpenFX SDK example plug-ins and the host self-tests" ${OFXHOST_STANDALONE})
+else()
+  set(OFXHOST_BUILD_SDK_PLUGINS OFF)
+endif()
+option(OFXHOST_WITH_OPENCL "Enable the OpenCL GPU render path of the host" ${_ofxhost_linux})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -77,7 +83,21 @@ add_executable(ofxhost
   src/OpenCLHost.cpp)
 target_include_directories(ofxhost PRIVATE "${OFXHOST_OFX_INCLUDE}" src)
 target_link_libraries(ofxhost PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
-target_compile_options(ofxhost PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wno-unused-parameter)
+if(MSVC)
+  target_compile_options(ofxhost PRIVATE /W3 /utf-8 /EHsc)
+  target_compile_definitions(ofxhost PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+else()
+  target_compile_options(ofxhost PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wno-unused-parameter)
+endif()
+if(APPLE)
+  enable_language(OBJCXX)
+  target_sources(ofxhost PRIVATE src/MetalHost.mm)
+  set_source_files_properties(src/MetalHost.mm PROPERTIES COMPILE_OPTIONS "-fno-objc-arc")
+  target_compile_definitions(ofxhost PRIVATE OFXHOST_HAVE_METAL)
+  target_link_libraries(ofxhost PRIVATE "-framework Metal" "-framework Foundation")
+else()
+  target_sources(ofxhost PRIVATE src/MetalHostStub.cpp)
+endif()
 if(OFXHOST_HAVE_OPENCL)
   target_compile_definitions(ofxhost PRIVATE OFXHOST_HAVE_OPENCL CL_TARGET_OPENCL_VERSION=120)
   target_link_libraries(ofxhost PRIVATE OpenCL::OpenCL)
@@ -143,8 +163,36 @@ if(OFXHOST_BUILD_SDK_PLUGINS)
   endif()
 endif()
 
-# ---------------------------------------------------------------- Celluloid plug-in: GPU self test at describe
+# ---------------------------------------------------------------- Celluloid plug-in: end-to-end smoke test
+# Loads the built bundle through the real OFX entry points on every platform (CI: macOS universal
+# bundle, Windows Win64 DLL): describe + GPU flags vs self test, CPU render vs the committed
+# reference, trial LUT refusal; ofx_smoke_gpu renders through the plug-in's Metal (macOS) or OpenCL
+# (Linux/POCL) path with host-created queues and buffers and compares with the CPU (2e-4).
 if(DEFINED CEL_BUNDLE_DIR AND TARGET celluloid_ofx)
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND)
+    set(_smoke "${CMAKE_CURRENT_SOURCE_DIR}/smoke/ofx_smoke.py")
+    add_test(NAME ofx_smoke
+      COMMAND ${Python3_EXECUTABLE} "${_smoke}" --host $<TARGET_FILE:ofxhost> --bundle "${CEL_BUNDLE_DIR}"
+              --work "${CMAKE_CURRENT_BINARY_DIR}/smoke_cpu")
+    set_tests_properties(ofx_smoke PROPERTIES LABELS "ofx" TIMEOUT 600)
+    set(_smoke_gpu "")
+    if(APPLE)
+      set(_smoke_gpu metal)
+    elseif(OFXHOST_HAVE_OPENCL)
+      set(_smoke_gpu opencl)
+    endif()
+    if(_smoke_gpu)
+      add_test(NAME ofx_smoke_gpu
+        COMMAND ${Python3_EXECUTABLE} "${_smoke}" --host $<TARGET_FILE:ofxhost> --bundle "${CEL_BUNDLE_DIR}"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/smoke_gpu" --gpu ${_smoke_gpu})
+      set_tests_properties(ofx_smoke_gpu PROPERTIES LABELS "ofx;gpu-device" TIMEOUT 900)
+    endif()
+  endif()
+endif()
+
+# ---------------------------------------------------------------- Celluloid plug-in: GPU self test at describe
+if(_ofxhost_linux AND DEFINED CEL_BUNDLE_DIR AND TARGET celluloid_ofx)
   add_test(NAME ofx_gpu_selftest_logged
     COMMAND "${CMAKE_COMMAND}" -DHOST=$<TARGET_FILE:ofxhost> "-DBUNDLE=${CEL_BUNDLE_DIR}"
             "-DOUT=${CMAKE_CURRENT_BINARY_DIR}/selftest_params.json"

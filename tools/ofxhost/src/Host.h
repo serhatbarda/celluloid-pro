@@ -4,6 +4,7 @@
 
 #include "Image.h"
 #include "OpenCLHost.h"
+#include "MetalHost.h"
 #include "Params.h"
 #include "Props.h"
 
@@ -27,7 +28,11 @@ struct PluginBinary;
 
 // ------------------------------------------------------------------ options
 enum class NotifyMode { Sync, Deferred, Off };
-enum class GpuMode { None, OpenCLBuffers, OpenCLImages };
+enum class GpuMode { None, OpenCLBuffers, OpenCLImages, Metal };
+
+// the descriptor / instance property that says the plug-in supports a GPU mode
+const char* gpuSupportFlag(GpuMode m);
+const char* gpuModeName(GpuMode m);
 
 struct HostOptions {
     std::string hostName = "de.serhatbarda.ofxhost";
@@ -63,6 +68,8 @@ public:
     OfxHost ofxHost{};
     OpenCLHost* cl = nullptr;       // set when a GPU mode is active
     bool clAvailable = false;       // OpenCL host-side compiled in and usable
+    MetalHost* mtl = nullptr;       // set when the Metal mode is active (macOS)
+    bool mtlAvailable = false;
 
     void init();  // fills host properties according to opt
     const void* fetchSuite(const char* name, int version);
