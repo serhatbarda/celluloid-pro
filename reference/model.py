@@ -671,6 +671,11 @@ class Params:
             setattr(self, k, v)
 
 
+def flush(a):
+    """== kernel celc_sanitize: magnitudes below 1e-20 (denormals) -> 0"""
+    return np.where(np.abs(a) < 1e-20, 0.0, a)
+
+
 def smooth_floor(e, d):
     return 0.5 * (e + np.sqrt(e * e + d * d))
 
@@ -932,12 +937,12 @@ class Pipeline:
 
     # ------------------------------------------------------------------ per-pixel model
     def decode(self, enc):
-        enc = np.clip(np.where(np.isfinite(enc), enc, 0.0), -65504.0, 65504.0)
+        enc = flush(np.clip(np.where(np.isfinite(enc), enc, 0.0), -65504.0, 65504.0))
         with np.errstate(over='ignore', invalid='ignore'):
             lin = decode_transfer(self.p.input, enc)
-            lin = np.where(np.isnan(lin), 0.0, np.clip(lin, -65504.0, 65504.0))   # == kernel (float32 overflow)
+            lin = flush(np.where(np.isnan(lin), 0.0, np.clip(lin, -65504.0, 65504.0)))   # == kernel (float32 overflow)
             out = (lin @ self.Min.T) * self.gain
-        return np.clip(np.where(np.isfinite(out), out, 0.0), -65504.0, 65504.0)
+        return flush(np.clip(np.where(np.isfinite(out), out, 0.0), -65504.0, 65504.0))
 
     def exposures(self, rgb):
         return exposures_from_log_table(self.LK, rgb)
@@ -1142,7 +1147,7 @@ class Pipeline:
     def scene_to_output(self, rgb, noise=None):
         rgb = np.atleast_2d(np.asarray(rgb, dtype=np.float64))
         rgb = np.where(np.isfinite(rgb), rgb, 0.0)
-        rgb = np.clip(rgb, -65504.0, 65504.0)
+        rgb = flush(np.clip(rgb, -65504.0, 65504.0))
         if noise is not None:
             noise = np.clip(np.where(np.isfinite(noise), noise, 0.0), -8.0, 8.0)
         XYZ, xref = self.film_xyz(rgb, noise)
@@ -1151,7 +1156,7 @@ class Pipeline:
 
     # ------------------------------------------------------------------ Texture-Only
     def display_decode(self, v):
-        v = np.clip(np.where(np.isfinite(v), v, 0.0), -65504.0, 65504.0)
+        v = flush(np.clip(np.where(np.isfinite(v), v, 0.0), -65504.0, 65504.0))
         o = self.out
         if o == 'Rec709_sRGB':
             return srgb_dec(v)
@@ -1167,7 +1172,7 @@ class Pipeline:
         return np.sign(v) * np.abs(v) ** 2.6
 
     def display_finish(self, lin, noise=None):
-        lin = np.clip(np.where(np.isfinite(lin), lin, 0.0), -65504.0, 65504.0)
+        lin = flush(np.clip(np.where(np.isfinite(lin), lin, 0.0), -65504.0, 65504.0))
         if noise is not None and self.txg > 0:
             nz = np.clip(np.where(np.isfinite(noise), noise, 0.0), -8.0, 8.0)
             if self.mono:

@@ -186,7 +186,9 @@ bool buildSchedule(const engine::Plan& plan, int kernelCount, const engine::Host
     }
     if (!written[BUF_DST]) { if (err) *err = "no pass writes the destination image"; return false; }
 
-    // physical slots for internal buffers (liveness based sharing, exact size classes)
+    // physical slots for internal buffers (liveness based sharing, best fit: the smallest free slot
+    // that is large enough, else the largest free slot grows; internal strides come from the plan,
+    // never from the slot size, so a larger slot is safe)
     out->bufferSlot.assign(size_t(nb), -2);
     out->bufferSlot[BUF_SRC] = out->bufferSlot[BUF_DST] = -1;
     out->slotBytes.clear();
@@ -203,8 +205,19 @@ bool buildSchedule(const engine::Plan& plan, int kernelCount, const engine::Host
         const size_t bytes = size_t(plan.buffers[size_t(b)].w) * size_t(plan.buffers[size_t(b)].h) * 16u;
         int slot = -1;
         if (opt.aliasInternal) {
-            for (size_t s = 0; s < slotOwner.size(); ++s)
-                if (slotOwner[s] < 0 && out->slotBytes[s] == bytes) { slot = int(s); break; }
+            int grow = -1;
+            for (size_t s = 0; s < slotOwner.size(); ++s) {
+                if (slotOwner[s] >= 0) continue;
+                if (out->slotBytes[s] >= bytes) {
+                    if (slot < 0 || out->slotBytes[s] < out->slotBytes[size_t(slot)]) slot = int(s);
+                } else if (grow < 0 || out->slotBytes[s] > out->slotBytes[size_t(grow)]) {
+                    grow = int(s);
+                }
+            }
+            if (slot < 0 && grow >= 0) {
+                slot = grow;
+                out->slotBytes[size_t(slot)] = bytes;
+            }
         }
         if (slot < 0) {
             slot = int(out->slotBytes.size());

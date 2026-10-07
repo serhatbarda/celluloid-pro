@@ -74,9 +74,11 @@ public:
                 it->second.pop_back();
                 m_idleBytes -= n * sizeof(float);
                 --m_idleCount;
+                noteOut(n);
                 return b;
             }
             ++m_allocations;
+            noteOut(n);
         }
         PoolBuf b;
         b.data.reset(new float[n]);   // uninitialised: every pass writes its whole output
@@ -87,12 +89,21 @@ public:
         if (!b.data) return;
         std::lock_guard<std::mutex> lk(m_mtx);
         b.lastUse = ++m_clock;
+        const size_t outBytes = b.floats * sizeof(float);
+        m_outBytes = m_outBytes > outBytes ? m_outBytes - outBytes : 0;
+        // idle limit: at least the working set of the most recent frame (an 8K Full plan checks out
+        // ~2.5 GiB; a fixed 1.5 GiB limit evicted and re-allocated a full-res buffer every frame)
+        const size_t limit = std::max(kPoolIdleLimit, std::max(m_recentPeak, m_framePeak));
+        if (m_outBytes == 0) {
+            m_recentPeak = m_framePeak;
+            m_framePeak = 0;
+        }
         m_idleBytes += b.floats * sizeof(float);
         ++m_idleCount;
         m_free[b.floats].push_back(std::move(b));   // vectors stay sorted by lastUse
         // trim: evict the least recently used idle buffers first (the working set of the frames
         // being rendered is always the most recent, so it survives)
-        while (m_idleBytes > kPoolIdleLimit) {
+        while (m_idleBytes > limit) {
             auto oldest = m_free.end();
             for (auto it = m_free.begin(); it != m_free.end(); ++it)
                 if (!it->second.empty() && (oldest == m_free.end() || it->second.front().lastUse < oldest->second.front().lastUse))
@@ -120,7 +131,12 @@ public:
     }
 
 private:
+    void noteOut(size_t floats) {   // under m_mtx
+        m_outBytes += floats * sizeof(float);
+        m_framePeak = std::max(m_framePeak, m_outBytes);
+    }
     std::mutex m_mtx;
+    size_t m_outBytes = 0, m_framePeak = 0, m_recentPeak = 0;   // checked-out bytes, peaks
     std::map<size_t, std::vector<PoolBuf>> m_free;   // key = float count
     size_t m_idleBytes = 0, m_idleCount = 0, m_allocations = 0;
     uint64_t m_clock = 0;

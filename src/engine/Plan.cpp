@@ -5,7 +5,7 @@
 //
 //   Full:        decode(SRC) -> [weave] -> [acutance] -> [glow: halation/bloom (+vignette)]
 //                -> [vignette] ; [grain] ; color(img, grain|-, SRC) -> [watermark] -> DST
-//   ColorOnly:   decode(SRC) -> color(scene, -, SRC) -> [watermark] -> DST
+//   ColorOnly:   color(SRC decoded in the kernel, i[1] = 1) -> [watermark] -> DST
 //   TextureOnly: display_decode(SRC) -> [weave] -> [tonemap to pseudo scene] -> [acutance]
 //                -> [glow (maps back to display, vignette)] | [tonemap back] -> [vignette] ;
 //                [grain] ; display_finish(img, grain|-, SRC) -> [watermark] -> DST
@@ -29,6 +29,8 @@
 //   color, display_finish:   i[0] = 1 when in1 holds the grain field (then in1 = grain noise xyz,
 //                            unit variance per layer), 0 when no grain (in1 unused: inStride[1] = 0,
 //                            inW[1] = inH[1] = 0). in2 = SRC (alpha). f[] = 0.
+//                            color only: i[1] = 1 = in0 is the encoded host source, decoded in the
+//                            kernel (Color Only plan; alpha = in0.w, in2 unused).
 //   watermark:               in0 = colour result (dst size) -> DST; f[0] = pixelScale, f[1..4] and
 //                            i[0] from lic::fillWatermarkArgs (opacity, size, reference white of
 //                            the output transfer SDR/PQ/HLG, band; row 0 = bottom, OFX convention).
@@ -392,8 +394,7 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
     KernelId colorK = KID_color;
     switch (fs.mode) {
         case core::Mode::ColorOnly: {
-            img = B.buffer(w, h);
-            B.pass(KID_decode, img, {BUF_SRC});
+            img = int(BUF_SRC);   // color decodes the source itself (i[1] = 1): one full-res pass less
             break;
         }
         case core::Mode::TextureOnly: {
@@ -414,8 +415,10 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
         }
     }
     int colorOut = fs.watermark ? B.buffer(w, h) : int(BUF_DST);
-    PassDesc& cp = B.pass(colorK, colorOut, {img, noise, BUF_SRC});
+    const bool fusedDecode = fs.mode == core::Mode::ColorOnly;
+    PassDesc& cp = fusedDecode ? B.pass(colorK, colorOut, {img, noise, -1}) : B.pass(colorK, colorOut, {img, noise, BUF_SRC});
     cp.args.i[0] = noise >= 0 ? 1 : 0;
+    cp.args.i[1] = fusedDecode ? 1 : 0;
     if (fs.watermark) {
         PassDesc& wp = B.pass(KID_watermark, BUF_DST, {colorOut});
         wp.args.f[0] = ps;

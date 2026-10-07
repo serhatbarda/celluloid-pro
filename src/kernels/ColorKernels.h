@@ -3,10 +3,11 @@
  * Per-pixel evaluation of the spectral film model baked by core::Pipeline::prepare() into the
  * state buffer (layout: ColorState.h). Mirrors reference/model.py function by function.
  *
- * Kernels (KernelList.h), all with the uniform ABI; f[] / i[] are NOT used by these kernels:
+ * Kernels (KernelList.h), all with the uniform ABI; f[] is not used by these kernels, i[] only by color (below):
  *   decode          in0 = host source RGBA (encoded in LookParams.input)
  *                   out = scene-linear Rec.2020 x 2^exposure, alpha copied from in0
- *   color           in0 = scene-linear RGBA (after texture passes)
+ *   color           in0 = scene-linear RGBA (after texture passes); i[1] = 1: in0 is the encoded
+ *                         host source and is decoded here (Color Only plan)
  *                   in1 = grain noise field (xyz = R-,G-,B-sensitive layer; zero mean, unit variance)
  *                         -- used only when a->inStride[1] != 0 (ABI: stride 0 = input unused)
  *                   in2 = host source (alpha source) -- used when a->inStride[2] != 0, else alpha of in0
@@ -39,9 +40,12 @@ CEL_DEVICE float celc_min3(CelF3 v) { return cel_fmin(v.x, cel_fmin(v.y, v.z)); 
 CEL_DEVICE CelF3 celc_scale(CelF3 v, float k) { return cel_f3(v.x * k, v.y * k, v.z * k); }
 /* NaN -> 0; +-Inf and huge values clamp to the half-float range (an overflowing log decode of an
  * absurd code value renders as the brightest white, not as black) */
-CEL_DEVICE float celc_sanitize(float v) { return (v != v) ? 0.0f : cel_clamp(v, -65504.0f, 65504.0f); }
-/* display-referred inputs (Texture-Only): any non-finite value -> 0 */
-CEL_DEVICE float celc_sanitize_d(float v) { return cel_clamp(cel_finite_or(v, 0.0f), -65504.0f, 65504.0f); }
+/* Magnitudes below 1e-20 (subnormals from CG / EXR blacks) are flushed to 0: they render as black
+ * anyway, and on x86 CPUs every operation on a denormal takes a microcode assist (a near-black
+ * frame rendered up to 6x slower through the blur pyramids). */
+CEL_DEVICE float celc_sanitize(float v) { return (v != v || cel_fabs(v) < 1e-20f) ? 0.0f : cel_clamp(v, -65504.0f, 65504.0f); }
+/* display-referred inputs (Texture-Only): any non-finite value -> 0 (tiny values flushed as above) */
+CEL_DEVICE float celc_sanitize_d(float v) { return cel_fabs(v) < 1e-20f ? 0.0f : cel_clamp(cel_finite_or(v, 0.0f), -65504.0f, 65504.0f); }
 
 /* 1D LUT row `row` of a 3 x N block over [x0,x1], corner aligned, clamped */
 CEL_DEVICE float celc_lut1(CEL_GLOBAL const float* s, int off, int n, int row, float x0, float x1, float x) {
@@ -437,7 +441,11 @@ CEL_DEVICE void cel_k_color(CEL_KERNEL_PARAMS) {
     if (hasNoise) { CelF4 n = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], x, y); nz = cel_f3(n.x, n.y, n.z); }
     float alpha = p.w;
     if (a->inStride[2] != 0) alpha = cel_load(in2, a->inStride[2], a->inW[2], a->inH[2], x, y).w;
-    CelF3 r = celc_scene_to_output(state, cel_f3(p.x, p.y, p.z), nz, hasNoise);
+    CelF3 sc = cel_f3(p.x, p.y, p.z);
+    /* i[1] = 1: in0 is the encoded host source (Color Only plan: decode fused into this pass,
+     * bit-identical to a separate decode pass) */
+    if (a->i[1] != 0) sc = celc_decode_px(state, sc);
+    CelF3 r = celc_scene_to_output(state, sc, nz, hasNoise);
     cel_store(out, a->outStride, x, y, cel_f4(r.x, r.y, r.z, alpha));
     (void)in3;
 }

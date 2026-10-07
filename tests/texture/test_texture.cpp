@@ -604,7 +604,26 @@ void testPlans() {
     // ColorOnly
     fs.mode = cel::core::Mode::ColorOnly; fs.tex = everythingOn(1.f); fs.look.grainAmount = 1.f;
     auto seq = kernelSeq(eng::buildPlan(1920, 1080, fs, pipe));
-    CHECK((seq == std::vector<std::string>{"decode", "color"}), "ColorOnly = decode, color");
+    CHECK((seq == std::vector<std::string>{"color"}), "ColorOnly = color (decode fused, i[1] = 1)");
+    // the fused decode is bit-identical to decode -> color (Full plan with every texture effect off)
+    {
+        const int W = 97, H = 61;
+        Img src = testScene(W, H);
+        for (size_t i = 3; i < src.px.size(); i += 4) src.px[i] = 0.25f + 0.5f * float((i / 4) % 7) / 6.f;
+        eng::FrameSettings fa, fb;
+        fa.mode = cel::core::Mode::ColorOnly;
+        fb.mode = cel::core::Mode::Full; fb.tex = TextureParams{};
+        cel::core::Pipeline pp;
+        pp.prepare(fa.look);
+        Img da(W, H), db(W, H);
+        std::string e1, e2;
+        bool ok1 = eng::cpuBackend().execute(eng::buildPlan(W, H, fa, pp), pp.state(), pp.stateVersion(), host(src), host(da), eng::GpuContext{}, &e1);
+        bool ok2 = eng::cpuBackend().execute(eng::buildPlan(W, H, fb, pp), pp.state(), pp.stateVersion(), host(src), host(db), eng::GpuContext{}, &e2);
+        CHECK(ok1 && ok2, "fused decode execute: %s %s", e1.c_str(), e2.c_str());
+        size_t diff = 0;
+        for (size_t i = 0; i < da.px.size(); ++i) diff += std::memcmp(&da.px[i], &db.px[i], sizeof(float)) != 0;
+        CHECK(diff == 0, "ColorOnly (fused decode) differs from decode -> color in %zu values", diff);
+    }
     // Full, all texture off
     fs.mode = cel::core::Mode::Full; fs.tex = TextureParams{};
     seq = kernelSeq(eng::buildPlan(1920, 1080, fs, pipe));
