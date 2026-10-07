@@ -5,6 +5,7 @@
 #include "Bake.h"
 #include "../kernels/ColorKernels.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdio>
@@ -64,10 +65,14 @@ struct Pipeline::Cache {
     std::shared_ptr<const DyeLutBake> dye;        // print or scan LUT
     std::shared_ptr<const ProjBake> proj;         // projection (print or reversal)
     std::vector<NegativeStockInfo> infos;
-    bool holdValid = false;                       // hue-hold anchor (depends on the film, not on
-    LookParams holdKey;                           // printer points / exposure / output / grain)
-    std::vector<float> holdAnchor;
+    struct HoldEntry {                            // hue-hold anchor (depends on the film, not on
+        LookParams key;                           // printer points / exposure / output / grain)
+        std::vector<float> anchor;
+    };
+    std::vector<HoldEntry> hold;                  // most recently used first (switching between
+                                                  // a few looks stays a cache hit)
 };
+static constexpr size_t kHoldCacheEntries = 8;
 
 static bool sameFilm(const LookParams& a, const LookParams& b) {
     return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
@@ -454,7 +459,12 @@ void Pipeline::prepare(const LookParams& pin) {
     s[CEL_CS_HOLD] = 0.f;
     s[CEL_CS_HOLD_CHROMA] = 0.f;
     if (hold) {
-        if (!(C.holdValid && sameFilm(C.holdKey, p) && C.holdAnchor.size() == nHA)) {
+        size_t hit = C.hold.size();
+        for (size_t e = 0; e < C.hold.size(); ++e)
+            if (sameFilm(C.hold[e].key, p) && C.hold[e].anchor.size() == nHA) { hit = e; break; }
+        if (hit < C.hold.size()) {
+            if (hit != 0) std::rotate(C.hold.begin(), C.hold.begin() + long(hit), C.hold.begin() + long(hit) + 1);
+        } else {
             std::vector<float> A(nHA);
             const double e1[3] = {1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0), 0.0};
             const double e2[3] = {1.0 / std::sqrt(6.0), 1.0 / std::sqrt(6.0), -2.0 / std::sqrt(6.0)};
@@ -486,11 +496,10 @@ void Pipeline::prepare(const LookParams& pin) {
                         q[3] = ok ? float(std::min(1.0, std::max(0.0, (Y / L1 - 0.02) / 0.08))) : 0.f;
                     }
             });
-            C.holdAnchor = std::move(A);
-            C.holdKey = p;
-            C.holdValid = true;
+            C.hold.insert(C.hold.begin(), Cache::HoldEntry{p, std::move(A)});
+            if (C.hold.size() > kHoldCacheEntries) C.hold.pop_back();
         }
-        std::memcpy(&S[oHA], C.holdAnchor.data(), nHA * sizeof(float));
+        std::memcpy(&S[oHA], C.hold.front().anchor.data(), nHA * sizeof(float));
         CelF3 g = Grey::film(S, 0.18f);
         s[CEL_CS_HOLD_N0] = g.x / g.y; s[CEL_CS_HOLD_N0 + 1] = 1.f; s[CEL_CS_HOLD_N0 + 2] = g.z / g.y;
         s[CEL_CS_HOLD_A_OFF] = float(oHA);
