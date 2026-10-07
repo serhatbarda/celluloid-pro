@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Celluloid Pro CI: structural checks of the built OFX bundle.
 #   verify_bundle.sh <path/Celluloid.ofx.bundle> <macos|windows|linux>
-# - bundle layout (Info.plist, icon, binary in the OFX architecture folder)
+# - bundle layout (Info.plist, icon, MANUAL.md, licence texts, binary in the OFX architecture folder)
 # - exactly two exported symbols: OfxGetNumberOfPlugins, OfxGetPlugin
 # - no unexpected runtime dependencies (static MSVC/CUDA runtimes, system libraries only)
 # - macOS: universal arm64 + x86_64, deployment target 11.0
@@ -55,7 +55,11 @@ fi
 [[ -f "$B/Contents/Info.plist" ]] || fail "missing Contents/Info.plist"
 [[ -f "$B/Contents/Resources/de.serhatbarda.CelluloidPro.png" ]] || fail "missing the plug-in icon"
 grep -q "de.serhatbarda.CelluloidPro" "$B/Contents/Info.plist" || fail "Info.plist lacks the bundle identifier"
-ok "layout"
+[[ -s "$B/Contents/Resources/MANUAL.md" ]] || fail "missing Contents/Resources/MANUAL.md (the About group points to it)"
+for f in THIRD_PARTY_NOTICES.txt OpenFX-LICENSE.txt OpenFX-Support-LICENSE.txt Monocypher-LICENCE.txt; do
+  [[ -s "$B/Contents/Resources/Licenses/$f" ]] || fail "missing Contents/Resources/Licenses/$f"
+done
+ok "layout (Info.plist, icon, MANUAL.md, licences)"
 
 case "$OS" in
   macos)

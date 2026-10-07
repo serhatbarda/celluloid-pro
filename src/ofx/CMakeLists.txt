@@ -99,13 +99,66 @@ macro(cel_bundle_copy src dst)
     list(APPEND _cel_res_cmds COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${src}" "${dst}")
   endif()
 endmacro()
+# the About group points users at MANUAL.md inside the bundle: never ship a bundle without it
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/docs/MANUAL.md")
+  message(FATAL_ERROR "docs/MANUAL.md is missing (the plug-in's About group refers to it)")
+endif()
 cel_bundle_copy("${PROJECT_SOURCE_DIR}/resources/${CEL_PLUGIN_IDENTIFIER}.png" "${CEL_BUNDLE_RES}/${CEL_PLUGIN_IDENTIFIER}.png")
 cel_bundle_copy("${PROJECT_SOURCE_DIR}/docs/MANUAL.md" "${CEL_BUNDLE_RES}/MANUAL.md")
 cel_bundle_copy("${CEL_OPENFX_DIR}/Support/LICENSE" "${CEL_BUNDLE_RES}/Licenses/OpenFX-Support-LICENSE.txt")
 cel_bundle_copy("${CEL_OPENFX_DIR}/LICENSE.md" "${CEL_BUNDLE_RES}/Licenses/OpenFX-LICENSE.txt")
 cel_bundle_copy("${PROJECT_SOURCE_DIR}/third_party/monocypher/LICENCE.md" "${CEL_BUNDLE_RES}/Licenses/Monocypher-LICENCE.txt")
-cel_bundle_copy("${PROJECT_SOURCE_DIR}/third_party/opencl/LICENSE" "${CEL_BUNDLE_RES}/Licenses/Khronos-OpenCL-Headers-LICENSE.txt")
-cel_bundle_copy("${PROJECT_SOURCE_DIR}/resources/THIRD_PARTY_NOTICES.txt" "${CEL_BUNDLE_RES}/Licenses/THIRD_PARTY_NOTICES.txt")
+# GPU notices of THIS build: the Khronos OpenCL headers (Apache-2.0; the licence text of the headers
+# that were used is copied when they carry one, e.g. the FetchContent clone on Windows) and the NVIDIA
+# CUDA runtime, linked statically into the Windows plug-in (cudart_static).
+set(CEL_NOTICE_GPU "")
+if(CEL_ENABLE_OPENCL AND CEL_GPU_OPENCL_INCLUDE_DIR)
+  set(_cel_cl_lic "")
+  foreach(_c IN ITEMS "${CEL_GPU_OPENCL_INCLUDE_DIR}/LICENSE" "${CEL_GPU_OPENCL_INCLUDE_DIR}/../LICENSE")
+    if(NOT _cel_cl_lic AND EXISTS "${_c}")
+      set(_cel_cl_lic "${_c}")
+    endif()
+  endforeach()
+  if(_cel_cl_lic)
+    cel_bundle_copy("${_cel_cl_lic}" "${CEL_BUNDLE_RES}/Licenses/Khronos-OpenCL-Headers-LICENSE.txt")
+    string(APPEND CEL_NOTICE_GPU "Khronos OpenCL API headers (used at compile time; the OpenCL runtime is the one installed
+"
+      "with the graphics driver and is loaded at run time)
+  Copyright (c) The Khronos Group Inc.
+"
+      "  License: Apache License 2.0 (see Khronos-OpenCL-Headers-LICENSE.txt)
+  https://github.com/KhronosGroup/OpenCL-Headers
+
+")
+  elseif(APPLE)
+    string(APPEND CEL_NOTICE_GPU "OpenCL: Apple's OpenCL framework headers of the macOS SDK (system component, used at compile time).
+
+")
+  else()
+    string(APPEND CEL_NOTICE_GPU "Khronos OpenCL API headers (used at compile time only; no header code is distributed)
+"
+      "  Copyright (c) The Khronos Group Inc.
+  License: Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0
+"
+      "  https://github.com/KhronosGroup/OpenCL-Headers
+
+")
+  endif()
+endif()
+if(CEL_ENABLE_CUDA)
+  string(APPEND CEL_NOTICE_GPU "NVIDIA CUDA Runtime (cudart_static, statically linked into the plug-in)
+"
+    "  Copyright (c) NVIDIA Corporation. All rights reserved.
+"
+    "  Distributed under the NVIDIA CUDA Toolkit End User License Agreement as a redistributable
+"
+    "  component (EULA Attachment A). https://docs.nvidia.com/cuda/eula/
+
+")
+endif()
+configure_file("${PROJECT_SOURCE_DIR}/resources/THIRD_PARTY_NOTICES.txt.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/generated/THIRD_PARTY_NOTICES.txt" @ONLY)
+cel_bundle_copy("${CMAKE_CURRENT_BINARY_DIR}/generated/THIRD_PARTY_NOTICES.txt" "${CEL_BUNDLE_RES}/Licenses/THIRD_PARTY_NOTICES.txt")
 add_custom_command(TARGET celluloid_ofx POST_BUILD
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CEL_BUNDLE_RES}/Licenses"
   ${_cel_res_cmds}
