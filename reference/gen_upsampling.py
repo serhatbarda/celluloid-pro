@@ -34,6 +34,21 @@ import spectral as sp  # noqa: E402
 N_OCT = int(os.environ.get('CEL_N_OCT', '97'))   # odd: texel lines on the u=0 / v=0 kinks of the octahedral map
 R0, RMAX = 0.65, 0.92
 FBRIGHT = 0.5
+# Red sector: a bright (0.5 x MacAdam) sigmoid-quadratic fit of a saturated red is U-shaped and
+# reflects strongly again below 420 nm (chart red: R(400) = 0.27, R(380) = 0.52). Real red
+# surfaces and red lights have almost no violet; the fake violet exposes the blue-sensitive layer,
+# so bright reds slid toward pink/magenta on every stock. Fitting reds at a lower brightness
+# fraction gives the same chromaticity with a clean long-pass spectrum. The dip is centred on
+# dominant red (xy hue angle around D65 ~ -5 deg) and is zero for skin (+22 deg), orange (+31)
+# and magenta (-55): those spectra are unchanged.
+FB_RED_DEPTH = float(os.environ.get('CEL_FB_RED_DEPTH', '0.32'))
+FB_RED_CENTRE = math.radians(-5.0)
+FB_RED_WIDTH = math.radians(8.0)
+
+
+def fbright(hue):
+    d = (np.asarray(hue) - FB_RED_CENTRE + np.pi) % (2 * np.pi) - np.pi
+    return FBRIGHT - FB_RED_DEPTH * np.exp(-0.5 * (d / FB_RED_WIDTH) ** 2)
 KAPPA = 0.03
 
 W = sp.D65[:, None] * sp.CMF
@@ -151,7 +166,7 @@ def fit_batch(target_dir, rp, Ld, hue, nsteps=24, iters=40):
     for s in range(1, nsteps + 1):
         rs = rp * (s / nsteps)
         xy = WXY + (rs * Ld)[:, None] * target_dir
-        Yt = FBRIGHT * ymax_lookup(hue, rs)
+        Yt = fbright(hue) * ymax_lookup(hue, rs)
         tgt = np.stack([xy[:, 0] / xy[:, 1] * Yt, Yt, (1 - xy[:, 0] - xy[:, 1]) / xy[:, 1] * Yt], 1)
         for it in range(iters):
             z = c[:, 0:1] + c[:, 1:2] * T + c[:, 2:3] * T * T
@@ -248,7 +263,7 @@ def main():
     # store the float32-rounded values so that model.py and C++ use bit-identical inputs
     c32 = coef.astype(np.float32).astype(np.float64)
     a32 = a.astype(np.float32).astype(np.float64)
-    np.savez(os.path.join(sp.DATA, 'upsample_oct.npz'), coef=c32, a=a32, N=N_OCT, r0=R0, rmax=RMAX, fbright=FBRIGHT)
+    np.savez(os.path.join(sp.DATA, 'upsample_oct.npz'), coef=c32, a=a32, N=N_OCT, r0=R0, rmax=RMAX, fbright=FBRIGHT, fb_red_depth=FB_RED_DEPTH)
     root = os.path.dirname(sp.HERE)
     write_inc(os.path.join(root, 'src', 'core', 'UpsampleTable.inc'), coef, a)
 

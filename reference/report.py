@@ -59,6 +59,14 @@ primaries R(0.7347, 0.2653) G(0.0263, 0.9737) B(0.1173, −0.0224), D65.
 chromaticity, at half the optimal-colour (MacAdam) luminance of that chromaticity under D65
 — i.e. the smooth, bounded "typical surface" spectrum of that colour: reds become long-pass
 plateaus, greens/blues band-pass bumps, purples band-stops. The stimulus is `a·R(λ)·D65(λ)`.
+*Red sector.* At half the MacAdam luminance a saturated red can only be fitted by a U-shaped
+quadratic that reflects strongly again below 420 nm (the chart red had R(400 nm) = 0.27,
+R(380 nm) = 0.52). Real red surfaces and red lights have almost no violet; the fake violet
+exposed the blue-sensitive layer, so bright reds slid toward pink/magenta on every stock. The
+brightness fraction is therefore lowered smoothly around dominant red
+(`0.5 − 0.32·exp(−½(Δh/8°)²)`, xy hue angle about D65 centred at −5°): the same chromaticity
+gets a clean long-pass spectrum (chart red R(400 nm) 0.07). Skin (+22°), orange (+31°) and
+magenta (−55°) are outside the dip and keep their spectra.
 *Why this and not a linear basis.* A linear basis makes the whole camera→film step a 3×3
 matrix (no spectral behaviour at all) and produces negative spectra outside its triangle; an
 unbounded exp-quadratic family (tested first) pushes saturated reds' energy beyond 700 nm where
@@ -120,7 +128,8 @@ The table is stock-independent and generated offline (`reference/gen_upsampling.
   LUT); *neutral-referenced balanced inversion*: each channel is mapped through the neutral
   ramp onto the green channel's density scale (per-density grey balance, like a lab scanner),
   so neutrals stay neutral at every exposure while the negative's latitude is kept; a per-stock
-  3×3 lab matrix (rows sum to 1) and a gentle scanner curve (γ 1.4) give the flatter scan look.
+  3×3 lab matrix (rows sum to 1) and a gentle scanner curve (γ @SG@, shoulder p @SP@) give the
+  flatter scan look: open, but not milky blacks (−10 stops ≈ 0.08 encoded, a print ≈ 0.05).
   Printer points act as scanner balance (1 point ≈ the same display change as in print).
 * **Reversal**: positive curves (`D = Dmin + dev(x0 − x)`), reversal dyes → projection LUT;
   grey balance via per-layer exposure offsets (CC filtration). Print stock and Process are
@@ -158,6 +167,36 @@ inverse OOTF on BT.2020 luminance), peak fixed at 1000.
 '''
 
 
+REVISION = r'''## 5. Look-phase revision (v1.0)
+
+Reviewed by rendering every pair through the real plug-in on real-world-like scenes (skin under
+tungsten and daylight at −2/0/+2 stops, golden hour, night city with neon and sodium light,
+foliage, overcast exterior, high-key and low-key interiors). Changes:
+
+* **Spectral upsampling, red sector** (section 1.2): bright reds no longer slide to pink. Chart
+  red at +3 stops on CN 200T / P1: hue 10° → 21° (input 28°); a Rec.709-red surface now goes
+  slightly orange in its highlights (36° → 49° at +5 stops) as print film does.
+* **Highlight colour** of CN 500T, CN 800T, CN Vintage 85, C41 Portrait 400, C41 Consumer 200:
+  the warm highlights were pink/mauve (a* ≈ +1.2…+1.5 at +4 stops); the curve crossovers were
+  re-fitted so they are golden/cream (a* ≈ 0…+0.6, b* +2…+5 at +4…+6 stops). Portrait and
+  Consumer shadows are less magenta (a* +1.0 → +0.6 at −4…−6 stops; Portrait b* +0.1 → +0.4).
+* **Distinctness**: CN 500T got a teal/orange hue signature and a little more contrast
+  (γ × 1.04), C41 Portrait 400 softer contrast (γ × 0.92 overall) with richer colour, C41
+  Consumer 200 warmer, CN 250D a more pastel saturation (0.74), P3 Rich Contrast more contrast
+  and a sharper toe (γ 3.75 → 4.15). Smallest mean ΔE2000 between negatives 2.0 → 2.2, between
+  prints 2.1 → 2.3 (P1 ↔ P3 2.1 → 3.0).
+* **Lab Scan**: scanner curve γ 1.4 → 1.45, shoulder p 2 → 4: blacks 0.132 → 0.089 at −6 stops
+  and ≈ 0.08 at −10 (open, not milky); lab matrices re-fitted for every negative.
+* **P4 Faded Archive**: magenta-dye fog 0.08 → 0.135, yellow-dye fog 0.08 → 0.09: highlights are
+  cream (a* +0.7, b* +3.9 at +6 stops) instead of yellow-green (a* −2.6).
+* **Halation scale** of the anti-halation-backed stocks ≈ −40 % (CN 200T 1.0 → 0.6): at the
+  default amount a bright overcast sky no longer paints red fringes on every dark edge.
+  CN 800T No-Backing 3.0 → 2.0 (still 3.3× CN 200T).
+* **CN 800T grain** σ 0.020/0.024/0.032 → 0.017/0.020/0.026, size 1.40 → 1.30: still the
+  coarsest colour stock, without the harsh blue-layer sparkle in skies.
+'''
+
+
 def fmt(v, n=3):
     return ('%.' + str(n) + 'f') % v
 
@@ -172,7 +211,8 @@ def main():
              '`%s`). All stocks are our own parametric designs (sums of asymmetric Gaussian lobes for '
              'sensitivities and dyes, analytic characteristic curves) — no manufacturer data, names or '
              'presets. Design plots: `reference/plots/`.' % gen_tables.stock_hash(j))
-    L.append(MODEL)
+    cv = j['scanner']['curve']
+    L.append(MODEL.replace('@SG@', '%g' % cv['gamma']).replace('@SP@', '%g' % cv['p']))
     L.append('## 2. Negative and reversal stocks')
     L.append('')
     L.append('| # | Stock | Character | Balance | γ (G) | grain σ (R/G/B) | grain size | halation | DIR max |')
@@ -234,7 +274,9 @@ def main():
     L.append('')
     L.append('Smallest difference between two different prints: **%.1f**.' % off2.min())
     L.append('')
-    L.append('## 5. Editing the stocks')
+    L.append(REVISION)
+    L.append('')
+    L.append('## 6. Editing the stocks')
     L.append('')
     L.append('''The single source of truth is `reference/stocks.json`. After editing it:
 

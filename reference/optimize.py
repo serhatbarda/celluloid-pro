@@ -67,15 +67,21 @@ def neg_vector_spec(neg):
     return spec
 
 
+NEUTRAL_BOUNDS = dict(gamma=0.15, x0=0.25, k=(0.6, 1.6), R=0.15)
+
+
 def neutral_vector_spec(neg):
-    """R- and B-layer curve shape relative to the G layer (neutral tracking / designed crossover)."""
+    """R- and B-layer curve shape relative to the G layer (neutral tracking / designed crossover).
+    Bounds relative to the G layer (brief key 'neutral_bounds' widens them for stocks whose
+    character is a strong designed crossover)."""
     c = neg['curves'][1]
+    b = NEUTRAL_BOUNDS
     spec = []
     for li in (0, 2):
-        spec.append((('curves', li, 'gamma'), c['gamma'] * 0.85, c['gamma'] * 1.15))
-        spec.append((('curves', li, 'x0'), c['x0'] - 0.25, c['x0'] + 0.25))
-        spec.append((('curves', li, 'k'), c['k'] * 0.6, c['k'] * 1.6))
-        spec.append((('curves', li, 'R'), c['R'] * 0.85, c['R'] * 1.15))
+        spec.append((('curves', li, 'gamma'), c['gamma'] * (1 - b['gamma']), c['gamma'] * (1 + b['gamma'])))
+        spec.append((('curves', li, 'x0'), c['x0'] - b['x0'], c['x0'] + b['x0']))
+        spec.append((('curves', li, 'k'), c['k'] * b['k'][0], c['k'] * b['k'][1]))
+        spec.append((('curves', li, 'R'), c['R'] * (1 - b['R']), c['R'] * (1 + b['R'])))
     return spec
 
 
@@ -159,12 +165,14 @@ def optimise_neg(idx, prt_idx=0, iters=60, write=False):
     neg = copy.deepcopy(lib.negs[idx])
     prt = lib.prints[prt_idx]
     brief = briefs['negatives'].get(neg['name'], {})
+    NEUTRAL_BOUNDS.update(brief.get('neutral_bounds', {}))
+    modes = brief.get('modes', ['colour', 'neutral'])
     print('before:')
     report(lib, neg, prt)
     total0 = None
     for rnd in range(2):
         for mode, specf in (('colour', neg_vector_spec), ('neutral', neutral_vector_spec)):
-            if mode == 'colour' and brief.get('no_colour_opt'):
+            if (mode == 'colour' and brief.get('no_colour_opt')) or mode not in modes:
                 continue
             spec = specf(neg)
             x0 = np.array([get(neg, p) for (p, lo, hi) in spec])

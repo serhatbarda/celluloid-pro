@@ -1,5 +1,5 @@
 {
- "_doc": "Design briefs for reference/optimize.py (rendered through P1, Rec.709). saturation = target chroma ratio (exposure-normalised Lab) for natural colours; skin_* for the skin set; ramp_tint_ab = target CIELAB a,b of the neutral ramp at -6..+6 stops (13 entries; the optimiser interpolates if fewer are given as [stop, a, b] anchors).",
+ "_doc": "Design briefs for reference/optimize.py (rendered through P1, Rec.709). saturation = target chroma ratio (exposure-normalised Lab) for natural colours; skin_* for the skin set; ramp_tint_ab = target CIELAB a,b of the neutral ramp at -6..+6 stops (13 entries; the optimiser interpolates if fewer are given as [stop, a, b] anchors). Optional: neutral_bounds = {gamma, x0, k: [lo, hi], R} widens the R/B curve bounds relative to the G layer for stocks with a strong designed crossover; modes = which optimiser stages run (['colour', 'neutral']).",
  "negatives": {
   "CN 50D Fine Daylight": {
    "saturation": 1.28,
@@ -69,10 +69,10 @@
    ]
   },
   "CN 250D Soft Daylight": {
-   "saturation": 0.8,
+   "saturation": 0.74,
    "skin_hue": -1.0,
-   "skin_saturation": 0.85,
-   "sat_saturated": 0.68,
+   "skin_saturation": 0.82,
+   "sat_saturated": 0.62,
    "hue_rules": [
     [
      140,
@@ -109,37 +109,42 @@
    ]
   },
   "CN 500T High Speed": {
-   "saturation": 0.84,
+   "saturation": 0.82,
    "skin_hue": 5.0,
    "skin_saturation": 0.92,
-   "sat_saturated": 0.7,
+   "sat_saturated": 0.68,
    "hue_rules": [
     [
      250,
      35,
-     -12
+     -14
     ],
     [
      200,
      30,
-     -10
+     -12
     ],
     [
      140,
      30,
-     -6
+     -11
+    ],
+    [
+     30,
+     25,
+     5
     ]
    ],
    "ramp_anchors": [
     [
      -6,
-     -4.5,
-     -4.5
+     -3.0,
+     -4.0
     ],
     [
-     -2,
-     -2.0,
-     -2.0
+     -3,
+     -1.8,
+     -2.4
     ],
     [
      0,
@@ -148,14 +153,17 @@
     ],
     [
      3,
-     1.2,
-     4.0
+     0.4,
+     3.0
     ],
     [
      6,
-     1.2,
-     4.5
+     0.4,
+     3.5
     ]
+   ],
+   "modes": [
+    "neutral"
    ]
   },
   "CN 800T No-Backing": {
@@ -188,13 +196,13 @@
    "ramp_anchors": [
     [
      -6,
-     -6.0,
-     -4.0
+     -3.5,
+     -3.5
     ],
     [
      -2,
-     -2.6,
-     -1.8
+     -1.6,
+     -1.4
     ],
     [
      0,
@@ -203,14 +211,17 @@
     ],
     [
      3,
-     1.0,
-     0.6
+     0.3,
+     1.4
     ],
     [
      6,
-     1.6,
-     1.0
+     0.4,
+     2.0
     ]
+   ],
+   "modes": [
+    "neutral"
    ]
   },
   "CN Vintage 85": {
@@ -238,13 +249,13 @@
    "ramp_anchors": [
     [
      -6,
-     -3.5,
-     -1.0
+     -3.0,
+     -0.2
     ],
     [
      -2,
      -1.4,
-     -0.4
+     0.0
     ],
     [
      0,
@@ -253,20 +264,32 @@
     ],
     [
      3,
-     1.8,
-     5.0
+     0.5,
+     4.5
     ],
     [
      6,
-     2.5,
-     7.5
+     0.8,
+     6.5
     ]
+   ],
+   "neutral_bounds": {
+    "gamma": 0.3,
+    "x0": 0.45,
+    "k": [
+     0.4,
+     2.5
+    ],
+    "R": 0.25
+   },
+   "modes": [
+    "neutral"
    ]
   },
   "C41 Portrait 400": {
-   "saturation": 1.0,
+   "saturation": 1.05,
    "skin_hue": 6.0,
-   "skin_saturation": 0.95,
+   "skin_saturation": 0.97,
    "sat_saturated": 0.8,
    "hue_rules": [
     [
@@ -288,8 +311,8 @@
    "ramp_anchors": [
     [
      -6,
-     1.8,
-     0.3
+     0.6,
+     1.4
     ],
     [
      0,
@@ -298,19 +321,32 @@
     ],
     [
      3,
-     1.4,
-     2.0
+     0.5,
+     2.2
     ],
     [
      6,
-     1.6,
-     2.6
+     0.6,
+     2.8
     ]
+   ],
+   "neutral_bounds": {
+    "gamma": 0.3,
+    "x0": 0.45,
+    "k": [
+     0.4,
+     2.5
+    ],
+    "R": 0.25
+   },
+   "modes": [
+    "colour",
+    "neutral"
    ]
   },
   "C41 Consumer 200": {
    "saturation": 1.38,
-   "skin_hue": 3.0,
+   "skin_hue": 5.0,
    "skin_saturation": 1.12,
    "sat_saturated": 1.05,
    "hue_rules": [
@@ -333,8 +369,8 @@
    "ramp_anchors": [
     [
      -6,
-     2.0,
-     -0.5
+     0.6,
+     0.8
     ],
     [
      0,
@@ -343,14 +379,27 @@
     ],
     [
      3,
-     0.8,
-     3.5
+     0.4,
+     4.0
     ],
     [
      6,
-     0.8,
-     4.5
+     0.4,
+     5.0
     ]
+   ],
+   "neutral_bounds": {
+    "gamma": 0.3,
+    "x0": 0.45,
+    "k": [
+     0.4,
+     2.5
+    ],
+    "R": 0.25
+   },
+   "modes": [
+    "colour",
+    "neutral"
    ]
   },
   "RV 100 Slide": {
