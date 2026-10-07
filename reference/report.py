@@ -259,23 +259,33 @@ before it was changed; numbers are before → after.
 * **Lab Scan distinctness.** Scans are fitted to each stock's own P1 rendition with per-stock
   saturation/hue bias (`briefs.json` `scan_sat`, `scan_hue_bias`), keep part of the negative's
   crossover (`scanCrossover`) and have a per-stock `scanContrast`: smallest ΔE2000 between two
-  stocks under Lab Scan 0.37 → 2.17 (gate ≥ 2.0 in `reference/design.py gates`, ctest
+  stocks under Lab Scan 0.37 → 2.23 (gate ≥ 2.0 in `reference/design.py gates`, ctest
   `look_gates_distinct`).
 * **Lab Scan yellows.** Yellows are weighted 4× (below 100°) / 2× in the scan fit and the
-  root-polynomial terms bend saturated hues without moving neutrals: golden-hour field under
-  Lab Scan h 81–89° (input 82°, P1 75–93°), no longer spring-green.
+  root-polynomial terms bend saturated hues without moving neutrals: chart yellows under the Lab
+  Scan on CN 200T −2/+1/−8/−5° (foliage, yellow-green, orange-yellow, yellow; v1.0 +8/+9/+10/
+  +13°), C41 Portrait 400 (Golden Hour Portrait) +8/+10/+4/+8° (v1.0 +8/+11/+15/+20°): no longer
+  spring-green. Foliage chroma ratio stays 1.2 (the aim of ≤ 1.05 was not adopted: the scan
+  follows each stock's own P1 rendition, whose foliage is 1.1–1.2).
 * **Skies and cyan, reds, skin and orange in highlights.** Root cause: every log-domain per-layer
   tone scale bends hue toward the dye primaries/secondaries as exposure moves away from grey; no
   curve fit removes it for all hues. Fixed structurally by the hue hold (section 1.5) plus print
   sensitivities 30 % narrower and re-optimised negatives. CN 200T / P1: daylight sky
-  L68 C16 h241 → L69 C32 h258 (input L85 C35 h259); chart red +2…+4 stops 31 → 21° became
-  29 → 27°; F-Gamut red 21 → 0° became 14 → 9°; skin at +3 stops 68° → 58°, at +6 77° → 63°
-  (input 57°); orange at +2 stops 78–82° → 61° (input 59°). Aims (sky ±6°, chroma ≥ 0.7;
+  L68 C16 h241 → L69 C32 h257 (input L85 C35 h259); chart red from 0 to +4 stops 31 → 21°
+  became 28 → 28° (input 27°); F-Gamut red 21 → 0° became 13 → 8°; skin (input 54°) at +3 stops
+  68° → 57°, at +6 77° → 63°; orange (input 59°) at +2 stops 78–82° → 58°. Aims (sky ±6°, chroma ≥ 0.7;
   skin ±5° at +1…+3; orange ±10° at +2; red/rose/magenta ±10° at +2…+4; deep skin ±12° at −2,
   chroma ≥ 0.4) are gated for the core stocks (50D, 200T, 250D, 500T, Portrait 400 on P1 and
   200T Lab Scan): 0 misses (`reference/aims.py`, ctest `look_gates_aims`). Character stocks
   and special prints are reported, not gated. The chart cyan patch lies outside Rec.709, so its
   chroma is judged on the film's XYZ, not on clipped display RGB.
+* **Yellows on the print path.** The re-optimised negatives first moved chart yellows 5–7°
+  toward green on P1 (CN 200T yellow +4 → +9°, CN 50D +3 → +9°). The negative optimiser now
+  weights foliage / yellow-green / orange-yellow / yellow hue errors 3× (`briefs.json`
+  `yellow_weight`) for CN 50D, CN 200T, C41 Portrait 400 and C41 Consumer 200: CN 200T P1
+  foliage/yellow-green/orange-yellow/yellow +1/+3/−2/0° (v1.0 +4/+2/+5/+4), CN 50D −2/+3/−6/−2°,
+  C41 Portrait 400 +6/+8/+4/+5° (v1.0 +8/+9/+11/+11); Lab Scan CN 200T −2/+1/−8/−5° (v1.0
+  +8/+9/+10/+13).
 * **Grain colour.** Inter-layer grain correlation 0.40 → 0.90, shared clump scale 1.6 → 1.2,
   colour-stock granularity × 0.84 so luminance grain is unchanged: CN 200T chroma/L* noise
   1.68/0.94 → 0.83/0.98 (ratio 1.8 → 0.85); Tungsten Night Drama 0.73, Archive 1978 0.84.
