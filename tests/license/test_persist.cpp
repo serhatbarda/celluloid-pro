@@ -239,7 +239,20 @@ CEL_TEST(persist_machine_wide_env_and_precedence) {
     CHECK(current().licensee == "Studio X");
     unsetenv(detail::kLicenseEnvVar);
 #endif
+    // a leftover Trial-edition (evaluation) key in the user file does not shadow a paid key
+    writeText(user, devKey("Evaluator", kT0 - 86400, 0, Edition::Trial) + "\n");
+    li = current();
+    CHECK(li.valid && li.licensee == "Studio X" && li.edition == Edition::Studio && !needsWatermark(li));
+#if !defined(_WIN32)
+    setenv(detail::kLicenseEnvVar, devKey("Render Farm", kT0 - 86400).c_str(), 1);
+    li = current();
+    CHECK(li.valid && li.licensee == "Render Farm" && li.edition == Edition::Pro);
+    unsetenv(detail::kLicenseEnvVar);
+#endif
     fs::remove(machine);
+    li = current();                               // no paid key left: the evaluation key applies
+    CHECK(li.valid && li.licensee == "Evaluator" && li.edition == Edition::Trial && needsWatermark(li));
+    fs::remove(user);
     li = current();
     CHECK(!li.valid && contains(li.message, "Trial"));
 

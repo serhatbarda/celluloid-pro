@@ -64,6 +64,7 @@
 #include <cstring>
 #include <ctime>
 #include <exception>
+#include <filesystem>
 #include <initializer_list>
 #include <map>
 #include <memory>
@@ -894,6 +895,14 @@ void CelluloidEffect::deactivateLicense() {
 }
 
 void CelluloidEffect::exportLut(double t) {
+    // LUT export is a licensed feature: a .cube carries the whole colour pipeline without the trial
+    // watermark (SPEC section 9, section 13 entry of 2026-10-07)
+    if (lic::needsWatermark(lic::current())) {
+        sendMessage(OFX::Message::eMessageError, "",
+                    "LUT export is part of the licensed version. Activate a license key in the License group "
+                    "to export LUTs.");
+        return;
+    }
     const int sizeIdx = std::min(std::max(choice(id::lutSize, t), 0), 2);
     const int size = kLutSizes[sizeIdx];
 
@@ -920,9 +929,17 @@ void CelluloidEffect::exportLut(double t) {
     const std::string outName = size_t(lp.output) < outs.size() ? outs[size_t(lp.output)] : "Output";
     const std::string inName = size_t(lp.input) < ins.size() ? ins[size_t(lp.input)] : "Input";
 
-    const std::string file = "Celluloid_" + fileComponent(negName) + "_" + fileComponent(printName) + "_" +
-                             fileComponent(outName) + ".cube";
+    // a .cube maps one camera's code values: the input space is part of the name, so exports of the
+    // same look for two cameras do not overwrite each other (short tag: the part before " / ")
+    const std::string inTag = inName.substr(0, inName.find(" / "));
+    const std::string file = "Celluloid_" + fileComponent(inTag) + "_" + fileComponent(negName) + "_" +
+                             fileComponent(printName) + "_" + fileComponent(outName) + ".cube";
     const std::string path = joinPath(dir, file);
+    bool replaced = false;
+    {
+        std::error_code ec;
+        replaced = std::filesystem::exists(std::filesystem::u8path(path), ec);
+    }
     const std::string title = std::string("Celluloid Pro ") + CEL_VERSION_STRING + " - " + negName + " / " + printName +
                               " - " + inName + " to " + outName;
     try {
@@ -937,8 +954,12 @@ void CelluloidEffect::exportLut(double t) {
         return;
     }
     std::string note;
+    if (replaced) note += "\n(An existing file of the same name was replaced.)";
+    if (lp.input == core::InputSpace::LinearRec2020)
+        note += "\nScene-linear input: the file carries a 1D log2 shaper (-8.5 .. +8.5 stops around mid grey) "
+                "in front of the 3D LUT.";
     if (choice(id::mode, t) == int(core::Mode::TextureOnly))
-        note = "\nNote: Texture Only mode is active in the node; the LUT contains the colour pipeline of the current "
+        note += "\nNote: Texture Only mode is active in the node; the LUT contains the colour pipeline of the current "
                "settings (as in Color Only mode).";
     sendMessage(OFX::Message::eMessageMessage, "",
                 "LUT exported (" + std::to_string(size) + "x" + std::to_string(size) + "x" + std::to_string(size) +

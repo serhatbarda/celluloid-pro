@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Celluloid Pro CI: create the GitHub Release for a tag (if it does not exist yet) and upload
-# files to it. Safe to run from both CI jobs concurrently (create races are retried).
+# Celluloid Pro CI: create the GitHub Release for a tag with all installers at once (run by the
+# "release" job after both platform jobs succeeded); re-runs replace the assets of an existing
+# release.
 #   release_upload.sh <tag> <file>...
 set -euo pipefail
 TAG="${1:?tag}"; shift
@@ -21,7 +22,7 @@ for attempt in 1 2 3 4 5; do
   if gh release view "$TAG" >/dev/null 2>&1; then
     gh release upload "$TAG" "$@" --clobber && exit 0
   else
-    gh release create "$TAG" --title "Celluloid Pro $VERSION" --notes-file "$NOTES" --verify-tag || true
+    gh release create "$TAG" "$@" --title "Celluloid Pro $VERSION" --notes-file "$NOTES" --verify-tag && exit 0
   fi
   sleep $((attempt * 5))
 done

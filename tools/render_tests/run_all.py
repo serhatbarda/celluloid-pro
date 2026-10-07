@@ -1063,6 +1063,21 @@ class Suite:
         if not (self.has("lutExport") and self.has("lutPath") and self.has("lutSize")):
             self.skip(g, "LUT export", "params missing")
             return
+        if not self.licensed:
+            # LUT export is a licensed feature: the trial must refuse it with a message, write nothing
+            d = os.path.join(self.out, "luts", "trial")
+            if os.path.isdir(d):
+                shutil.rmtree(d)
+            os.makedirs(d, exist_ok=True)
+            rep = self.host.batch("lut_trial", [self.line("lut_trial", "natural" if "natural" in self.scenes else "chart", {},
+                                                          out=False) + ["--set", "lutPath=" + d, "--press", "lutExport"]],
+                                  check=False)
+            msgs = [m["text"] for m in rep["messages"]]
+            self.check(g, "trial: LUT export refused (licensed feature), no file written",
+                       not glob.glob(os.path.join(d, "*.cube")) and any("licensed version" in m for m in msgs),
+                       " | ".join(m.replace("\n", " ")[:100] for m in msgs[-2:]))
+            self.skip(g, "LUT export accuracy", "needs a license (use --license-key or --dev-license)")
+            return
         sizes = self.P.options("lutSize")
         want = [i for i, o in enumerate(sizes) if re.sub(r"\D", "", o) in (("17", "33", "65") if self.a.full else ("17", "33"))]
         configs = [("default", {})]
@@ -1113,8 +1128,8 @@ class Suite:
             fname = os.path.basename(cubes[0])
             self.check(g, "%s %d^3: .cube == Color Only render at lattice points" % (cname, n), ok_size and mx <= LUT_TOL,
                        "max %.2e mean %.2e" % (mx, float(dd.mean())), "<= %.0e" % LUT_TOL, fname)
-            self.check(g, "%s %d^3: file name Celluloid_<neg>_<print>_<output>.cube" % (cname, n),
-                       re.match(r"^Celluloid_.+_.+_.+\.cube$", fname) is not None, fname)
+            self.check(g, "%s %d^3: file name Celluloid_<input>_<neg>_<print>_<output>.cube" % (cname, n),
+                       re.match(r"^Celluloid_.+_.+_.+_.+\.cube$", fname) is not None, fname)
             # interpolation accuracy of the LUT vs the plug-in at random code values (informational)
             rr = self.load("lutr_%s_%d" % (cname, n), "lut_random")[0, :, :3]
             ap = cube.apply(rnd[0, :, :3].astype(np.float64))

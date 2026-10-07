@@ -59,9 +59,13 @@ runs it on the backend the host asked for.
 
 ## LUT export
 
-`Export LUT` writes the Color Only pipeline (no grain/texture) of the current settings as
-`<folder>/Celluloid_<negative>_<print|Lab-Scan|Reversal>_<output>.cube` (17/33/65), creating the
-folder (default `<Documents>/Celluloid LUTs/`), and reports the path via `sendMessage`.
+`Export LUT` (licensed version only; the trial answers with a message) writes the Color Only
+pipeline (no grain/texture) of the current settings as
+`<folder>/Celluloid_<input>_<negative>_<print|Lab-Scan|Reversal>_<output>.cube` (17/33/65),
+creating the folder (empty field = `<Documents>/Celluloid LUTs/` of the exporting user, resolved
+at export time), and reports the path via `sendMessage`. The input-space tag is the part of the
+input label before " / " (e.g. `Fujifilm-F-Log2-C`): a .cube maps one camera's code values.
+Linear Rec.2020 input is written with a 1D log2 shaper (-8.5..+8.5 stops) in front of the 3D LUT.
 
 ## Bundle
 

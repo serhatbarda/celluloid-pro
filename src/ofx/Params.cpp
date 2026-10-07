@@ -304,14 +304,18 @@ std::vector<ParamDef> build() {
              "17 for devices with small LUT memory.",
              false)
         .evaluateOnChange = false;
-    b.str(id::lutPath, "Folder", defaultLutDirectory(), StrKind::Directory,
-          "Folder the LUT is written to (created if needed). File name: "
-          "Celluloid_<negative>_<print>_<output>.cube. Add this folder to Resolve's LUT list "
+    // empty default (a per-user absolute path would be baked into the cached descriptor and into saved
+    // projects, and point at a foreign home folder on another machine)
+    b.str(id::lutPath, "Folder", "", StrKind::Directory,
+          "Folder the LUT is written to (created if needed). Leave empty for the default folder "
+          "<Documents>/Celluloid LUTs of the user who exports. File name: "
+          "Celluloid_<input>_<negative>_<print>_<output>.cube. Add this folder to Resolve's LUT list "
           "(Project Settings > Color Management > Open LUT Folder) to use the LUTs elsewhere.");
     b.push(id::lutExport, "Export LUT",
-           "Writes the current colour settings (Color Only: input space, exposure, stocks, development, print, "
-           "output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, cameras or other "
-           "applications. The LUT expects the selected camera log as input.");
+           "Licensed version only. Writes the current colour settings (Color Only: input space, exposure, stocks, "
+           "development, print, output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, "
+           "cameras or other applications. The LUT expects the selected camera log as input (Linear Rec.2020: "
+           "the file carries a log2 shaper).");
 
     // ---------------------------------------------------------------- [License]
     b.beginGroup(id::gLicense, "License", false, "Activation.");

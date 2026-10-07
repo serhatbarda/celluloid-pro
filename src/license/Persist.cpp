@@ -1,6 +1,8 @@
 // Celluloid Pro - license persistence and the cached, thread-safe current() status.
 //
-// Sources, in order of precedence (the first VALID one wins):
+// Sources, in order of precedence (the first VALID paid-edition key wins; a valid Trial-edition
+// evaluation key counts only when no source holds a paid key, so a leftover evaluation key in the
+// user file never re-watermarks a machine licensed by the environment or machine-wide):
 //   1. per-user key file   macOS   ~/Library/Application Support/Celluloid/license.key
 //                          Windows %APPDATA%\Celluloid\license.key   (FOLDERID_RoamingAppData)
 //                          Linux   $XDG_CONFIG_HOME/celluloid/license.key or ~/.config/celluloid/...
@@ -17,8 +19,12 @@
 // Caching: current() is called from render threads. It returns the cached status and only
 // re-reads the (tiny) files when at least kRecheckMs have passed; the file I/O and the signature
 // check happen OUTSIDE the mutex so render threads never wait on a slow (network) home folder.
-// The cached result is also re-verified every 60 s so a time-limited key expires on time.
-// saveKey()/removeKey() invalidate the cache immediately. Nothing throws across the API.
+// The one exception is the very first call of the process, which loads synchronously (there is
+// no status to return yet). Invalidation (saveKey/removeKey/invalidateCache) keeps the previous
+// status and only marks it due, so the reload also runs outside the mutex; saveKey()/removeKey()
+// reload synchronously on the calling (UI) thread before they return, so the new status is
+// visible at once. The cached result is also re-verified every 60 s so a time-limited key
+// expires on time. Nothing throws across the API.
 #include "License.h"
 #include "KeyFormat.h"
 #include "LicenseInternal.h"
@@ -299,16 +305,20 @@ LicenseInfo evaluateFile(FileRead r, const std::string& text, const fs::path& pa
 LicenseInfo evaluate(const Snapshot& s, int64_t now) {
     bool userPresent = false, machinePresent = false;
     LicenseInfo user = evaluateFile(s.user, s.userText, s.userPath, now, userPresent);
-    if (userPresent && user.valid) return user;
-
     const bool envPresent = !s.envText.empty();
     LicenseInfo env;
-    if (envPresent) {
-        env = verifyKey(s.envText, now);
-        if (env.valid) { env.message += " (from " + std::string(detail::kLicenseEnvVar) + ")"; return env; }
-    }
+    if (envPresent) env = verifyKey(s.envText, now);
     LicenseInfo machine = evaluateFile(s.machine, s.machineText, s.machinePath, now, machinePresent);
-    if (machinePresent && machine.valid) { machine.message += " (machine-wide license)"; return machine; }
+
+    auto fromEnv = [&env]() { env.message += " (from " + std::string(detail::kLicenseEnvVar) + ")"; return env; };
+    auto fromMachine = [&machine]() { machine.message += " (machine-wide license)"; return machine; };
+    // 1. paid editions first (user, env, machine), 2. then a valid Trial-edition key
+    for (int pass = 0; pass < 2; ++pass) {
+        auto ok = [pass](const LicenseInfo& li) { return li.valid && (pass == 1 || li.edition != Edition::Trial); };
+        if (userPresent && ok(user)) return user;
+        if (envPresent && ok(env)) return fromEnv();
+        if (machinePresent && ok(machine)) return fromMachine();
+    }
 
     if (userPresent)    { user.message = "Saved license key: " + user.message; return user; }
     if (envPresent)     { env.message = std::string(detail::kLicenseEnvVar) + ": " + env.message; return env; }
@@ -316,9 +326,32 @@ LicenseInfo evaluate(const Snapshot& s, int64_t now) {
     return trialInfo();
 }
 
+// Marks the cached status due (keeps it: render threads keep getting the previous status, never
+// wait on the mutex while the files are re-read) and discards refreshes already in flight.
 void invalidateLocked(State& s) {
-    s.have = false;
+    s.lastCheck = std::chrono::steady_clock::time_point{};
+    s.lastVerifyNow = 0;
     ++s.generation;
+}
+
+// Synchronous reload outside the mutex (saveKey/removeKey on the UI thread).
+void reloadNow(State& s) {
+    uint64_t gen;
+    Paths paths;
+    int64_t now;
+    {
+        std::lock_guard<std::mutex> lk(s.m);
+        gen = s.generation;
+        paths = currentPaths(s);
+        now = clockNow(s);
+    }
+    LicenseInfo info = evaluate(loadSnapshot(paths), now);
+    std::lock_guard<std::mutex> lk(s.m);
+    if (gen != s.generation) return;          // invalidated again meanwhile: the next current() reloads
+    s.info = info;
+    s.have = true;
+    s.lastCheck = std::chrono::steady_clock::now();
+    s.lastVerifyNow = now;
 }
 
 bool setErr(std::string* err, const std::string& msg) {
@@ -427,6 +460,7 @@ bool saveKey(const std::string& key, std::string* err) {
             std::lock_guard<std::mutex> lk(s.m);
             invalidateLocked(s);
         }
+        reloadNow(s);
         return true;
     } catch (...) {
         return setErr(err, "Saving the license failed (internal error).");
@@ -463,6 +497,7 @@ bool removeKey(std::string* err) {
             std::lock_guard<std::mutex> lk(s.m);
             invalidateLocked(s);
         }
+        reloadNow(s);
         // Informational note (return value stays true): another source may still license this machine.
         Snapshot snap = loadSnapshot(paths);
         snap.user = FileRead::Missing;

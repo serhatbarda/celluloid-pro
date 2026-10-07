@@ -171,7 +171,10 @@ int main() {
 #endif
     check(!defaultLutDirectory().empty(), "default LUT directory");
     const std::string lutDefault = findParam("lutPath") ? findParam("lutPath")->defString : "";
-    check(lutDefault.find("Celluloid LUTs") != std::string::npos, "lutPath default is <Documents>/Celluloid LUTs/");
+    // empty = <Documents>/Celluloid LUTs/ of the exporting user, resolved at export time (no per-user
+    // absolute path in the cached descriptor or in saved projects)
+    check(lutDefault.empty(), "lutPath default is empty (resolved at export time)");
+    check(defaultLutDirectory().find("Celluloid LUTs") != std::string::npos, "default LUT folder is <Documents>/Celluloid LUTs/");
 
     std::printf("ofx self test: %d checks, %d failures (%zu params, %zu presets)\n", g_checks, g_fail, defs.size(),
                 lookPresets().size());

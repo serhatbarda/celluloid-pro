@@ -10,7 +10,8 @@ The plug-in contains only the *public* key. It checks the signature locally, wit
 access, no activation server and no phone-home. The *private* signing key stays with the vendor
 and is the only thing that can issue keys.
 
-Without a valid key the plug-in runs as a **trial**: every feature is on, and renders carry a
+Without a valid key the plug-in runs as a **trial**: every feature is on except LUT export
+(a .cube would carry the whole colour pipeline without the watermark), and renders carry a
 small "CELLULOID PRO — TRIAL" badge in the bottom-right corner and a faint diagonal band.
 
 - [What offline keys can and cannot do](#what-offline-keys-can-and-cannot-do)
@@ -72,7 +73,9 @@ The repository ships a **provisional** production public key (`src/license/Publi
 `kProductionKeyProvisional = true`). It was generated on the development machine during the
 build phase. Its private half is not in the repository and must not be relied on. Before the
 first commercial release, do this once on your own computer, ideally one that is offline and
-encrypted:
+encrypted. (CI enforces this: a tag `v*` is not published while `PublicKey.h` is provisional, the
+build has `CEL_DEV_LICENSE=ON` or the development public key is found in the plug-in binary —
+`installers/ci/release_gate.sh`. Normal `main` builds and their test installers are not gated.)
 
 1. Generate the keypair outside every git repository. `licensegen` refuses to write a
    production key inside one:
@@ -227,9 +230,11 @@ The key is stored as a small text file:
 | Windows  | `%APPDATA%\Celluloid\license.key` | `%PROGRAMDATA%\Celluloid\license.key` |
 | Linux    | `$XDG_CONFIG_HOME/celluloid/license.key` or `~/.config/celluloid/license.key` | `/etc/celluloid/license.key` |
 
-Order of precedence: the first **valid** key wins, checked in this order: the per-user file,
-then the environment variable `CELLULOID_LICENSE_KEY` (for render nodes and containers), then
-the machine-wide file. If none is valid, the status explains the first invalid one (for
+Order of precedence: the first **valid paid** key wins (Indie, Pro, Studio), checked in this
+order: the per-user file, then the environment variable `CELLULOID_LICENSE_KEY` (for render
+nodes and containers), then the machine-wide file. A valid Trial-edition (evaluation) key is
+used only when no source holds a paid key, so a leftover evaluation key in a user's settings
+never re-watermarks a machine that is licensed machine-wide. If none is valid, the status explains the first invalid one (for
 example "Saved license key: This license expired on 2027-06-30"). In key files, lines starting
 with `#` are comments, so administrators can annotate machine-wide files.
 
@@ -238,8 +243,10 @@ configuration management (the file may be a symlink). Then every user on that ma
 licensed without activating. On Windows, `%PROGRAMDATA%\Celluloid` needs administrator rights
 to write.
 
-The plug-in re-reads the files at most every 1.5 s, outside the render threads' critical path,
-and re-checks expiry every minute. A key copied in by hand is picked up without restarting
+The plug-in re-reads the files at most every 1.5 s, outside the render threads' critical path
+(render threads keep the previous status while one of them re-reads; only the very first status
+of a session is loaded synchronously, and Activate/Deactivate reload on the UI thread), and
+re-checks expiry every minute. A key copied in by hand is picked up without restarting
 Resolve.
 
 ## Development keys

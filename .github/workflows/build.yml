@@ -5,7 +5,8 @@
 # Linux development workbench.
 #
 # Every push/PR builds both installers and uploads them as workflow artifacts. A tag "v*" (e.g.
-# v1.0.0, must match the project version in CMakeLists.txt) also publishes them to a GitHub Release.
+# v1.0.0, must match the project version in CMakeLists.txt) also runs the release licence gate in
+# both jobs and then publishes both installers together from the "release" job.
 #
 # Signing is optional and switched on by repository secrets:
 #   macOS:   MACOS_CERT_P12 (base64 Developer ID Application .p12), MACOS_CERT_PASSWORD,
@@ -96,6 +97,12 @@ jobs:
       - name: Verify bundle
         run: bash installers/ci/verify_bundle.sh build/Celluloid.ofx.bundle macos
 
+      # Tags only (never main/PR builds): no provisional production key, no CEL_DEV_LICENSE build,
+      # no development public key in the binary
+      - name: Release licence gate
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: bash installers/ci/release_gate.sh build build/Celluloid.ofx.bundle
+
       - name: Unit tests
         run: ctest --test-dir build -C ${BUILD_TYPE} --output-on-failure --timeout 900 -LE "gpu-device|linux-only"
 
@@ -179,12 +186,6 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash installers/ci/release_upload.sh "${GITHUB_REF_NAME}" dist/*
-
   windows:
     name: Windows x64 (CUDA, OpenCL)
     runs-on: windows-2022
@@ -211,10 +212,24 @@ jobs:
           sub-packages: '["nvcc", "cudart", "visual_studio_integration"]'
           use-github-cache: false
 
+      # vcvars64 via vswhere (no third-party action; exports only what vcvars changes)
       - name: MSVC developer environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw "Visual Studio with the x64 C++ tools not found" }
+          $bat = Join-Path $vs "VC\Auxiliary\Build\vcvars64.bat"
+          $lines = cmd /c "`"$bat`" >nul 2>&1 && set"
+          if ($LASTEXITCODE -ne 0) { throw "vcvars64.bat failed" }
+          foreach ($l in $lines) {
+            if ($l -match '^([^=]+)=(.*)$') {
+              $n = $matches[1]; $v = $matches[2]
+              if ($n -like 'GITHUB_*' -or $n -like 'RUNNER_*') { continue }
+              if ([Environment]::GetEnvironmentVariable($n) -ne $v) { "$n=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8 }
+            }
+          }
+          Write-Host "MSVC environment from $bat"
 
       - name: Toolchain
         run: |
@@ -240,6 +255,10 @@ jobs:
 
       - name: Verify bundle
         run: bash installers/ci/verify_bundle.sh build/Celluloid.ofx.bundle windows
+
+      - name: Release licence gate
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: bash installers/ci/release_gate.sh build build/Celluloid.ofx.bundle
 
       - name: Unit tests
         run: ctest --test-dir build --output-on-failure --timeout 900 -LE "gpu-device|linux-only"
@@ -283,8 +302,24 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  # Tags only: one job publishes the release after BOTH platforms built, passed their tests and
+  # their licence gates, so a release is never half-populated.
+  release:
+    name: GitHub Release (tags v*)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          pattern: CelluloidPro-*
+          merge-multiple: true
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash installers/ci/release_upload.sh "${GITHUB_REF_NAME}" dist/*
+        run: |
+          ls -la dist
+          bash installers/ci/release_upload.sh "${GITHUB_REF_NAME}" dist/*
