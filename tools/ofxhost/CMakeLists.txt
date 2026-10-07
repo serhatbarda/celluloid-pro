@@ -143,6 +143,15 @@ if(OFXHOST_BUILD_SDK_PLUGINS)
   endif()
 endif()
 
+# ---------------------------------------------------------------- Celluloid plug-in: GPU self test at describe
+if(DEFINED CEL_BUNDLE_DIR AND TARGET celluloid_ofx)
+  add_test(NAME ofx_gpu_selftest_logged
+    COMMAND "${CMAKE_COMMAND}" -DHOST=$<TARGET_FILE:ofxhost> "-DBUNDLE=${CEL_BUNDLE_DIR}"
+            "-DOUT=${CMAKE_CURRENT_BINARY_DIR}/selftest_params.json"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/CelCheckSelfTestLog.cmake")
+  set_tests_properties(ofx_gpu_selftest_logged PROPERTIES LABELS "ofx;linux-only" TIMEOUT 300)
+endif()
+
 # ---------------------------------------------------------------- Celluloid render tests (opt-in)
 # ctest -L render runs tools/render_tests/run_all.sh --quick against the bundle of the main build
 # (or OFXHOST_RENDER_TEST_BUNDLE). Opt-in because it renders hundreds of frames and its §6 look

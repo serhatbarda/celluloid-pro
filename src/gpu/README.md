@@ -28,8 +28,10 @@ add_subdirectory(tests/gpu)                   # optional: tests (see below)
 `engine::openclBackend()/cudaBackend()/metalBackend()` are always defined by `celgpu` and return
 `nullptr` for APIs that are not compiled in.
 
-* **OpenCL**: the runtime is loaded dynamically (`OpenCL.dll`, `libOpenCL.so.1`,
-  `OpenCL.framework`; override with env `CEL_OPENCL_LIBRARY`), so the plugin never fails to load on
+* **OpenCL**: the runtime is loaded dynamically (`OpenCL.dll` from System32 only —
+  `LoadLibraryExW(..., LOAD_LIBRARY_SEARCH_SYSTEM32)`, no DLL planting from the host's folder or the
+  current directory —, `libOpenCL.so.1`, `OpenCL.framework`; override with env `CEL_OPENCL_LIBRARY`,
+  absolute paths only), so the plugin never fails to load on
   machines without OpenCL. Headers: `CEL_OPENCL_HEADERS_DIR`, else system / CUDA toolkit
   (`CUDA_PATH`) `CL/cl.h`, else Khronos OpenCL-Headers `v2024.10.24` via FetchContent
   (Apache-2.0, header only). Links only `${CMAKE_DL_LIBS}`.
@@ -70,7 +72,7 @@ ABI per API (set generically by the backends):
 | | args | out, in0..in3, state | unused inputs |
 |---|---|---|---|
 | OpenCL | arg 0: `__constant CelPassArgs*` = all passes of the frame (one buffer), arg 1: pass index | args 2, 3–6, 7 (`__global`, `restrict`) | `NULL` |
-| CUDA | `CelPassArgs` by value (param space; no local-memory copy in practice: STACK 0 on all kernels) | `__restrict__` pointers | `nullptr` |
+| CUDA | `CelPassArgs` by value (param space; it is not copied to local memory: no kernel has LOCAL > 0; `cel_color` / `cel_gpu_probe` use a 32-byte stack for the trigonometric slow-path argument reduction, all other kernels STACK 0) | `__restrict__` pointers | `nullptr` |
 | Metal | `[[buffer(0)]]` `constant CelPassArgs*` via `setBytes` | `[[buffer(1)]]`, `[[buffer(2..5)]]`, `[[buffer(6)]]` | 16-byte dummy buffer |
 
 Kernels must only read inputs whose `inStride != 0`.

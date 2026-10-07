@@ -2,6 +2,7 @@
 #include "CLApi.h"
 #include <cstdlib>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #if defined(_WIN32)
@@ -20,11 +21,28 @@ namespace cel { namespace gpu { namespace cl {
 
 namespace {
 
-void* openLib(const char* name) {
+// Windows: the ICD loader OpenCL.dll is loaded from System32 only (never from the host
+// application's folder or the current directory: DLL planting); an override must be an absolute
+// path. Elsewhere: the system library names below, or an absolute override path.
+bool isAbsolutePath(const std::string& p) {
 #if defined(_WIN32)
-    return reinterpret_cast<void*>(::LoadLibraryA(name));
+    return (p.size() > 2 && p[1] == ':' && (p[2] == '\\' || p[2] == '/')) || (p.size() > 1 && p[0] == '\\' && p[1] == '\\');
 #else
-    return ::dlopen(name, RTLD_NOW | RTLD_LOCAL);
+    return !p.empty() && p[0] == '/';
+#endif
+}
+
+void* openLib(const std::string& name, bool system32) {
+#if defined(_WIN32)
+    int n = ::MultiByteToWideChar(CP_UTF8, 0, name.c_str(), -1, nullptr, 0);
+    if (n <= 0) return nullptr;
+    std::wstring w(size_t(n), L'\0');
+    ::MultiByteToWideChar(CP_UTF8, 0, name.c_str(), -1, &w[0], n);
+    const DWORD flags = system32 ? LOAD_LIBRARY_SEARCH_SYSTEM32 : LOAD_WITH_ALTERED_SEARCH_PATH;
+    return reinterpret_cast<void*>(::LoadLibraryExW(w.c_str(), nullptr, flags));
+#else
+    (void)system32;
+    return ::dlopen(name.c_str(), RTLD_NOW | RTLD_LOCAL);
 #endif
 }
 
@@ -44,9 +62,15 @@ void assign(F& f, void* p) {
 Api loadApi() {
     Api a;
     std::vector<std::string> candidates;
+    std::string ignored;
+    // developer / support override (e.g. a specific ICD loader); absolute paths only
     if (const char* env = std::getenv("CEL_OPENCL_LIBRARY")) {
-        if (*env) candidates.push_back(env);
+        if (*env) {
+            if (isAbsolutePath(env)) candidates.push_back(env);
+            else ignored = env;
+        }
     }
+    const size_t nOverride = candidates.size();
 #if defined(_WIN32)
     candidates.push_back("OpenCL.dll");
 #elif defined(__APPLE__)
@@ -56,14 +80,15 @@ Api loadApi() {
     candidates.push_back("libOpenCL.so");
 #endif
     void* lib = nullptr;
-    for (const auto& c : candidates) {
-        lib = openLib(c.c_str());
-        if (lib) { a.library = c; break; }
+    for (size_t k = 0; k < candidates.size(); ++k) {
+        lib = openLib(candidates[k], k >= nOverride);
+        if (lib) { a.library = candidates[k]; break; }
     }
     if (!lib) {
         a.error = "OpenCL runtime not found (tried";
         for (const auto& c : candidates) a.error += " " + c;
         a.error += ")";
+        if (!ignored.empty()) a.error += "; CEL_OPENCL_LIBRARY ignored (not an absolute path): " + ignored;
         return a;
     }
     std::string missing;

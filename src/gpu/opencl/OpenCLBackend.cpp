@@ -87,7 +87,17 @@ public:
     void releaseResources() override;
 
 private:
+    // One per (context, device). Released when the last owner lets go (the map entry and every lane
+    // using it hold a shared_ptr): trimIdleLanes drops map entries no live lane uses, so a host
+    // context the plug-in no longer renders on is not kept alive by its program (clCreateProgram*
+    // retains the context).
     struct Program {
+        ~Program() {
+            if (prog) {
+                const auto& a = cl::api();
+                if (a.ok) a.clReleaseProgram(prog);
+            }
+        }
         cl_context ctx = nullptr;
         cl_device_id dev = nullptr;
         std::mutex m;
@@ -319,9 +329,8 @@ void OpenCLBackend::releaseResources() {
         kv.second->retired = true;
     }
     m_lanes.clear();
-    for (auto& kv : m_programs)
-        if (kv.second->prog && a.ok) a.clReleaseProgram(kv.second->prog);
-    m_programs.clear();
+    (void)a;
+    m_programs.clear();   // ~Program releases the cl_program once no lane holds it
 }
 
 void OpenCLBackend::trimIdleLanes(Lane* current) {
@@ -331,6 +340,7 @@ void OpenCLBackend::trimIdleLanes(Lane* current) {
     // and destroyed by the runtime once the commands using them have completed.
     const double now = nowMs();
     std::vector<std::shared_ptr<Lane>> lanes;
+    std::vector<std::shared_ptr<Program>> progs;   // dropped outside the map lock
     {
         std::lock_guard<std::mutex> lk(m_mapMutex);
         for (auto it = m_lanes.begin(); it != m_lanes.end();) {
@@ -341,6 +351,20 @@ void OpenCLBackend::trimIdleLanes(Lane* current) {
                 ++it;
             }
         }
+        if (!lanes.empty()) {
+            // programs of (context, device) pairs no live lane renders on: drop the map's reference
+            for (auto it = m_programs.begin(); it != m_programs.end();) {
+                bool used = false;
+                for (const auto& kv : m_lanes)
+                    if (kv.second->ctx == it->first.first && kv.second->dev == it->first.second) { used = true; break; }
+                if (!used) {
+                    progs.push_back(std::move(it->second));
+                    it = m_programs.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
         noteLanes(m_lanes.size());
     }
     for (auto& l : lanes) {   // a thread that took it just before the erase sees `retired` and retries
@@ -348,6 +372,7 @@ void OpenCLBackend::trimIdleLanes(Lane* current) {
         releaseLane(*l);
         l->retired = true;
     }
+    progs.clear();   // ~Program -> clReleaseProgram (unless an executing thread still holds it)
 }
 
 bool OpenCLBackend::executeImpl(const engine::Plan& plan, const std::vector<float>& stateBuf,

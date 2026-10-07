@@ -280,6 +280,7 @@ bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float
         if (!l.asyncError->message.empty()) {
             std::string m = "previous frame failed on the GPU: " + l.asyncError->message;
             l.asyncError->message.clear();
+            l.stateKey = StateKey();   // that frame's state upload may never have executed
             return fail(err, m);
         }
     }
@@ -305,7 +306,10 @@ bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float
     if (!cb) return fail(err, "could not create a command buffer on the host queue");
     cb.label = @"Celluloid Pro";
 
+    // The state key is committed to the lane only after [cb commit] (an early return before the
+    // commit leaves the blit unexecuted: the key must not claim the upload happened)
     const StateKey key = makeStateKey(stateBuf, stateVersion);
+    bool stateEncoded = false;
     const size_t stateBytes = std::max<size_t>(16, stateBuf.size() * sizeof(float));
     if (!l.state || l.stateBytes < stateBytes) {
         l.state = [device newBufferWithLength:stateBytes options:MTLResourceStorageModePrivate];
@@ -320,7 +324,8 @@ bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float
         id<MTLBlitCommandEncoder> blit = [cb blitCommandEncoder];
         [blit copyFromBuffer:staging sourceOffset:0 toBuffer:l.state destinationOffset:0 size:n];
         [blit endEncoding];
-        l.stateKey = key;   // the command buffer retains `staging` until it completes
+        l.stateKey = StateKey();   // set to `key` after the commit (the command buffer retains `staging`)
+        stateEncoded = true;
         noteStateUpload();
     }
 
@@ -361,10 +366,11 @@ bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float
     [cb addCompletedHandler:^(id<MTLCommandBuffer> done) {
         if (done.status == MTLCommandBufferStatusError) {
             std::lock_guard<std::mutex> el(sink->m);
-            sink->message = nsErr(done.error);
+            sink->message = nsErr(done.error);   // the next frame resets the lane's state key
         }
     }];
     [cb commit];   // no waitUntilCompleted: the host orders its own work after ours on the queue
+    if (stateEncoded) l.stateKey = key;
 
     if (debugCapture()) {
         clearCapture();

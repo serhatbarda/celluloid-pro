@@ -12,9 +12,10 @@
 //     (cel::parallelRows). To avoid oversubscription (N host threads x M internal threads) and to
 //     protect the backend's shared buffer pool, CPU frames of ALL instances are serialised on one
 //     process-wide mutex. One frame at a time on all cores has the best latency and throughput.
-//   * GPU frames: the backend only enqueues work on the host's queue/stream (no blocking), under
-//     a per-API mutex because the backend objects (program/pipeline caches, buffer pools) are
-//     process-wide singletons.
+//   * GPU frames: the backend only enqueues work on the host's queue/stream (no blocking). There is
+//     no plug-in level GPU lock: the backends serialise per queue/stream lane (each lane owns its
+//     kernels, buffer pool and state buffer; program caches have their own locks), so instances on
+//     different queues render concurrently. The CPU fallback takes only the CPU frame mutex.
 //
 // GPU strategy (SPEC §2/§7)
 //   * describe(): OpenCL (buffers), CUDA (+ streams) and Metal render support are declared for
@@ -53,7 +54,10 @@
 #  include "../gpu/GpuBackends.h"
 #  define CEL_GPU_EXTRAS 1
 #else
-#  define CEL_GPU_EXTRAS 0
+// The GPU self test at describe, the in-plug-in CPU fallback and the GPU cleanup at unload must be
+// compiled into every plug-in (SPEC section 2: declare GPU support only for backends that passed a
+// self test). src/ofx/CMakeLists.txt defines CEL_HAVE_GPU_API=1; a build without it is a bug.
+#  error "CEL_HAVE_GPU_API is not defined: the GPU self test / fallback / cleanup would be compiled out"
 #endif
 
 #include <algorithm>
@@ -151,10 +155,6 @@ std::mutex& cpuFrameMutex() {
     static std::mutex m;
     return m;
 }
-std::mutex& gpuMutex(Api a) {
-    static std::mutex m[4];
-    return m[int(a) & 3];
-}
 
 const std::vector<core::NegativeStockInfo>& negStocks() {
     static const std::vector<core::NegativeStockInfo> s = core::negativeStocks();
@@ -240,6 +240,19 @@ public:
     void getClipPreferences(OFX::ClipPreferencesSetter& prefs) override;
 
 private:
+    // The OFX Support library passes the text as the printf FORMAT of the host's message suite:
+    // every '%' (user paths, "18% grey") must be doubled, or the host formats garbage / crashes.
+    OFX::Message::MessageReplyEnum sendMessage(OFX::Message::MessageTypeEnum type, const std::string& id,
+                                               const std::string& msg) {
+        std::string esc;
+        esc.reserve(msg.size() + 8);
+        for (char c : msg) {
+            esc += c;
+            if (c == '%') esc += '%';
+        }
+        return OFX::ImageEffect::sendMessage(type, id, esc);
+    }
+
     // ---- parameter access (by registry id) ----
     double num(const std::string& pid, double t) const;
     double num(const std::string& pid) const;
@@ -658,7 +671,8 @@ void CelluloidEffect::renderGpu(Api api, const OFX::RenderArguments& args, OFX::
     std::string err;
     bool ok = false;
     {
-        std::lock_guard<std::mutex> lock(gpuMutex(api));
+        // no plug-in level lock: the backends serialise per host queue / stream lane (own kernels,
+        // pools and state buffer per lane), so different queues and instances render concurrently
         try {
             ok = be->execute(plan, m_pipe.state(), m_pipe.stateVersion(), hs, hd, gpu, &err);
         } catch (const std::bad_alloc&) {
@@ -677,8 +691,9 @@ void CelluloidEffect::renderGpu(Api api, const OFX::RenderArguments& args, OFX::
         std::string ferr;
         bool fallbackOk = false;
         {
+            // the CPU backend's worker pool renders one frame at a time; the downloads / uploads are
+            // ordered on the host's own queue / stream and need no further lock
             std::lock_guard<std::mutex> cpuLock(cpuFrameMutex());
-            std::lock_guard<std::mutex> gpuLock(gpuMutex(api));
             try {
                 fallbackOk = gpu::cpuFallback(toGpuApi(api), engine::cpuBackend(), plan, m_pipe.state(),
                                               m_pipe.stateVersion(), hs, hd, gpu, &ferr);

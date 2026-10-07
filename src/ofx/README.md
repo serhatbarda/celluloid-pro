@@ -48,7 +48,8 @@ runs it on the backend the host asked for.
   backend; the stride is `rowBytes / 4` (negative CPU strides are passed through).
 * **Threads**: eRenderInstanceSafe, host frame threading off. One frame at a time on the CPU
   backend process-wide (it already uses every core: no oversubscription, no races on its buffer
-  pool); per-API mutex for GPU enqueues.
+  pool); no plug-in level GPU lock — the backends serialise per host queue/stream lane, so
+  different queues render concurrently (the CPU fallback takes only the CPU frame mutex).
 * **GPU**: OpenCL (buffers), CUDA (+ streams) and Metal are declared for compiled-in backends that
   pass `gpu::selfTest(api, false)`. On a GPU failure the frame is re-rendered on the CPU while the
   images stay on the device (`gpu::cpuFallback`); if that fails too, `kOfxStatGPURenderFailed`
