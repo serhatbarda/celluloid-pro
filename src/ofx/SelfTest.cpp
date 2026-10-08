@@ -91,6 +91,22 @@ int main() {
         {"vignette", "groupLensGate", 0, 1, 0},
         {"hdrPeakNits", "groupOutput", 300, 4000, 1000},
         {"hdrUnroll", "groupOutput", 0, 1, 1},
+        // v1.1 film damage / film blur
+        {"dustAmount", "groupFilmDamage", 0, 2, 0.6},
+        {"dustSize", "groupFilmDamage", 0.5, 3, 1},
+        {"dustNegative", "groupFilmDamage", 0, 1, 0.35},
+        {"scratchAmount", "groupFilmDamage", 0, 2, 0.5},
+        {"scratchPersistence", "groupFilmDamage", 0, 1, 0.6},
+        {"scratchEmulsion", "groupFilmDamage", 0, 1, 0.3},
+        {"scratchNegative", "groupFilmDamage", 0, 1, 0.25},
+        {"hairAmount", "groupFilmDamage", 0, 2, 0.5},
+        {"damageSeed", "groupFilmDamage", 0, 9999, 0},
+        {"filmBlurRadius", "groupFilmBlur", 0.5, 12, 3},
+        {"filmBlurFrequency", "groupFilmBlur", 0, 1, 0.3},
+        {"filmBlurDuration", "groupFilmBlur", 12, 240, 24},
+        {"filmBlurBreathing", "groupFilmBlur", 0, 1, 0.2},
+        {"filmBlurChromatic", "groupFilmBlur", 0, 1, 0.3},
+        {"filmBlurSeed", "groupFilmBlur", 0, 9999, 0},
     };
     for (const Spec& s : spec) {
         const ParamDef* d = findParam(s.id);
@@ -144,6 +160,13 @@ int main() {
         {"weaveEnable", "groupLensGate", true, true, {"weaveAmount", "weaveSpeed"}},
         {"vignetteEnable", "groupLensGate", true, true, {"vignette"}},
         {"hdrUnrollEnable", "groupOutput", true, false, {"hdrUnroll"}},
+        // v1.1 film damage (master + sub-module switches) and film blur: new modules, OFF by default
+        {"damageEnable", "groupFilmDamage", false, true, {"dustEnable", "scratchEnable", "hairEnable", "damageAnimated", "damageSeed"}},
+        {"dustEnable", "groupFilmDamage", true, true, {"dustAmount", "dustSize", "dustNegative"}},
+        {"scratchEnable", "groupFilmDamage", true, true, {"scratchAmount", "scratchPersistence", "scratchEmulsion", "scratchNegative"}},
+        {"hairEnable", "groupFilmDamage", true, true, {"hairAmount"}},
+        {"filmBlurEnable", "groupFilmBlur", false, true, {"filmBlurRadius", "filmBlurFrequency", "filmBlurDuration", "filmBlurBreathing",
+                                                         "filmBlurChromatic", "filmBlurSeed"}},
     };
     auto position = [&](const std::string& pid) {
         for (size_t i = 0; i < defs.size(); ++i)
@@ -163,7 +186,7 @@ int main() {
         for (const char* c : sw.controls) {
             const ParamDef* cd = findParam(c);
             check(cd && cd->group == sw.group && position(c) > ps, std::string(c) + " must follow its switch " + sw.id);
-            if (cd) check(cd->look == sw.look || std::string(c) == "grainSeed", std::string(c) + ": look flag differs from its switch");
+            if (cd) check(cd->look == sw.look || std::string(c).find("Seed") != std::string::npos, std::string(c) + ": look flag differs from its switch");
         }
     }
 
@@ -182,7 +205,8 @@ int main() {
 
     // every group of SPEC §7 exists
     for (const char* g : {"groupLook", "groupInput", "groupNegative", "groupPrint", "groupHalation", "groupBloom",
-                          "groupGrain", "groupLensGate", "groupOutput", "groupLutExport", "groupLicense", "groupAbout"})
+                          "groupGrain", "groupLensGate", "groupFilmDamage", "groupFilmBlur", "groupOutput", "groupLutExport",
+                          "groupLicense", "groupAbout"})
         check(groupsSeen.count(g) == 1, std::string("missing group ") + g);
     for (const char* p : {"lookPreset", "mode", "inputSpace", "negStock", "process", "printStock", "grainEnable",
                           "grainFormat", "grainAnimated", "outputSpace", "lutSize", "lutPath", "lutExport",
@@ -201,7 +225,7 @@ int main() {
         check(resolvePreset(i).size() == lookCount, "preset " + lookPresets()[i].name + " does not resolve all look params");
     // look params never include colour-space / exposure / license / LUT parameters
     for (const char* p : {"inputSpace", "outputSpace", "exposure", "exposureEnable", "mode", "hdrPeakNits", "hdrUnroll",
-                          "hdrUnrollEnable", "grainSeed", "lutSize"})
+                          "hdrUnrollEnable", "grainSeed", "damageSeed", "filmBlurSeed", "lutSize"})
         check(findParam(p) && !findParam(p)->look, std::string(p) + " must not be a look (preset) parameter");
 
     // ---- platform helpers ----

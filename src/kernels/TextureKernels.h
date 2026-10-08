@@ -1,4 +1,5 @@
-/* Celluloid Pro - texture kernels (gate weave, acutance, halation, bloom, vignette, grain).
+/* Celluloid Pro - texture kernels (gate weave, acutance, halation, bloom, vignette, grain; film
+ * damage in DamageKernels.h, included at the end).
  * Owner: texture agent.  Portable dialect (see Portable.h): compiled as C++17, OpenCL C 1.2,
  * CUDA and Metal.  Uniform ABI (KernelABI.h): every kernel writes ONE output pixel (x, y).
  *
@@ -537,5 +538,8 @@ CEL_DEVICE void cel_k_tx_grain_finish(CEL_KERNEL_PARAMS) {
     }
     cel_store(out, a->outStride, x, y, o);
 }
+
+/* film damage (v1.1): tx_params, tx_damage */
+#include "DamageKernels.h"
 
 #endif /* CEL_TEXTURE_KERNELS_H */

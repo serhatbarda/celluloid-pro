@@ -475,6 +475,26 @@ engine::FrameSettings CelluloidEffect::frameSettingsAt(double t, int fullWidthPx
     tp.grainAnimated = flag(id::grainAnimated, t);
     tp.grainSeed = int(std::lround(num(id::grainSeed, t)));
     tp.grainMonochrome = mono;
+    // film damage / film blur (v1.1): a switched-off sub-module (dust, scratches, hair) renders like
+    // amount 0; the master switch off skips the damage passes entirely
+    tp.damageEnabled = flag(id::damageEnable, t);
+    tp.dustAmount = flag(id::dustEnable, t) ? float(num(id::dustAmount, t)) : 0.f;
+    tp.dustSize = float(num(id::dustSize, t));
+    tp.dustNegative = float(num(id::dustNegative, t));
+    tp.scratchAmount = flag(id::scratchEnable, t) ? float(num(id::scratchAmount, t)) : 0.f;
+    tp.scratchPersistence = float(num(id::scratchPersistence, t));
+    tp.scratchEmulsion = float(num(id::scratchEmulsion, t));
+    tp.scratchNegative = float(num(id::scratchNegative, t));
+    tp.hairAmount = flag(id::hairEnable, t) ? float(num(id::hairAmount, t)) : 0.f;
+    tp.damageAnimated = flag(id::damageAnimated, t);
+    tp.damageSeed = int(std::lround(num(id::damageSeed, t)));
+    tp.blurEnabled = flag(id::filmBlurEnable, t);
+    tp.blurRadius = float(num(id::filmBlurRadius, t));
+    tp.blurFrequency = float(num(id::filmBlurFrequency, t));
+    tp.blurDuration = float(num(id::filmBlurDuration, t));
+    tp.blurBreathing = float(num(id::filmBlurBreathing, t));
+    tp.blurChromatic = float(num(id::filmBlurChromatic, t));
+    tp.blurSeed = int(std::lround(num(id::filmBlurSeed, t)));
     // The grain field is unit variance per pixel for every format (cel::tex); visible granularity
     // grows with the enlargement of the gate, so the density amplitude carries the per-format
     // factor (Super 8 ~2x ... 65 mm ~0.7x of Super 35). Applied here, exactly once.
@@ -483,6 +503,8 @@ engine::FrameSettings CelluloidEffect::frameSettingsAt(double t, int fullWidthPx
     if (fs.mode == core::Mode::ColorOnly) {   // colour pipeline only: exactly what a LUT contains
         tp.grainEnabled = false;
         fs.look.grainAmount = 0.f;
+        tp.damageEnabled = false;
+        tp.blurEnabled = false;
     }
     fs.watermark = lic::needsWatermark(lic::current());
     return fs;
@@ -497,7 +519,9 @@ void CelluloidEffect::getClipPreferences(OFX::ClipPreferencesSetter& prefs) {
     const bool texture = choice(id::mode, 0.0) != int(core::Mode::ColorOnly);
     const bool animatedGrain = flag(id::grainEnable, 0.0) && flag(id::grainAnimated, 0.0) && num(id::grainAmount) > 0.0;
     const bool weave = flag(id::weaveEnable, 0.0) && num(id::weaveAmount) > 0.0;
-    prefs.setOutputFrameVarying(texture && (animatedGrain || weave));
+    const bool damage = flag(id::damageEnable, 0.0) && flag(id::damageAnimated, 0.0);
+    const bool blur = flag(id::filmBlurEnable, 0.0);
+    prefs.setOutputFrameVarying(texture && (animatedGrain || weave || damage || blur));
 }
 
 void CelluloidEffect::render(const OFX::RenderArguments& args) {
@@ -884,6 +908,20 @@ void CelluloidEffect::refreshEnabledness(double t) {
     for (const char* p : {id::grainFormat, id::grainAmount, id::grainSize, id::grainSoftness, id::grainAnimated,
                           id::grainSeed})
         setEnabled(p, texture && grainOn);
+    // film damage (master switch + dust / scratches / hair sub-switches) and film blur
+    const bool dmgOn = texture && flag(id::damageEnable, t);
+    setEnabled(id::damageEnable, texture);
+    for (const char* p : {id::dustEnable, id::scratchEnable, id::hairEnable, id::damageAnimated, id::damageSeed})
+        setEnabled(p, dmgOn);
+    for (const char* p : {id::dustAmount, id::dustSize, id::dustNegative}) setEnabled(p, dmgOn && flag(id::dustEnable, t));
+    for (const char* p : {id::scratchAmount, id::scratchPersistence, id::scratchEmulsion, id::scratchNegative})
+        setEnabled(p, dmgOn && flag(id::scratchEnable, t));
+    setEnabled(id::hairAmount, dmgOn && flag(id::hairEnable, t));
+    const bool blurOn = texture && flag(id::filmBlurEnable, t);
+    setEnabled(id::filmBlurEnable, texture);
+    for (const char* p : {id::filmBlurRadius, id::filmBlurFrequency, id::filmBlurDuration, id::filmBlurBreathing,
+                          id::filmBlurChromatic, id::filmBlurSeed})
+        setEnabled(p, blurOn);
 }
 
 void CelluloidEffect::refreshLicenseStatus() { setStr(id::licenseStatus, licenseStatusText(lic::current())); }

@@ -17,8 +17,8 @@ built with the OpenFX C++ Support library (compiled statically from the pinned O
 
 IDs and choice-option order are permanent (stored in projects); append only (new parameters may be
 *displayed* anywhere, their IDs are new). Groups:
-Look, Input, Negative, Print, Halation, Bloom, Grain, Lens & Gate, Output, LUT Export, License,
-About (see `Params.cpp` for every range, default and hint). Labels are unambiguous outside their
+Look, Input, Negative, Print, Halation, Bloom, Grain, Lens & Gate, Film Damage, Film Blur, Output, LUT Export,
+License, About (see `Params.cpp` for every range, default and hint). Labels are unambiguous outside their
 group too ("Halation Radius", "Grain Size"), because Resolve's keyframe editor shows labels only.
 
 **Module switches (v1.1).** Every module starts with a Bool `<module>Enable` (`exposureEnable`,
@@ -28,6 +28,12 @@ render unchanged. Off keeps the values and renders the module's neutral state: `
 neutral `LookParams` (exposure 0, standard development, 0 printer points / no print bleach, unroll 0; the
 stock pair, Process and Mode always stay), `frameSettingsAt()` sets the texture amount to 0, so the plan
 builder emits none of the module's passes. `refreshEnabledness()` greys a switched-off module's controls.
+
+**Film Damage / Film Blur (v1.1).** Two new groups, both off by default (`damageEnable`, `filmBlurEnable`);
+dust / scratches / hair have sub-switches (`dustEnable`, `scratchEnable`, `hairEnable`, default on under the master).
+`frameSettingsAt()` fills the new `tex::TextureParams` fields (a switched-off sub-module = amount 0); Color Only
+clears both (a LUT holds no texture). `getClipPreferences` declares frame-varying output when damage is animated or
+film blur is on. `filmBlurFrequency` / `filmBlurDuration` are not animatable (the event timeline derives from them).
 
 Derived read-only labels (`lookPresetStatus`, `licenseStatus`, `aboutVersion`) are
 non-persistent and refreshed when an instance is created; `licenseStatus` evaluates on change so

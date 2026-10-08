@@ -4,11 +4,13 @@
 // PASS GRAPH (SPEC §3).  "full" = frame size w x h, "Ln" = pyramid level n (ceil(w/2^n) x ...).
 //
 //   Full:        decode(SRC) -> [weave] -> [acutance] -> [glow: halation/bloom (+vignette)]
-//                -> [vignette] ; [grain] ; color(img, grain|-, SRC) -> [watermark] -> DST
+//                -> [vignette] ; [grain] ; [damage] ; color(img, grain|-, SRC, damage|-)
+//                -> [film blur] -> [watermark] -> DST
 //   ColorOnly:   color(SRC decoded in the kernel, i[1] = 1) -> [watermark] -> DST
 //   TextureOnly: display_decode(SRC) -> [weave] -> [tonemap to pseudo scene] -> [acutance]
 //                -> [glow (maps back to display, vignette)] | [tonemap back] -> [vignette] ;
-//                [grain] ; display_finish(img, grain|-, SRC) -> [watermark] -> DST
+//                [grain] ; [damage] ; display_finish(img, grain|-, SRC, damage|-) -> [film blur]
+//                -> [watermark] -> DST
 //                (SDR outputs: the curve back to display never exceeds 1.0; HDR: exact inverse)
 //
 // Texture sub-graphs (each only when its amount is non-zero):
@@ -23,12 +25,19 @@
 //   grain     tx_grain_gen(coarse grid, spacing Dc >= 1 px) -> tx_blur4 h, v [-> tx_up_v] ; [fine
 //             octave on its own grid Df]
 //             -> tx_grain_finish(full)
+//   damage    [tx_params (8x1 scratch / hair tables)] -> tx_damage(full)   (v1.1, film damage on and
+//             something to draw; the field is the colour pass's in3)
+//   film blur display_decode(colour result) -> [tx_pyr_down x L] -> tx_blur4 h, v (per channel)
+//             [-> tx_pyr_up_add (B-spline, level L -> full res)] -> display_finish(-, -, SRC alpha)
+//             (v1.1, only on frames whose blur is >= 0.05 px: projection focus acts on the finished
+//             image, so grain and damage soften with it; the watermark stays sharp)
 //
 // f[] / i[] OF THE COLOUR AND LICENSE PASSES (kernels owned by core / license):
 //   decode, display_decode:  f[] = 0, i[] = 0 (everything comes from `state`).
 //   color, display_finish:   i[0] = 1 when in1 holds the grain field (then in1 = grain noise xyz,
 //                            unit variance per layer), 0 when no grain (in1 unused: inStride[1] = 0,
-//                            inW[1] = inH[1] = 0). in2 = SRC (alpha). f[] = 0.
+//                            inW[1] = inH[1] = 0). in2 = SRC (alpha). in3 = damage field or unused.
+//                            f[] = 0.
 //                            color only: i[1] = 1 = in0 is the encoded host source, decoded in the
 //                            kernel (Color Only plan; alpha = in0.w, in2 unused).
 //   watermark:               in0 = colour result (dst size) -> DST; f[0] = pixelScale, f[1..4] and
@@ -382,6 +391,53 @@ bool grainOn(const FrameSettings& fs) {
     return fs.tex.grainEnabled && std::isfinite(fs.look.grainAmount) && fs.look.grainAmount > 0.f;
 }
 
+// film damage field (tx_damage, preceded by its parameter tables); -1 when there is nothing to draw
+int addDamage(Builder& B, const tex::TextureParams& tp, int w, int h, float ps) {
+    if (!tex::damageActive(tp)) return -1;
+    const tex::DamageDesign dd = tex::designDamage(tp, w, h, ps);
+    if (!dd.any()) return -1;
+    int tables[4] = {-1, -1, -1, -1};
+    for (int t = 0; t < 3 && 2 * t < dd.nScratch; ++t) {
+        tables[t] = B.buffer(8, 1);
+        PassDesc& p = B.pass(KID_tx_params, tables[t], {});
+        for (int k = 0; k < 2 && 2 * t + k < dd.nScratch; ++k)
+            for (int j = 0; j < 12; ++j) p.args.f[k * 12 + j] = dd.scratch[2 * t + k][j];
+    }
+    if (dd.nHair > 0) {
+        tables[3] = B.buffer(8, 1);
+        PassDesc& p = B.pass(KID_tx_params, tables[3], {});
+        for (int k = 0; k < dd.nHair; ++k)
+            for (int j = 0; j < 16; ++j) p.args.f[k * 16 + j] = dd.hair[k][j];
+    }
+    const int o = B.buffer(w, h);
+    PassDesc& p = B.pass(KID_tx_damage, o, {tables[0], tables[1], tables[2], tables[3]});
+    for (int k = 0; k < CEL_PASS_NF; ++k) p.args.f[k] = dd.f[k];
+    for (int k = 0; k < CEL_PASS_NI; ++k) p.args.i[k] = dd.i[k];
+    return o;
+}
+
+// film blur of the encoded result `src` into `target` (see the pass graph above)
+void addFilmBlur(Builder& B, int src, int target, const tex::FilmBlurDesign& fb, int w, int h) {
+    int cur = B.buffer(w, h);
+    B.pass(KID_display_decode, cur, {src});
+    for (int l = 1; l <= fb.level; ++l) {
+        int d = B.buffer(tex::levelSize(w, l), tex::levelSize(h, l));
+        B.pass(KID_tx_pyr_down, d, {cur});
+        cur = d;
+    }
+    tex::Gauss1D g[4] = {fb.g[0], fb.g[1], fb.g[2], fb.g[3]};
+    cur = addBlur(B, cur, g);
+    if (fb.level > 0) {
+        int up = B.buffer(w, h);
+        PassDesc& p = B.pass(KID_tx_pyr_up_add, up, {cur, -1});
+        p.args.f[4] = float(std::ldexp(1.0, -fb.level));
+        p.args.i[0] = 1;
+        p.args.i[1] = 0;
+        cur = up;
+    }
+    B.pass(KID_display_finish, target, {cur, -1, BUF_SRC});
+}
+
 } // namespace
 
 Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe) {
@@ -390,7 +446,7 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
     const tex::TextureParams& tp = fs.tex;
     const float ps = tex::effectivePixelScale(tp, w);
     Builder B(w, h);
-    int img = -1, noise = -1;
+    int img = -1, noise = -1, damage = -1;
     KernelId colorK = KID_color;
     switch (fs.mode) {
         case core::Mode::ColorOnly: {
@@ -402,6 +458,7 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
             B.pass(KID_display_decode, dl, {BUF_SRC});
             img = addImageTexture(B, dl, tp, true, hdrOutput(fs), w, h, ps);
             if (grainOn(fs)) noise = addGrain(B, tp, w, h, ps);
+            damage = addDamage(B, tp, w, h, ps);
             colorK = KID_display_finish;
             break;
         }
@@ -411,16 +468,23 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
             B.pass(KID_decode, sc, {BUF_SRC});
             img = addImageTexture(B, sc, tp, false, hdrOutput(fs), w, h, ps);
             if (grainOn(fs)) noise = addGrain(B, tp, w, h, ps);
+            damage = addDamage(B, tp, w, h, ps);
             break;
         }
     }
-    int colorOut = fs.watermark ? B.buffer(w, h) : int(BUF_DST);
     const bool fusedDecode = fs.mode == core::Mode::ColorOnly;
-    PassDesc& cp = fusedDecode ? B.pass(colorK, colorOut, {img, noise, -1}) : B.pass(colorK, colorOut, {img, noise, BUF_SRC});
+    const tex::FilmBlurDesign fb = fusedDecode ? tex::FilmBlurDesign{} : tex::designFilmBlur(tp, w, h, ps);
+    int colorOut = (fs.watermark || fb.on) ? B.buffer(w, h) : int(BUF_DST);
+    PassDesc& cp = fusedDecode ? B.pass(colorK, colorOut, {img, noise, -1}) : B.pass(colorK, colorOut, {img, noise, BUF_SRC, damage});
     cp.args.i[0] = noise >= 0 ? 1 : 0;
     cp.args.i[1] = fusedDecode ? 1 : 0;
+    int finalOut = colorOut;
+    if (fb.on) {
+        finalOut = fs.watermark ? B.buffer(w, h) : int(BUF_DST);
+        addFilmBlur(B, colorOut, finalOut, fb, w, h);
+    }
     if (fs.watermark) {
-        PassDesc& wp = B.pass(KID_watermark, BUF_DST, {colorOut});
+        PassDesc& wp = B.pass(KID_watermark, BUF_DST, {finalOut});
         wp.args.f[0] = ps;
         const core::OutputSpace os = fs.look.output;
         lic::fillWatermarkArgs(wp.args, os == core::OutputSpace::Rec2100_PQ ? lic::WatermarkTransfer::PQ
@@ -479,6 +543,21 @@ engine::Plan buildTexturePlan(int w, int h, const TextureParams& tp, bool displa
     Builder B(w, h);
     int r = addImageTexture(B, BUF_SRC, tp, displayReferred, hdrOutput, w, h, effectivePixelScale(tp, w));
     if (r == BUF_SRC || !B.redirectLast(r, BUF_DST)) B.pass(KID_tx_copy, BUF_DST, {r});
+    return B.finish();
+}
+
+engine::Plan buildDamagePlan(int w, int h, const TextureParams& tp) {
+    using namespace engine;
+    w = std::max(1, w); h = std::max(1, h);
+    Builder B(w, h);
+    int r = addDamage(B, tp, w, h, effectivePixelScale(tp, w));
+    if (r < 0) {   // nothing to draw: a zero field (tx_damage with no dust, scratches or hairs)
+        r = B.buffer(w, h);
+        PassDesc& p = B.pass(KID_tx_damage, r, {});
+        const DamageDesign dd = designDamage(TextureParams{}, w, h, effectivePixelScale(tp, w));
+        for (int k = 0; k < CEL_PASS_NF; ++k) p.args.f[k] = dd.f[k];
+    }
+    B.redirectLast(r, BUF_DST);
     return B.finish();
 }
 

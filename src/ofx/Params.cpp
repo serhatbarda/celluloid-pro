@@ -315,6 +315,96 @@ std::vector<ParamDef> build() {
           "darkens like an optical vignette, not a grey overlay). 0 = off.",
           true);
 
+    // ---------------------------------------------------------------- [Film Damage] (v1.1)
+    b.beginGroup(id::gFilmDamage, "Film Damage", false,
+                 "Dust, scratches and hair on the negative and on the print - procedural, different every frame.");
+    b.boolean(id::damageEnable, "Enable Film Damage", false,
+              "Adds the dirt and wear of a real film copy: dust, scratches and the occasional hair. The damage is "
+              "placed physically: dirt on the camera NEGATIVE holds back the printer light and prints as white "
+              "specks in the print's own colour and grain, dirt on the PRINT shows dark on the screen. Off (the "
+              "default) skips everything.",
+              true);
+    b.boolean(id::dustEnable, "Enable Dust", true,
+              "Dust and dirt specks, a new pattern on every frame (each frame of film collects its own dirt).", true);
+    b.dbl(id::dustAmount, "Dust Amount", 0.6, 0.0, 2.0, 0.01, 2,
+          "How dirty the film is: the number of specks per frame. 0.5 = a clean projection copy with an "
+          "occasional speck, 1 = a well-used print, 2 = a neglected reel.",
+          true);
+    b.dbl(id::dustSize, "Dust Size", 1.0, 0.5, 3.0, 0.01, 2,
+          "Size of the specks and lint fibres relative to a 35 mm frame (1 = nominal). Resolution independent.",
+          true);
+    b.dbl(id::dustNegative, "White Dust Mix", 0.35, 0.0, 1.0, 0.01, 2,
+          "Share of the dust that sat on the camera negative. Negative dirt prints as bright WHITE specks (slightly "
+          "soft, out of the printer's focus); print dirt shows as sharp DARK specks. 0 = only dark specks, 1 = only "
+          "white specks. Reversal (slide) film has no print: all of its dirt is dark.",
+          true);
+    b.boolean(id::scratchEnable, "Enable Scratches", true,
+              "Vertical scratches along the film's travel, cut by grit in a camera or projector gate.", true);
+    b.dbl(id::scratchAmount, "Scratch Amount", 0.5, 0.0, 2.0, 0.01, 2,
+          "How many scratches run through the picture at a time (1 = one or two, 2 = a badly worn copy).", true);
+    b.dbl(id::scratchPersistence, "Scratch Persistence", 0.6, 0.0, 1.0, 0.01, 2,
+          "How long a scratch stays and how continuous it is. Low = short, broken flicks that come and go within "
+          "a few frames; high = long continuous lines that stay for seconds, wandering slightly with the film.",
+          true);
+    b.dbl(id::scratchEmulsion, "Emulsion Scratches", 0.3, 0.0, 1.0, 0.01, 2,
+          "Share of the scratches that cut into the emulsion instead of only the base. Base scratches scatter light "
+          "and are neutral (dark on the print, white when on the negative). Emulsion scratches remove dye layers "
+          "from the top and are coloured: on the print green, then yellow, then clear white as they get deeper; "
+          "on the negative they print yellow, then red, then dark.",
+          true);
+    b.dbl(id::scratchNegative, "White Scratch Mix", 0.25, 0.0, 1.0, 0.01, 2,
+          "Share of the scratches on the camera negative (printed in: white or warm-coloured lines) instead of on "
+          "the print (dark or green lines).",
+          true);
+    b.boolean(id::hairEnable, "Enable Hair", true,
+              "The occasional hair or fibre: on the film for a single frame, or caught in the projector gate - then "
+              "it sticks out of the frame edge, slightly out of focus, fluttering for a few seconds.",
+              true);
+    b.dbl(id::hairAmount, "Hair Amount", 0.5, 0.0, 2.0, 0.01, 2,
+          "How often hairs appear (1 = a hair on the film about every second and now and then one in the gate).",
+          true);
+    b.boolean(id::damageAnimated, "Animated Damage", true,
+              "On: the damage changes from frame to frame like real film running through a projector. Off: frozen "
+              "(the damage of frame 0), for stills.",
+              true);
+    b.integer(id::damageSeed, "Damage Seed", 0, 0, 9999,
+              "Changes the random dust, scratches and hairs. Give different shots different seeds so the damage "
+              "never repeats.",
+              false);
+
+    // ---------------------------------------------------------------- [Film Blur] (v1.1)
+    b.beginGroup(id::gFilmBlur, "Film Blur", false,
+                 "Momentary softness of projected film: focus drift and film breathing in the gate.");
+    b.boolean(id::filmBlurEnable, "Enable Film Blur", false,
+              "Now and then the picture goes soft and comes back, like film buckling in a warm projector gate or a "
+              "focus that drifts. The blur acts on the projected image, so grain and damage soften with it. Off "
+              "(the default) skips it; frames without blur cost nothing.",
+              true);
+    b.dbl(id::filmBlurRadius, "Blur Radius", 3.0, 0.5, 12.0, 0.05, 2,
+          "How soft the picture gets at the peak of a soft moment: radius of the out-of-focus blur in pixels at "
+          "1920 px width (scaled automatically for other resolutions).",
+          true);
+    b.dbl(id::filmBlurFrequency, "Blur Frequency", 0.3, 0.0, 1.0, 0.01, 2,
+          "How often the picture goes soft: roughly the share of the time spent in a soft moment. 0 = never "
+          "(only Focus Breathing), 1 = almost always drifting.",
+          true)
+        .animates = false;   // the event timeline is derived from it: keyframes would make the blur jump
+    b.dbl(id::filmBlurDuration, "Blur Duration", 24.0, 12.0, 240.0, 1.0, 0,
+          "Average length of a soft moment in frames, including easing in and out (individual moments vary from "
+          "half to one and a half times this, and last at least 18 frames so they can ease in and out).",
+          true)
+        .animates = false;
+    b.dbl(id::filmBlurBreathing, "Focus Breathing", 0.2, 0.0, 1.0, 0.01, 2,
+          "A continuous, gentle in-and-out drift of focus between the soft moments (share of the Blur Radius). "
+          "0 = sharp between them.",
+          true);
+    b.dbl(id::filmBlurChromatic, "Chromatic Softness", 0.3, 0.0, 1.0, 0.01, 2,
+          "Colour of the defocus: red and especially blue go softer than green, as with a real projection lens "
+          "out of focus (faint coloured fringes on edges). 0 = neutral blur.",
+          true);
+    b.integer(id::filmBlurSeed, "Blur Seed", 0, 0, 9999,
+              "Changes when the soft moments happen. Give different shots different seeds.", false);
+
     // ---------------------------------------------------------------- [Output]
     const std::vector<std::string> outputs = core::outputSpaceNames();
     b.beginGroup(id::gOutput, "Output", true, "Display encoding of the result.");

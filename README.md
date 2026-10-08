@@ -6,15 +6,16 @@ Windows (x64, CUDA and OpenCL), with a CPU fallback everywhere.
 Celluloid Pro simulates the photochemical chain instead of applying a fixed LUT: camera log →
 scene light → spectral exposure of a three-layer colour negative → development (push/pull,
 interlayer effects, bleach bypass) → print with printer lights, or lab scan → projection →
-display encoding (SDR or HDR). Halation, bloom, film grain, acutance, gate weave and vignetting are
-added at the stage where they physically arise. All stocks, presets and colour science are original
+display encoding (SDR or HDR). Halation, bloom, film grain, acutance, gate weave, vignetting and (1.1)
+film damage (dust, scratches, hair) and momentary film blur are added at the stage where they
+physically arise; every module has its own Enable switch. All stocks, presets and colour science are original
 designs; see the originality rules in [SPEC.md](SPEC.md) §1.
 
 | | |
 |---|---|
 | Plug-in | `de.serhatbarda.CelluloidPro` · "Celluloid Pro" · OpenFX group "Celluloid" · version 1.0.0 |
 | Stocks | 11 negatives (incl. reversal and black & white) · 5 prints · Lab Scan process |
-| Looks | 12 curated presets |
+| Looks | 14 curated presets (2 with film damage) |
 | Cameras | Fujifilm F-Log2 C (primary), F-Log2, F-Log, ARRI LogC3/LogC4, Sony S-Log3, Panasonic V-Log, Canon Log 3, Blackmagic Film Gen 5, DaVinci Intermediate, ACEScct, Linear Rec.2020 |
 | Outputs | Rec.709 (2.4 / sRGB), P3-D65, DCI-P3, Rec.2100 PQ and HLG with highlight unroll |
 | Extras | .cube LUT export (licensed), offline Ed25519 license keys, trial watermark |
@@ -85,7 +86,7 @@ Details: [SPEC.md](SPEC.md) §2–§8, [src/gpu/README.md](src/gpu/README.md),
 | `src/kernels/` | portable kernels (colour, texture, watermark), kernel ABI and list — **fixed interfaces** |
 | `src/core/` | colour science: spectral model, stock data, bakes, transfer functions, .cube writer |
 | `src/engine/` | frame plan builder and the CPU backend |
-| `src/texture/` | texture design (halation, bloom, grain, weave, acutance, vignette) and plans |
+| `src/texture/` | texture design (halation, bloom, grain, weave, acutance, vignette, film damage / film blur) and plans |
 | `src/gpu/` | OpenCL, CUDA and Metal backends, kernel flattening, self tests |
 | `src/license/` | key format, verification, storage, watermark; `PublicKey.h` (production public key) |
 | `src/ofx/` | the OpenFX plug-in: parameters, presets, rendering, LUT export, license UI |
@@ -238,7 +239,7 @@ and stapled, and the `.dmg` is signed.
 1. **License key ceremony done** (next section) — the release gate refuses any `v*` tag while
    `src/license/PublicKey.h` is provisional, the build has `CEL_DEV_LICENSE=ON`, or the development
    public key is found in the plug-in binary (`installers/ci/release_gate.sh`).
-2. Signing secrets added (strongly recommended for a commercial release).
+2. Signing secrets added (strongly recommended for any build installed outside CI).
 3. Version bumped in `CMakeLists.txt` (`project(CelluloidPro VERSION x.y.z …)`) and
    [CHANGELOG.md](CHANGELOG.md) updated.
 4. `git tag vX.Y.Z && git push origin vX.Y.Z` — the tag must equal the project version

@@ -11,6 +11,7 @@
 #include "PerturbedKernels.h"
 #include "../../src/kernels/AllKernels.h"
 
+#include "../../src/texture/TextureDesign.h"
 #include "../../src/texture/TexturePlan.h"
 
 #include <algorithm>
@@ -33,7 +34,7 @@ RefBackend makeProductionRef() {
     });
 }
 
-enum class PlanKind { Frame, TextureScene, TextureDisplay, TextureDisplayHdr, GrainOnly };
+enum class PlanKind { Frame, TextureScene, TextureDisplay, TextureDisplayHdr, GrainOnly, DamageOnly };
 enum class Scene { Natural, Torture, Display };
 
 struct Case {
@@ -122,6 +123,21 @@ void fullTexture(engine::FrameSettings& fs) {
     fs.look.grainAmount = 1.0f;
 }
 
+// film damage + film blur (v1.1) on a frame where dust, >= 3 scratches (all three scratch tables),
+// a hair and a soft moment are all present (searched deterministically)
+void filmDamage(engine::FrameSettings& fs, int w, int h, bool needBlur = true) {
+    tex::TextureParams& t = fs.tex;
+    t.damageEnabled = true; t.dustAmount = 2.0f; t.dustSize = 1.5f; t.scratchAmount = 2.0f; t.hairAmount = 2.0f;
+    t.scratchPersistence = 0.3f; t.scratchEmulsion = 0.5f; t.scratchNegative = 0.5f; t.dustNegative = 0.5f;
+    t.blurEnabled = needBlur; t.blurFrequency = 0.8f; t.blurRadius = 12.0f; t.blurChromatic = 1.0f; t.blurBreathing = 0.5f;
+    const float ps = tex::effectivePixelScale(t, w);
+    for (int f = 0; f < 20000; ++f) {
+        t.time = f;
+        const tex::DamageDesign dd = tex::designDamage(t, w, h, ps);
+        if (dd.nScratch >= 5 && dd.nHair > 0 && (!needBlur || tex::designFilmBlur(t, w, h, ps).on)) return;
+    }
+}
+
 std::vector<Case> makeCases(bool all) {
     std::vector<Case> cs;
     const int W = 331, H = 187;
@@ -163,6 +179,31 @@ std::vector<Case> makeCases(bool all) {
     add("1920x1080 full", [](Case& c) { c.w = 1920; c.h = 1080; c.fs = baseSettings(1920); fullTexture(c.fs); });
     if (all)
         add("3840x2160 full", [](Case& c) { c.w = 3840; c.h = 2160; c.fs = baseSettings(3840); fullTexture(c.fs); });
+    // ---- film damage and film blur (v1.1)
+    add("film damage + blur", [](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h); });
+    add("film damage, no grain, P3", [](Case& c) { filmDamage(c.fs, c.w, c.h, false); c.fs.look.printStock = 2; });
+    add("film damage + blur, pixelScale 3 (pyramid blur)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale = 3.0f;
+        filmDamage(c.fs, c.w, c.h); });
+    add("film damage + blur, texture only", [](Case& c) { fullTexture(c.fs); c.fs.mode = core::Mode::TextureOnly; c.scene = Scene::Display;
+        filmDamage(c.fs, c.w, c.h); });
+    add("film damage + blur, texture only PQ", [](Case& c) { fullTexture(c.fs); c.fs.mode = core::Mode::TextureOnly;
+        c.fs.look.output = OS::Rec2100_PQ; c.scene = Scene::Display; filmDamage(c.fs, c.w, c.h); });
+    add("film damage + blur, PQ + watermark", [](Case& c) { fullTexture(c.fs); c.fs.look.output = OS::Rec2100_PQ;
+        c.fs.watermark = true; filmDamage(c.fs, c.w, c.h); });
+    add("film damage + blur, HLG, lab scan", [](Case& c) { fullTexture(c.fs); c.fs.look.output = OS::Rec2100_HLG;
+        c.fs.look.process = core::Process::NegativeScan; filmDamage(c.fs, c.w, c.h); });
+    for (const char* pre : {"RV", "BW 4"})
+        add(std::string("film damage + blur, ") + pre, [pre](Case& c) {
+            const auto ns = core::negativeStocks();
+            for (size_t n = 0; n < ns.size(); ++n)
+                if (ns[n].name.rfind(pre, 0) == 0) { c.fs.look.negStock = int(n); c.fs.tex.grainMonochrome = ns[n].monochrome; }
+            fullTexture(c.fs); filmDamage(c.fs, c.w, c.h); });
+    add("film damage, 1x1", [](Case& c) { c.w = 1; c.h = 1; c.fs = baseSettings(1); filmDamage(c.fs, c.w, c.h, false); });
+    add("film damage + blur, 1920x1080", [](Case& c) { c.w = 1920; c.h = 1080; c.fs = baseSettings(1920); fullTexture(c.fs);
+        filmDamage(c.fs, c.w, c.h); });
+    add("torture, film damage + blur", [](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h); c.scene = Scene::Torture; });
+    add("damage plan", [](Case& c) { filmDamage(c.fs, c.w, c.h, false); c.kind = PlanKind::DamageOnly; });
+    add("damage plan, nothing to draw", [](Case& c) { c.kind = PlanKind::DamageOnly; });
     // ---- input spaces (Color Only and Full)
     for (int i = 0; i < int(core::InputSpace::Count); ++i)
         add("input " + core::inputSpaceNames()[size_t(i)], [i](Case& c) {
@@ -235,6 +276,7 @@ engine::Plan planFor(const Case& c, const core::Pipeline& pipe) {
         case PlanKind::TextureDisplay: return tex::buildTexturePlan(c.w, c.h, c.fs.tex, true, false);
         case PlanKind::TextureDisplayHdr: return tex::buildTexturePlan(c.w, c.h, c.fs.tex, true, true);
         case PlanKind::GrainOnly: return tex::buildGrainPlan(c.w, c.h, c.fs.tex);
+        case PlanKind::DamageOnly: return tex::buildDamagePlan(c.w, c.h, c.fs.tex);
         case PlanKind::Frame: break;
     }
     return engine::buildPlan(c.w, c.h, c.fs, pipe);

@@ -135,6 +135,30 @@ constexpr const char* acutanceEnable = "acutanceEnable";        // [Lens & Gate]
 constexpr const char* weaveEnable = "weaveEnable";              // [Lens & Gate]
 constexpr const char* vignetteEnable = "vignetteEnable";        // [Lens & Gate]
 constexpr const char* hdrUnrollEnable = "hdrUnrollEnable";      // [Output]
+// ---- v1.1: film damage and film blur ----------------------------------------------------------
+constexpr const char* gFilmDamage = "groupFilmDamage";
+constexpr const char* damageEnable = "damageEnable";
+constexpr const char* dustEnable = "dustEnable";
+constexpr const char* dustAmount = "dustAmount";
+constexpr const char* dustSize = "dustSize";
+constexpr const char* dustNegative = "dustNegative";
+constexpr const char* scratchEnable = "scratchEnable";
+constexpr const char* scratchAmount = "scratchAmount";
+constexpr const char* scratchPersistence = "scratchPersistence";
+constexpr const char* scratchEmulsion = "scratchEmulsion";
+constexpr const char* scratchNegative = "scratchNegative";
+constexpr const char* hairEnable = "hairEnable";
+constexpr const char* hairAmount = "hairAmount";
+constexpr const char* damageAnimated = "damageAnimated";
+constexpr const char* damageSeed = "damageSeed";
+constexpr const char* gFilmBlur = "groupFilmBlur";
+constexpr const char* filmBlurEnable = "filmBlurEnable";
+constexpr const char* filmBlurRadius = "filmBlurRadius";
+constexpr const char* filmBlurFrequency = "filmBlurFrequency";
+constexpr const char* filmBlurDuration = "filmBlurDuration";
+constexpr const char* filmBlurBreathing = "filmBlurBreathing";
+constexpr const char* filmBlurChromatic = "filmBlurChromatic";
+constexpr const char* filmBlurSeed = "filmBlurSeed";
 } // namespace id
 
 // LUT sizes offered by lutSize, in option order.

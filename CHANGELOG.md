@@ -14,6 +14,21 @@ unchanged in a newer one.
   HDR Highlight Unroll. Unticking a module switches it off without losing its values; a switched-off
   module renders exactly like its neutral setting and costs no render time. Its controls are dimmed.
   The film stocks, Process and Mode always stay active (the stock pair is the look).
+- **Film Damage** (new group, off by default): procedural **dust** (white specks from dirt on the
+  negative, dark specks and lint from dirt on the print; new every frame), **scratches** (vertical,
+  persisting for frames to seconds and wandering; neutral base scratches, coloured emulsion scratches:
+  green / yellow / white on the print, yellow / red on the negative) and the occasional **hair** (one
+  frame on the film, or caught in the gate for seconds). The damage is applied inside the film model,
+  so it prints in the print's own colour and grain. Controls: Dust Amount / Size / White Dust Mix,
+  Scratch Amount / Persistence / Emulsion Scratches / White Scratch Mix, Hair Amount, Animated Damage,
+  Damage Seed, with Enable switches for the whole module and for dust, scratches and hair.
+- **Film Blur** (new group, off by default): now and then the projected picture goes soft and comes
+  back (eased soft moments plus gentle focus breathing, optional chromatic softness). Controls: Blur
+  Radius, Blur Frequency, Blur Duration, Focus Breathing, Chromatic Softness, Blur Seed.
+- Two look presets (appended): **Worn Release Print** and **Found Footage 16**.
+- Damage and blur are deterministic per frame and seed, resolution independent, rendered on CPU,
+  OpenCL, CUDA and Metal from the same kernels (CPU / OpenCL parity within 2e-4), never in Color Only
+  mode or exported LUTs. Validation images on real F-Log2 C footage in `docs/validation/`.
 
 ### Changed
 
@@ -24,6 +39,8 @@ unchanged in a newer one.
 - New parameters only; no identifier or choice order changed. The new switches default to on, so
   projects saved with 1.0 open and render unchanged, and a look preset applied in 1.0 still shows its
   name without "(modified)".
+- Film Damage and Film Blur default to off, so 1.0 projects stay clean. The two new presets are
+  appended to the Look Preset menu (existing preset indices unchanged).
 
 ## [1.0.0] — unreleased
 

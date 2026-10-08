@@ -122,6 +122,44 @@ constexpr float kVignetteCornerTan = 0.9f;   // tan(field angle) at the corner: 
 struct WeaveOffset { double dx = 0, dy = 0, rot = 0; };   // px @1920, radians
 WeaveOffset weaveOffset(double time, float amount, float speed);
 
+// ---- film damage (v1.1, src/texture/Damage.cpp; kernels in src/kernels/DamageKernels.h) ---------
+// Everything per frame is derived from (damageSeed, frame) on the host: dust is drawn in the kernel
+// from a per-frame seed, scratches and hairs are generated here and handed to tx_damage as tables.
+constexpr int kDamageMaxScratches = 6;   // scratch slots (each with its own life cycle)
+constexpr int kDamageMaxHairs = 2;       // one hair on the film (1 frame) + one caught in the gate
+struct DamageDesign {
+    bool  dust = false;
+    int   nScratch = 0, nHair = 0;
+    float f[32] = {};            // tx_damage f[] (see DamageKernels.h)
+    int   i[8] = {};             // tx_damage i[]
+    float scratch[kDamageMaxScratches][12] = {};   // table rows (12 floats per scratch)
+    float hair[kDamageMaxHairs][16] = {};          // table rows (16 floats per hair)
+    bool any() const { return dust || nScratch > 0 || nHair > 0; }
+};
+// true when the damage module draws anything at all (enabled and some amount > 0)
+bool damageActive(const TextureParams& tp);
+DamageDesign designDamage(const TextureParams& tp, int w, int h, float pixelScale);
+// damage frame number: round(time) when animated, 0 when frozen
+double damageFrame(const TextureParams& tp);
+
+// ---- film blur (v1.1): projection focus drift ------------------------------------------------------
+// Blur strength over time in [0, 1]: soft "events" (ease in >= 8 frames, hold, ease out >= 9 frames)
+// that occupy about 0.8 x blurFrequency of the time, each blurDuration frames long on average
+// (0.5 .. 1.5 x, at least 18 frames), random peak
+// 0.55 .. 1, plus continuous breathing (smooth noise) of up to 0.4 x blurBreathing; combined as a
+// soft union. Deterministic in (blurSeed, time); continuous in time.
+double filmBlurStrength(const TextureParams& tp, double time);
+struct FilmBlurDesign {
+    bool    on = false;
+    int     level = 0;           // 0: blur at full res; L: on pyramid level L, B-spline upsampled
+    Gauss1D g[4];                // per channel (r, g, b, alpha) blur on that level
+    double  sigma[3] = {0, 0, 0};// intended full-res sigma per channel (px)
+};
+// sigma = strength * radius / 2 (a defocus disc of radius r has the per-axis variance of a Gaussian
+// of sigma r / 2), per channel x (1 + 0.35 c, 1, 1 + 0.6 c) for blurChromatic c (longitudinal colour of
+// the projection lens). Off (no passes) below 0.05 px.
+FilmBlurDesign designFilmBlur(const TextureParams& tp, int w, int h, float pixelScale);
+
 // ---- Texture-Only tone map (display-linear <-> pseudo scene) -----------------------------------
 // sdr = true (SDR outputs): above Yk the curve approaches 1.0 asymptotically (never exceeds it);
 // sdr = false (HDR outputs): exact linear continuation (display values > 1 survive).

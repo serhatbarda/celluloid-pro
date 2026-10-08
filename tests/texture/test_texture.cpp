@@ -6,6 +6,7 @@
 // Usage: test_texture [--quick] [--no-timing | --timing-only]
 #include "TexTestUtil.h"
 #include "core/Core.h"
+#include "kernels/AllKernels.h"
 #include <algorithm>
 #include <cstring>
 #include <functional>
@@ -767,6 +768,343 @@ void testTimings() {
     }
 }
 
+// ------------------------------------------------------------------------------------------------
+// film damage (dust, scratches, hair) and film blur (v1.1)
+TextureParams damageParams(float dust, float scratch, float hair, double time = 0.0, float ps = 1.f) {
+    TextureParams tp;
+    tp.pixelScale = ps; tp.time = time;
+    tp.damageEnabled = true; tp.dustAmount = dust; tp.scratchAmount = scratch; tp.hairAmount = hair;
+    return tp;
+}
+Img damageField(int w, int h, const TextureParams& tp) {
+    Img s(w, h), d(w, h);
+    runPlan(cel::tex::buildDamagePlan(w, h, tp), s, d);
+    return d;
+}
+// light the damage takes out of (negative and print side) a pixel, integrated in ref px^2:
+// sum (1 - 10^-D) / ps^2 per channel (x: negative, z: print), emulsion depth sum / ps^2 (y, w)
+struct DamageInk { double neg = 0, print = 0, negDepth = 0, printDepth = 0; long pixels = 0; };
+DamageInk ink(const Img& f, float ps) {
+    DamageInk k;
+    const double a = 1.0 / (double(ps) * ps);
+    for (int y = 0; y < f.h; ++y)
+        for (int x = 0; x < f.w; ++x) {
+            const float* p = f.at(x, y);
+            k.neg += a * (1.0 - std::pow(10.0, -p[0]));
+            k.print += a * (1.0 - std::pow(10.0, -p[2]));
+            k.negDepth += a * p[1];
+            k.printDepth += a * p[3];
+            k.pixels += (p[0] + p[1] + p[2] + p[3]) > 1e-3f;
+        }
+    return k;
+}
+bool fieldValid(const Img& f) {
+    for (size_t i = 0; i < f.px.size(); ++i)
+        if (!std::isfinite(f.px[i]) || f.px[i] < 0.f) return false;
+    return true;
+}
+// one frame of the full pipeline (CN 200T / P1, Rec.709) on a flat scene of value `grey`
+Img frameOf(const eng::FrameSettings& fs, const Img& src, cel::core::Pipeline& pipe, size_t* passes = nullptr) {
+    pipe.prepare(fs.look);
+    const eng::Plan p = eng::buildPlan(src.w, src.h, fs, pipe);
+    if (passes) *passes = p.passes.size();
+    Img s = src, d(src.w, src.h);
+    runPlan(p, s, d, nullptr, &pipe.state());
+    return d;
+}
+int countKernel(const eng::Plan& p, eng::KernelId k) {
+    int n = 0;
+    for (const auto& d : p.passes) n += d.kernel == k;
+    return n;
+}
+
+void testFilmDamage() {
+    section("film damage: bypass, determinism, time, resolution, physics, robustness");
+    cel::core::Pipeline pipe;
+    const int W = 480, H = 270;
+    const float ps = W / 1920.f;
+    Img scene = testScene(W, H);
+
+    // ---- off = bit-identical bypass, no passes
+    {
+        eng::FrameSettings base; base.tex = everythingOn(ps); base.look.grainAmount = 1.f;
+        size_t n0 = 0, n1 = 0, n2 = 0, n3 = 0;
+        Img ref = frameOf(base, scene, pipe, &n0);
+        eng::FrameSettings off = base;   // module off with non-zero amounts
+        off.tex.dustAmount = 2.f; off.tex.scratchAmount = 2.f; off.tex.hairAmount = 2.f;
+        off.tex.blurEnabled = false; off.tex.blurFrequency = 1.f;
+        CHECK(sameBits(frameOf(off, scene, pipe, &n1), ref) && n1 == n0, "damage / blur off must be a bit-identical bypass");
+        eng::FrameSettings zero = base;   // module on, every amount 0 / blur never
+        zero.tex.damageEnabled = true;
+        zero.tex.blurEnabled = true; zero.tex.blurFrequency = 0.f; zero.tex.blurBreathing = 0.f;
+        CHECK(sameBits(frameOf(zero, scene, pipe, &n2), ref) && n2 == n0, "damage on with amounts 0 must be a bypass (%zu vs %zu passes)", n2, n0);
+        eng::FrameSettings on = base;
+        on.tex.damageEnabled = true; on.tex.dustAmount = 1.f;
+        const eng::Plan pon = eng::buildPlan(W, H, on, pipe);
+        CHECK(countKernel(pon, eng::KID_tx_damage) == 1, "damage on: one tx_damage pass");
+        CHECK(!sameBits(frameOf(on, scene, pipe, &n3), ref) && n3 == n0 + 1, "dust must change the frame");
+        eng::FrameSettings co = on; co.mode = cel::core::Mode::ColorOnly;
+        CHECK(countKernel(eng::buildPlan(W, H, co, pipe), eng::KID_tx_damage) == 0, "Color Only never draws damage");
+    }
+    // ---- determinism and time behaviour of the field
+    {
+        const TextureParams a = damageParams(1.f, 1.5f, 1.f, 30.0, ps);
+        CHECK(sameBits(damageField(W, H, a), damageField(W, H, a)), "damage field must be deterministic");
+        TextureParams a2 = a; a2.time = 30.3;
+        CHECK(sameBits(damageField(W, H, a), damageField(W, H, a2)), "damage is per frame (time rounds to the frame)");
+        TextureParams s = a; s.damageSeed = 77;
+        CHECK(!sameBits(damageField(W, H, a), damageField(W, H, s)), "seed must change the damage");
+        TextureParams st = a; st.damageAnimated = false;
+        TextureParams st2 = st; st2.time = 500.0;
+        CHECK(sameBits(damageField(W, H, st), damageField(W, H, st2)), "frozen damage must not change over time");
+        CHECK(fieldValid(damageField(W, H, a)), "field finite and non-negative");
+    }
+    {   // dust lives one frame: consecutive frames share (almost) no speck
+        long both = 0, any = 0, total = 0;
+        for (int f = 0; f < 6; ++f) {
+            Img d0 = damageField(W, H, damageParams(2.f, 0.f, 0.f, f, ps));
+            Img d1 = damageField(W, H, damageParams(2.f, 0.f, 0.f, f + 1, ps));
+            for (int i = 0; i < W * H; ++i) {
+                const bool a0 = d0.px[size_t(i) * 4] + d0.px[size_t(i) * 4 + 2] > 0.02f;
+                const bool a1 = d1.px[size_t(i) * 4] + d1.px[size_t(i) * 4 + 2] > 0.02f;
+                both += a0 && a1; any += a0 || a1; total += a0;
+            }
+        }
+        std::printf("  dust: %ld speck pixels over 6 frames, overlap with the next frame %.3f\n", total, double(both) / std::max(1L, any));
+        CHECK(total > 200, "dust amount 2 must draw specks (%ld)", total);
+        CHECK(double(both) / std::max(1L, any) < 0.05, "dust must be new every frame");
+        // more dust with a higher amount, both generations present at the default mix
+        const DamageInk k1 = ink(damageField(W, H, damageParams(1.f, 0.f, 0.f, 3, ps)), ps);
+        const DamageInk k2 = ink(damageField(W, H, damageParams(2.f, 0.f, 0.f, 3, ps)), ps);
+        CHECK(k2.neg + k2.print > 2.0 * (k1.neg + k1.print), "dust grows with the amount (%f vs %f)", k2.neg + k2.print, k1.neg + k1.print);
+        CHECK(k2.neg > 0 && k2.print > 0, "negative and print dust both present");
+        TextureParams wh = damageParams(2.f, 0.f, 0.f, 3, ps); wh.dustNegative = 1.f;
+        TextureParams dk = wh; dk.dustNegative = 0.f;
+        const DamageInk kw = ink(damageField(W, H, wh), ps), kd = ink(damageField(W, H, dk), ps);
+        CHECK(kw.print == 0 && kw.neg > 0 && kd.neg == 0 && kd.print > 0, "dust mix 1 = only negative, 0 = only print");
+    }
+    {   // scratches persist across frames at a slowly wandering position
+        TextureParams sp = damageParams(0.f, 2.f, 0.f, 0.0, ps);
+        sp.scratchPersistence = 1.f;
+        auto columns = [&](const Img& f) {
+            std::vector<double> c(size_t(f.w), 0.0);
+            for (int y = 0; y < f.h; ++y) for (int x = 0; x < f.w; ++x) { const float* p = f.at(x, y); c[size_t(x)] += p[0] + p[1] + p[2] + p[3]; }
+            return c;
+        };
+        int frames = 0, stable = 0, seen = 0;
+        std::vector<double> prev;
+        for (int f = 0; f < 40; ++f) {
+            sp.time = f;
+            const cel::tex::DamageDesign dd = cel::tex::designDamage(sp, W, H, ps);
+            seen = std::max(seen, dd.nScratch);
+            std::vector<double> c = columns(damageField(W, H, sp));
+            if (!prev.empty()) {
+                // the strongest scratch column of this frame is within 2 px of a scratch of the last frame
+                size_t mx = size_t(std::max_element(c.begin(), c.end()) - c.begin());
+                if (c[mx] > 1.0) {
+                    ++frames;
+                    double near = 0;
+                    for (int dx = -2; dx <= 2; ++dx) {
+                        int xx = int(mx) + dx;
+                        if (xx >= 0 && xx < W) near = std::max(near, prev[size_t(xx)]);
+                    }
+                    stable += near > 0.25 * c[mx];
+                }
+            }
+            prev = c;
+        }
+        std::printf("  scratches: up to %d at a time, %d / %d frames continue the previous frame's scratch\n", seen, stable, frames);
+        CHECK(frames > 20, "persistent scratches must be visible most of the time (%d frames)", frames);
+        CHECK(stable >= frames - 3, "scratches must persist from frame to frame (%d / %d)", stable, frames);
+        // low persistence: short flicks, most scratch slots change within a few frames
+        TextureParams lo = sp; lo.scratchPersistence = 0.f;
+        int changes = 0;
+        for (int f = 0; f < 40; ++f) {
+            lo.time = f; const int a = cel::tex::designDamage(lo, W, H, ps).nScratch;
+            lo.time = f + 1; const int b = cel::tex::designDamage(lo, W, H, ps).nScratch;
+            changes += a != b;
+        }
+        CHECK(changes > 5, "low persistence must make scratches come and go (%d changes)", changes);
+    }
+    {   // resolution independence: the same damage in ref px at 1080p-class and 2x the resolution
+        for (int which = 0; which < 3; ++which) {
+            double r = 0;
+            DamageInk k[2];
+            for (int res = 0; res < 2; ++res) {
+                const int w = res ? 1920 : 960, h = res ? 1080 : 540;
+                const float p = w / 1920.f;
+                double sum[4] = {0, 0, 0, 0};
+                for (int f = 0; f < 8; ++f) {
+                    const DamageInk q = ink(damageField(w, h, damageParams(which == 0 ? 1.5f : 0.f, which == 1 ? 2.f : 0.f,
+                                                                           which == 2 ? 2.f : 0.f, 100 + f * 37, p)), p);
+                    sum[0] += q.neg; sum[1] += q.print; sum[2] += q.negDepth; sum[3] += q.printDepth;
+                }
+                k[res].neg = sum[0]; k[res].print = sum[1]; k[res].negDepth = sum[2]; k[res].printDepth = sum[3];
+            }
+            const double a = k[0].neg + k[0].print + k[0].negDepth + k[0].printDepth;
+            const double b = k[1].neg + k[1].print + k[1].negDepth + k[1].printDepth;
+            r = b / std::max(a, 1e-9);
+            const char* nm[3] = {"dust", "scratches", "hair"};
+            std::printf("  %s: integrated damage 1920 / 960 px wide = %.3f (%.1f vs %.1f ref px^2)\n", nm[which], r, b, a);
+            if (a > 1.0) CHECK(std::fabs(r - 1.0) < 0.12, "%s must be resolution independent (ratio %f)", nm[which], r);
+            else CHECK(which == 2, "%s drew nothing", nm[which]);
+        }
+    }
+    // ---- physics in the colour pass: where each kind of damage ends up
+    {
+        const int w = 64, h = 64;
+        Img grey(w, h, 0.f, 0.f, 0.f, 1.f);
+        eng::FrameSettings fs; fs.tex.pixelScale = 1.f; fs.look.input = cel::core::InputSpace::LinearRec2020;
+        for (int y = 0; y < h; ++y) for (int x = 0; x < w; ++x) { float* p = grey.at(x, y); p[0] = p[1] = p[2] = 0.18f; }
+        pipe.prepare(fs.look);
+        const float* st = pipe.state().data();
+        const CelF3 g = cel_f3(0.18f, 0.18f, 0.18f), z = cel_f3(0.f, 0.f, 0.f);
+        auto out = [&](float a, float b, float c, float d) { return celc_scene_to_output_dmg(st, g, z, 0, cel_f4(a, b, c, d)); };
+        const CelF3 r0 = out(0, 0, 0, 0), ref = celc_scene_to_output(st, g, z, 0);
+        CHECK(r0.x == ref.x && r0.y == ref.y && r0.z == ref.z, "zero damage = the undamaged colour path, bit for bit");
+        const CelF3 negDust = out(1.f, 0, 0, 0), prDust = out(0, 0, 1.f, 0);
+        const CelF3 prEmu = out(0, 0, 0, 1.f), prEmu2 = out(0, 0, 0, 2.f), prEmu3 = out(0, 0, 0, 3.f);
+        const CelF3 negEmu = out(0, 1.f, 0, 0), negEmu2 = out(0, 2.f, 0, 0);
+        std::printf("  grey %.3f %.3f %.3f | neg dust %.3f %.3f %.3f | print dust %.3f %.3f %.3f\n", r0.x, r0.y, r0.z, negDust.x,
+                    negDust.y, negDust.z, prDust.x, prDust.y, prDust.z);
+        std::printf("  print emulsion 1/2/3 layers: %.3f %.3f %.3f | %.3f %.3f %.3f | %.3f %.3f %.3f\n", prEmu.x, prEmu.y, prEmu.z,
+                    prEmu2.x, prEmu2.y, prEmu2.z, prEmu3.x, prEmu3.y, prEmu3.z);
+        std::printf("  negative emulsion 1/2 layers: %.3f %.3f %.3f | %.3f %.3f %.3f\n", negEmu.x, negEmu.y, negEmu.z, negEmu2.x,
+                    negEmu2.y, negEmu2.z);
+        auto lum = [](CelF3 c) { return 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z; };
+        CHECK(lum(negDust) > lum(r0) + 0.25f && std::fabs(negDust.x - negDust.y) < 0.08f, "negative dust prints white");
+        CHECK(lum(prDust) < lum(r0) - 0.2f && std::fabs(prDust.x - prDust.y) < 0.03f, "print dust is dark and neutral");
+        CHECK(prEmu.y > prEmu.x + 0.1f && prEmu.y > prEmu.z + 0.1f, "print emulsion scratch (magenta layer gone) is green");
+        CHECK(prEmu2.x > prEmu2.z + 0.1f && prEmu2.y > prEmu2.z + 0.1f, "deeper print scratch (magenta + cyan gone) is yellow");
+        CHECK(lum(prEmu3) > lum(prEmu2) && prEmu3.z > prEmu2.z + 0.2f, "a scratch to the print base is clear (white)");
+        CHECK(negEmu.z < negEmu.x - 0.1f && negEmu.z < negEmu.y - 0.1f, "negative emulsion scratch (yellow layer gone) prints yellow");
+        CHECK(negEmu2.x > negEmu2.y + 0.1f && negEmu2.x > negEmu2.z + 0.1f, "deeper negative scratch prints red");
+        for (float v : {-1.f, 1e30f, NAN, INFINITY}) {
+            const CelF3 b = out(v, v, v, v);
+            CHECK(std::isfinite(b.x) && std::isfinite(b.y) && std::isfinite(b.z), "hostile damage values stay finite (%g)", double(v));
+        }
+        // reversal: the projected film is the camera film: all dust is dark
+        eng::FrameSettings rv = fs;
+        const auto negs = cel::core::negativeStocks();
+        for (size_t n = 0; n < negs.size(); ++n) if (negs[n].name.find("RV") == 0) rv.look.negStock = int(n);
+        pipe.prepare(rv.look);
+        const float* sr = pipe.state().data();
+        const CelF3 rg = celc_scene_to_output_dmg(sr, g, z, 0, cel_f4(0, 0, 0, 0));
+        const CelF3 rn = celc_scene_to_output_dmg(sr, g, z, 0, cel_f4(1.f, 0, 0, 0));
+        const CelF3 rp = celc_scene_to_output_dmg(sr, g, z, 0, cel_f4(0, 0, 1.f, 0));
+        CHECK(lum(rn) < lum(rg) - 0.1f && lum(rp) < lum(rg) - 0.1f, "reversal: dust is dark on either side");
+    }
+    // ---- Texture Only and the full frame: finite, visible
+    {
+        eng::FrameSettings fs; fs.tex = everythingOn(ps); fs.look.grainAmount = 1.f;
+        fs.tex.damageEnabled = true; fs.tex.dustAmount = 2.f; fs.tex.scratchAmount = 2.f; fs.tex.hairAmount = 2.f;
+        fs.tex.blurEnabled = true; fs.tex.blurFrequency = 1.f; fs.tex.blurBreathing = 1.f;
+        for (int m = 0; m < 2; ++m) {
+            eng::FrameSettings f2 = fs;
+            if (m) f2.mode = cel::core::Mode::TextureOnly;
+            Img in = scene;
+            if (m) for (float& v : in.px) v = std::min(1.f, std::max(0.f, v));
+            const Img o = frameOf(f2, in, pipe);
+            CHECK(allFinite(o), "%s with damage + blur finite", m ? "Texture Only" : "Full");
+        }
+    }
+    // ---- robustness of the field: sizes, scales, times, hostile parameters
+    {
+        const int sizes[][2] = {{1, 1}, {1, 9}, {7, 5}, {1921, 3}};
+        const float scales[] = {0.05f, 1.f, 10.f};
+        for (auto& s : sizes)
+            for (float p : scales) {
+                TextureParams tp = damageParams(2.f, 2.f, 2.f, 1e9, p);
+                tp.dustSize = 3.f;
+                CHECK(fieldValid(damageField(s[0], s[1], tp)), "field %dx%d scale %g finite", s[0], s[1], double(p));
+            }
+        TextureParams bad = damageParams(NAN, INFINITY, -1.f, NAN, 1.f);
+        bad.dustSize = NAN; bad.scratchPersistence = INFINITY; bad.dustNegative = -3.f;
+        CHECK(fieldValid(damageField(97, 61, bad)), "hostile damage parameters stay finite");
+        TextureParams tm = damageParams(1.f, 1.f, 1.f, -123456.0, 1.f);
+        CHECK(fieldValid(damageField(97, 61, tm)), "negative times");
+    }
+}
+
+void testFilmBlur() {
+    section("film blur: events, easing, frequency, bypass");
+    TextureParams tp;
+    tp.blurEnabled = true; tp.blurRadius = 4.f; tp.blurBreathing = 0.f;
+    for (float freq : {0.1f, 0.3f, 0.7f}) {
+        tp.blurFrequency = freq;
+        int soft = 0, n = 0;
+        double maxStep = 0, prev = cel::tex::filmBlurStrength(tp, 0.0), lo = 1, hi = 0;
+        for (int f = 1; f < 24000; ++f) {
+            const double s = cel::tex::filmBlurStrength(tp, f);
+            lo = std::min(lo, s); hi = std::max(hi, s);
+            soft += s > 0.05; ++n;
+            maxStep = std::max(maxStep, std::fabs(s - prev));
+            prev = s;
+        }
+        std::printf("  frequency %.1f: soft %.2f of the time, strength %.2f..%.2f, max change per frame %.3f\n", freq,
+                    double(soft) / n, lo, hi, maxStep);
+        CHECK(lo >= 0.0 && hi <= 1.0 && hi > 0.5, "strength in [0, 1] with real events");
+        CHECK(std::fabs(double(soft) / n - freq * 0.8) < 0.15, "soft share follows the frequency (%f)", double(soft) / n);
+        CHECK(maxStep < 0.3, "blur eases in and out (max step %f)", maxStep);
+    }
+    tp.blurFrequency = 0.f; tp.blurBreathing = 0.f;
+    bool none = true;
+    for (int f = 0; f < 2000; ++f) none = none && cel::tex::filmBlurStrength(tp, f) == 0.0;
+    CHECK(none, "frequency 0 and no breathing: never soft");
+    tp.blurBreathing = 1.f;
+    double bmax = 0;
+    for (int f = 0; f < 2000; ++f) bmax = std::max(bmax, cel::tex::filmBlurStrength(tp, f));
+    CHECK(bmax > 0.1 && bmax <= 0.4 + 1e-9, "breathing alone stays gentle (%f)", bmax);
+    // determinism, seed
+    tp.blurFrequency = 0.5f;
+    TextureParams t2 = tp; t2.blurSeed = 5;
+    bool diff = false;
+    for (int f = 0; f < 500; ++f) {
+        CHECK(cel::tex::filmBlurStrength(tp, f) == cel::tex::filmBlurStrength(tp, f), "deterministic");
+        diff = diff || cel::tex::filmBlurStrength(tp, f) != cel::tex::filmBlurStrength(t2, f);
+    }
+    CHECK(diff, "seed changes the blur timeline");
+    // a soft frame softens the picture, a sharp frame is bit-identical to blur off; chromatic: blue softest
+    {
+        const int W = 320, H = 180;
+        TextureParams q; q.blurEnabled = true; q.blurFrequency = 0.5f; q.blurBreathing = 0.f; q.blurRadius = 6.f; q.pixelScale = 1.f;
+        double tSoft = -1, tSharp = -1;
+        for (int f = 0; f < 2000 && (tSoft < 0 || tSharp < 0); ++f) {
+            const double s = cel::tex::filmBlurStrength(q, f);
+            if (s > 0.8 && tSoft < 0) tSoft = f;
+            if (s == 0.0 && tSharp < 0) tSharp = f;
+        }
+        CHECK(tSoft >= 0 && tSharp >= 0, "found soft and sharp frames");
+        const cel::tex::FilmBlurDesign big = [&] { TextureParams b = q; b.time = tSoft; b.blurRadius = 12.f; b.pixelScale = 2.f; b.blurChromatic = 1.f;
+                                                   return cel::tex::designFilmBlur(b, 3840, 2160, 2.f); }();
+        CHECK(big.on && big.sigma[2] > big.sigma[0] && big.sigma[0] > big.sigma[1], "chromatic: blue > red > green softness");
+        CHECK(big.level >= 1, "large blurs run on the pyramid (level %d)", big.level);
+        Img src(W, H);
+        for (int y = 0; y < H; ++y) for (int x = 0; x < W; ++x) {
+            float* p = src.at(x, y); const float c = ((x / 4 + y / 4) % 2) ? 0.6f : 0.1f; p[0] = p[1] = p[2] = c; p[3] = 1.f; }
+        cel::core::Pipeline pipe;
+        eng::FrameSettings fs; fs.tex.pixelScale = q.pixelScale;
+        auto contrast = [&](const Img& o) { double s = 0; for (int y = 10; y < H - 10; ++y) for (int x = 10; x < W - 10; ++x) s += std::fabs(o.at(x, y)[1] - o.at(x + 1, y)[1]); return s; };
+        fs.tex.time = tSoft;
+        size_t nOff = 0, nSoft = 0, nSharp = 0;
+        const Img off = frameOf(fs, src, pipe, &nOff);
+        eng::FrameSettings fb = fs; fb.tex.blurEnabled = true; fb.tex.blurFrequency = q.blurFrequency; fb.tex.blurBreathing = 0.f;
+        fb.tex.blurRadius = q.blurRadius;
+        const Img soft = frameOf(fb, src, pipe, &nSoft);
+        CHECK(nSoft > nOff && contrast(soft) < 0.6 * contrast(off), "soft frame is blurred (%f vs %f)", contrast(soft), contrast(off));
+        CHECK(allFinite(soft), "blurred frame finite");
+        fs.tex.time = tSharp; fb.tex.time = tSharp;
+        CHECK(sameBits(frameOf(fs, src, pipe), frameOf(fb, src, pipe, &nSharp)) && nSharp == nOff, "sharp frame = bit-identical bypass");
+        // the flat field stays flat (no brightness or colour change from the decode -> blur -> encode chain)
+        Img flat(W, H, 0.3f, 0.3f, 0.3f, 1.f);
+        fs.tex.time = tSoft; fb.tex.time = tSoft;
+        const Img a = frameOf(fs, flat, pipe), b = frameOf(fb, flat, pipe);
+        double dev = 0;
+        for (size_t i = 0; i < a.px.size(); ++i) dev = std::max(dev, double(std::fabs(a.px[i] - b.px[i])));
+        CHECK(dev < 2e-4, "blur keeps a flat field (dev %g)", dev);
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -785,6 +1123,8 @@ int main(int argc, char** argv) {
     testHalationBloom();
     testAcutanceVignetteWeave();
     testRobustness();
+    testFilmDamage();
+    testFilmBlur();
     testPool();
     if (timing) testTimings();
     std::printf("\n%d checks, %d failures (%.1f s)\n", g_checks, g_fail, (nowMs() - t0) / 1000.0);

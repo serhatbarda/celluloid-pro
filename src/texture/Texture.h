@@ -49,6 +49,33 @@ struct TextureParams {
     bool  grainAnimated  = true;  // false = static pattern
     int   grainSeed      = 0;
     bool  grainMonochrome= false; // B&W stocks: one shared field
+
+    // film damage (v1.1, SPEC §5): procedural dust, scratches and hair, deterministic per frame and
+    // seed. The damage field is applied by the colour pass: negative-side defects before printing
+    // (they print white / take the print's colour), print-side defects on the projected print (dark).
+    // damageEnabled = false or every amount 0: no passes at all.
+    bool  damageEnabled      = false;
+    float dustAmount         = 0.f;   // 0 .. 2 (0 = no dust; 1 = a lightly soiled print)
+    float dustSize           = 1.f;   // 0.5 .. 3
+    float dustNegative       = 0.35f; // 0 .. 1 share of the dust on the negative (prints white)
+    float scratchAmount      = 0.f;   // 0 .. 2
+    float scratchPersistence = 0.6f;  // 0 .. 1 short flickering flicks .. long continuous runs
+    float scratchEmulsion    = 0.3f;  // 0 .. 1 share of emulsion (coloured) vs base (neutral) scratches
+    float scratchNegative    = 0.25f; // 0 .. 1 share of the scratches on the negative
+    float hairAmount         = 0.f;   // 0 .. 2
+    bool  damageAnimated     = true;  // false = frozen (the damage of frame 0)
+    int   damageSeed         = 0;
+
+    // film blur (v1.1, SPEC §5): momentary projection focus drift ("sometimes soft"), applied to the
+    // finished (display-referred) image so grain and damage soften with it. blurEnabled = false or a
+    // frame whose blur is below 0.05 px: no passes.
+    bool  blurEnabled        = false;
+    float blurRadius         = 3.f;   // px @1920: defocus disc radius at the peak of an event
+    float blurFrequency      = 0.3f;  // 0 .. 1 share of the time the image is soft
+    float blurDuration       = 24.f;  // frames, mean length of a soft event (ease in, hold, ease out)
+    float blurBreathing      = 0.2f;  // 0 .. 1 continuous gentle focus breathing (share of the radius)
+    float blurChromatic      = 0.3f;  // 0 .. 1 per-channel (longitudinal chromatic) defocus
+    int   blurSeed           = 0;
 };
 
 }} // namespace cel::tex

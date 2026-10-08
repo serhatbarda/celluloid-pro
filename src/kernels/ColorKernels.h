@@ -11,12 +11,18 @@
  *                   in1 = grain noise field (xyz = R-,G-,B-sensitive layer; zero mean, unit variance)
  *                         -- used only when a->inStride[1] != 0 (ABI: stride 0 = input unused)
  *                   in2 = host source (alpha source) -- used when a->inStride[2] != 0, else alpha of in0
+ *                   in3 = film damage field (v1.1, tx_damage in DamageKernels.h) -- used when
+ *                         a->inStride[3] != 0: x = negative neutral density, y = negative emulsion
+ *                         removal depth (layers, 0..3), z = print neutral density, w = print emulsion
+ *                         removal depth. Applied physically: see celc_negative_dmg / celc_film_xyz_dmg.
  *                   out = encoded output (LookParams.output)
  *   display_decode  Texture-Only: in0 = host source, display-encoded in LookParams.output
  *                   out = display-linear in the output primaries (SDR: 1.0 = display white;
  *                         PQ / HLG: cd/m^2 / 100), alpha copied
  *   display_finish  Texture-Only: in0 = display-linear (after texture passes), in1 = grain noise
- *                   (as above), in2 = host source (alpha, as above) -> out = display-encoded
+ *                   (as above), in2 = host source (alpha, as above), in3 = damage field (as above,
+ *                   display-referred approximation) -> out = display-encoded. Also re-encodes the
+ *                   film-blur chain's result (no grain, no damage).
  * Helper functions are prefixed celc_ (never cel_<kernel name>, which the GPU entry points use).
  */
 #ifndef CEL_COLOR_KERNELS_H
@@ -138,8 +144,28 @@ CEL_DEVICE CelF3 celc_exposures(CEL_GLOBAL const float* s, CelF3 rgb) {
 
 typedef struct { CelF3 d; float silver; float xref; } CelcNeg;
 
-/* layer exposures -> interlayer (DIR) -> curves -> grain -> retained silver */
-CEL_DEVICE CelcNeg celc_negative(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise) {
+/* ---- film damage (v1.1): emulsion removal by a scratch, per dye layer ------------------------
+ * A scratch `depth` layers deep (0..3, fractional = partly through a layer) removes the dye of the
+ * layers it cuts through, top layer first. Camera negative (and reversal) emulsions carry the
+ * blue-sensitive (yellow dye) layer on top, then green (magenta), then red (cyan) next to the base;
+ * colour print film carries the green-sensitive (magenta) layer on top, then red (cyan), then blue
+ * (yellow). Black & white films have one layer. Returns the removed fraction per layer (r, g, b =
+ * red-, green-, blue-sensitive layer). */
+CEL_DEVICE CelF3 celc_dmg_removal(float depth, int printFilm, int mono) {
+    if (mono) { float r = cel_saturate(depth); return cel_f3(r, r, r); }
+    if (printFilm) return cel_f3(cel_saturate(depth - 1.0f), cel_saturate(depth), cel_saturate(depth - 2.0f));
+    return cel_f3(cel_saturate(depth - 2.0f), cel_saturate(depth - 1.0f), cel_saturate(depth));
+}
+CEL_DEVICE CelF3 celc_dmg_remove(CelF3 d, CelF3 r) {
+    return cel_f3(d.x * (1.0f - r.x), d.y * (1.0f - r.y), d.z * (1.0f - r.z));
+}
+
+/* layer exposures -> interlayer (DIR) -> curves -> grain -> retained silver (celc_negative), with
+ * film damage on the negative: dmgNd = neutral density in the light path (dust, hair, base
+ * scratch: acts like retained silver, i.e. it holds back printer / scanner / projector light),
+ * dmgDepth = emulsion removal depth (scratch through the dye layers, after grain: the dye clouds are
+ * gone where the emulsion is). Zero damage is bit-identical to celc_negative. */
+CEL_DEVICE CelcNeg celc_negative_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise, float dmgNd, float dmgDepth) {
     CelF3 x = celc_exposures(s, rgb);
     int nco = celc_i(s, CEL_CS_NC_OFF), ncn = celc_i(s, CEL_CS_NC_N);
     float x0 = s[CEL_CS_NC_X0], x1 = s[CEL_CS_NC_X1];
@@ -165,12 +191,17 @@ CEL_DEVICE CelcNeg celc_negative(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noi
         d.y += s[CEL_CS_GSIG + 1] * cel_sqrt(cel_fmax(d.y - dmin.y, 0.0f) + CEL_GRAIN_EPS) * nz.y;
         d.z += s[CEL_CS_GSIG + 2] * cel_sqrt(cel_fmax(d.z - dmin.z, 0.0f) + CEL_GRAIN_EPS) * nz.z;
     }
+    if (dmgDepth > 0.0f) d = celc_dmg_remove(d, celc_dmg_removal(dmgDepth, 0, celc_i(s, CEL_CS_MONO)));
     CelcNeg r;
     r.d = d;
     r.silver = s[CEL_CS_NB] * (s[CEL_CS_LW] * cel_fmax(d.x - dmin.x, 0.0f) + s[CEL_CS_LW + 1] * cel_fmax(d.y - dmin.y, 0.0f) +
                                s[CEL_CS_LW + 2] * cel_fmax(d.z - dmin.z, 0.0f));
+    if (dmgNd > 0.0f) r.silver += dmgNd;
     r.xref = xref;
     return r;
+}
+CEL_DEVICE CelcNeg celc_negative(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise) {
+    return celc_negative_dmg(s, rgb, noise, hasNoise, 0.0f, 0.0f);
 }
 
 CEL_DEVICE CelF3 celc_pow10_3(CelF3 v) { return cel_f3(celc_pow10(v.x), celc_pow10(v.y), celc_pow10(v.z)); }
@@ -197,17 +228,32 @@ CEL_DEVICE CelF3 celc_project(CEL_GLOBAL const float* s, CelF3 D, float nd) {
 /* scene-linear Rec.2020 -> D65-adapted display XYZ (1 = display white); xref out for HDR */
 typedef struct { CelF3 X; float xref; } CelcFilm;
 
-CEL_DEVICE CelcFilm celc_film_xyz(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise) {
-    CelcNeg ng = celc_negative(s, rgb, noise, hasNoise);
+/* scene -> film XYZ (celc_film_xyz), with film damage dmg = (negative neutral density, negative emulsion depth, print neutral density,
+ * print emulsion depth), see the colour kernel's in3:
+ *   Print     negative-side damage holds back printer light (dust / hair / base scratch print WHITE,
+ *             an emulsion scratch prints in the colours of the missing layers: yellow -> red -> dark);
+ *             print-side damage sits in the projected print (dust / hair / base scratch DARK, an
+ *             emulsion scratch shows the layers below: green -> yellow -> clear white).
+ *   Reversal  the camera film is the projected film: both sides act on it (all dust is dark).
+ *   Lab Scan  negative-side damage is scanned and inverted (white); print-side damage is applied to
+ *             the scanned positive's densities (dark), like dirt on a print of the scan. */
+CEL_DEVICE CelcFilm celc_film_xyz_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise, CelF4 dmg) {
     int kind = celc_i(s, CEL_CS_KIND);
+    int mono = celc_i(s, CEL_CS_MONO);
+    /* reversal: the camera original is projected, so print-side damage lands on the same film */
+    float negNd = kind == 2 ? dmg.x + dmg.z : dmg.x;
+    float negDepth = kind == 2 ? cel_fmax(dmg.y, dmg.w) : dmg.y;
+    CelcNeg ng = celc_negative_dmg(s, rgb, noise, hasNoise, negNd, negDepth);
     CelF3 X;
     if (kind == 0) {
         CelF3 h = celc_lut3(s, celc_i(s, CEL_CS_PL_OFF), celc_i(s, CEL_CS_PL_N), s[CEL_CS_PL_MAX], ng.d);
         h = cel_f3(h.x + s[CEL_CS_OFF] - ng.silver, h.y + s[CEL_CS_OFF + 1] - ng.silver, h.z + s[CEL_CS_OFF + 2] - ng.silver);
         CelF3 P = celc_lut1_3(s, celc_i(s, CEL_CS_PC_OFF), celc_i(s, CEL_CS_PC_N), s[CEL_CS_PC_U0], s[CEL_CS_PC_U1], h);
+        if (dmg.w > 0.0f) P = celc_dmg_remove(P, celc_dmg_removal(dmg.w, 1, mono));
         float ps = s[CEL_CS_PB] * (s[CEL_CS_LW] * cel_fmax(P.x - s[CEL_CS_PMIN], 0.0f) +
                                    s[CEL_CS_LW + 1] * cel_fmax(P.y - s[CEL_CS_PMIN + 1], 0.0f) +
                                    s[CEL_CS_LW + 2] * cel_fmax(P.z - s[CEL_CS_PMIN + 2], 0.0f));
+        if (dmg.z > 0.0f) ps += dmg.z;
         X = celc_mat3(s, CEL_CS_MXYZ, celc_project(s, P, ps));
     } else if (kind == 2) {
         X = celc_mat3(s, CEL_CS_MXYZ, celc_project(s, ng.d, ng.silver));
@@ -228,12 +274,17 @@ CEL_DEVICE CelcFilm celc_film_xyz(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 no
         e = cel_f3(0.5f * (e.x + cel_sqrt(e.x * e.x + fl)), 0.5f * (e.y + cel_sqrt(e.y * e.y + fl)), 0.5f * (e.z + cel_sqrt(e.z * e.z + fl)));
         CelF3 w = cel_f3(cel_log10(e.x), cel_log10(e.y), cel_log10(e.z));
         CelF3 Dd = celc_lut1_3(s, celc_i(s, CEL_CS_PC_OFF), celc_i(s, CEL_CS_PC_N), s[CEL_CS_PC_U0], s[CEL_CS_PC_U1], w);
+        if (dmg.w > 0.0f) Dd = celc_dmg_remove(Dd, celc_dmg_removal(dmg.w, 1, mono));
+        if (dmg.z > 0.0f) Dd = cel_f3(Dd.x + dmg.z, Dd.y + dmg.z, Dd.z + dmg.z);
         X = celc_mat3(s, CEL_CS_MXYZ, celc_pow10_3(cel_f3(-Dd.x, -Dd.y, -Dd.z)));
     }
     CelcFilm r;
     r.X = X;
     r.xref = ng.xref;
     return r;
+}
+CEL_DEVICE CelcFilm celc_film_xyz(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise) {
+    return celc_film_xyz_dmg(s, rgb, noise, hasNoise, cel_f4(0.0f, 0.0f, 0.0f, 0.0f));
 }
 
 /* ------------------------------------------------------------------------- hue hold */
@@ -248,8 +299,10 @@ CEL_DEVICE CelcFilm celc_film_xyz(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 no
 /* CIELAB f(t) and its inverse (cube root above (6/29)^3, linear segment below) */
 CEL_DEVICE float celc_labf(float x) { return x > 0.008856451679f ? cel_pow(x, 0.333333333333333f) : 7.787037037f * x + 0.137931034f; }
 CEL_DEVICE float celc_labfinv(float f) { return f > 0.206896552f ? f * f * f : (f - 0.137931034f) * 0.128418549f; }
-CEL_DEVICE CelF3 celc_hold(CEL_GLOBAL const float* s, CelF3 X, float xref, CelF3 rgb) {
-    float hold = s[CEL_CS_HOLD];
+/* celc_hold_k: holdScale k in [0, 1]: 1 = the stock's hold; film damage lowers it (a scratch or a speck must keep
+ * the colour the damage gives it, not be turned back toward the scene's hue) */
+CEL_DEVICE CelF3 celc_hold_k(CEL_GLOBAL const float* s, CelF3 X, float xref, CelF3 rgb, float holdScale) {
+    float hold = s[CEL_CS_HOLD] * holdScale;
     if (!(hold > 0.0f)) return X;
     float Ys = 0.26270021f * rgb.x + 0.67799807f * rgb.y + 0.05930172f * rgb.z;
     if (!(Ys > 1e-10f) || !(X.y > 1e-10f)) return X;
@@ -306,6 +359,7 @@ CEL_DEVICE CelF3 celc_hold(CEL_GLOBAL const float* s, CelF3 X, float xref, CelF3
     float e0 = an0 + cel_cos(h) * k, e1 = an1 + cel_sin(h) * k;
     return cel_f3(CEL_D65_X * celc_labfinv(e0 * 0.4f + cy), X.y, CEL_D65_Z * celc_labfinv(cy - e1));
 }
+CEL_DEVICE CelF3 celc_hold(CEL_GLOBAL const float* s, CelF3 X, float xref, CelF3 rgb) { return celc_hold_k(s, X, xref, rgb, 1.0f); }
 
 /* ------------------------------------------------------------------------- output stage */
 /* hue-preserving smooth gamut compression toward the luminance axis (C1, asymptote at the boundary) */
@@ -351,10 +405,10 @@ CEL_DEVICE CelF3 celc_encode_sdr(int out, CelF3 rgb) {
     return cel_f3(celc_spow(rgb.x, e), celc_spow(rgb.y, e), celc_spow(rgb.z, e));
 }
 
-CEL_DEVICE CelF3 celc_output(CEL_GLOBAL const float* s, CelF3 XYZ, float xref, CelF3 scene) {
+CEL_DEVICE CelF3 celc_output_k(CEL_GLOBAL const float* s, CelF3 XYZ, float xref, CelF3 scene, float holdScale) {
     int out = celc_i(s, CEL_CS_OUTPUT);
     int hdr = celc_i(s, CEL_CS_HDR);
-    XYZ = celc_hold(s, XYZ, xref, scene);
+    XYZ = celc_hold_k(s, XYZ, xref, scene, holdScale);
     if (hdr == 0) {
         CelF3 rgb = celc_mat3(s, CEL_CS_MOUT, XYZ);
         rgb = celc_gamut_compress(s, rgb);
@@ -372,14 +426,27 @@ CEL_DEVICE CelF3 celc_output(CEL_GLOBAL const float* s, CelF3 XYZ, float xref, C
     if (hdr == 1) return cel_f3(celc_pq_enc(rgb.x), celc_pq_enc(rgb.y), celc_pq_enc(rgb.z));
     return celc_hlg_from_nits(s, rgb);
 }
+CEL_DEVICE CelF3 celc_output(CEL_GLOBAL const float* s, CelF3 XYZ, float xref, CelF3 scene) {
+    return celc_output_k(s, XYZ, xref, scene, 1.0f);
+}
 
-CEL_DEVICE CelF3 celc_scene_to_output(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise) {
+/* damage field sanitised: finite, non-negative, densities <= 6, depths <= 3 */
+CEL_DEVICE CelF4 celc_dmg_clean(CelF4 g) {
+    return cel_f4(cel_clamp(cel_finite_or(g.x, 0.0f), 0.0f, 6.0f), cel_clamp(cel_finite_or(g.y, 0.0f), 0.0f, 3.0f),
+                  cel_clamp(cel_finite_or(g.z, 0.0f), 0.0f, 6.0f), cel_clamp(cel_finite_or(g.w, 0.0f), 0.0f, 3.0f));
+}
+CEL_DEVICE CelF3 celc_scene_to_output_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise, CelF4 dmg) {
     rgb = cel_f3(celc_sanitize(rgb.x), celc_sanitize(rgb.y), celc_sanitize(rgb.z));
     noise = cel_f3(cel_clamp(cel_finite_or(noise.x, 0.0f), -8.0f, 8.0f), cel_clamp(cel_finite_or(noise.y, 0.0f), -8.0f, 8.0f),
                    cel_clamp(cel_finite_or(noise.z, 0.0f), -8.0f, 8.0f));
-    CelcFilm f = celc_film_xyz(s, rgb, noise, hasNoise);
-    CelF3 o = celc_output(s, f.X, f.xref, rgb);
+    dmg = celc_dmg_clean(dmg);
+    CelcFilm f = celc_film_xyz_dmg(s, rgb, noise, hasNoise, dmg);
+    float hk = 1.0f - cel_saturate(3.0f * (dmg.x + dmg.y + dmg.z + dmg.w));
+    CelF3 o = celc_output_k(s, f.X, f.xref, rgb, hk);
     return cel_f3(cel_finite_or(o.x, 0.0f), cel_finite_or(o.y, 0.0f), cel_finite_or(o.z, 0.0f));
+}
+CEL_DEVICE CelF3 celc_scene_to_output(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise) {
+    return celc_scene_to_output_dmg(s, rgb, noise, hasNoise, cel_f4(0.0f, 0.0f, 0.0f, 0.0f));
 }
 
 /* ------------------------------------------------------------------------- Texture-Only */
@@ -399,7 +466,34 @@ CEL_DEVICE CelF3 celc_display_decode_px(CEL_GLOBAL const float* s, CelF3 v) {
     return cel_f3(celc_spow(v.x, 2.6f), celc_spow(v.y, 2.6f), celc_spow(v.z, 2.6f));
 }
 
-CEL_DEVICE CelF3 celc_display_finish_px(CEL_GLOBAL const float* s, CelF3 lin, CelF3 noise, int hasNoise) {
+/* Texture-Only film damage on a display-linear image (no film model available: a display-referred
+ * stand-in with the same signs and colours as celc_film_xyz_dmg). Values above display white (HDR)
+ * are left alone by the density re-mappings, so an SDR-legal input stays legal.
+ *   negative neutral density nd: the print received less light -> display density shrinks,
+ *       L' = L^(e^(-3 nd)) (white specks; ~ print gamma x nd at mid grey)
+ *   negative emulsion removal r: the print received more light in that layer -> L' = L 10^(-2 r)
+ *   print emulsion removal r:    the print's dye is gone -> T' = T^(1 - r)
+ *   print neutral density pd:    L' = L 10^(-pd) */
+CEL_DEVICE float celc_dmg_pow1(float L, float e) { return (L > 0.0f && L < 1.0f) ? cel_exp2(e * cel_log2(L)) : L; }
+CEL_DEVICE CelF3 celc_display_damage(CEL_GLOBAL const float* s, CelF3 lin, CelF4 dmg) {
+    int mono = celc_i(s, CEL_CS_MONO);
+    if (dmg.x > 0.0f) {
+        float e = cel_exp(-3.0f * dmg.x);
+        lin = cel_f3(celc_dmg_pow1(lin.x, e), celc_dmg_pow1(lin.y, e), celc_dmg_pow1(lin.z, e));
+    }
+    if (dmg.y > 0.0f) {
+        CelF3 r = celc_dmg_removal(dmg.y, 0, mono);
+        lin = cel_f3(lin.x * celc_pow10(-2.0f * r.x), lin.y * celc_pow10(-2.0f * r.y), lin.z * celc_pow10(-2.0f * r.z));
+    }
+    if (dmg.w > 0.0f) {
+        CelF3 r = celc_dmg_removal(dmg.w, 1, mono);
+        lin = cel_f3(celc_dmg_pow1(lin.x, 1.0f - r.x), celc_dmg_pow1(lin.y, 1.0f - r.y), celc_dmg_pow1(lin.z, 1.0f - r.z));
+    }
+    if (dmg.z > 0.0f) lin = celc_scale(lin, celc_pow10(-dmg.z));
+    return lin;
+}
+
+CEL_DEVICE CelF3 celc_display_finish_dmg(CEL_GLOBAL const float* s, CelF3 lin, CelF3 noise, int hasNoise, CelF4 dmg, int hasDmg) {
     int out = celc_i(s, CEL_CS_OUTPUT);
     lin = cel_f3(celc_sanitize_d(lin.x), celc_sanitize_d(lin.y), celc_sanitize_d(lin.z));
     if (hasNoise && s[CEL_CS_TX_GSIG] > 0.0f) {
@@ -419,11 +513,15 @@ CEL_DEVICE CelF3 celc_display_finish_px(CEL_GLOBAL const float* s, CelF3 lin, Ce
             lin = cel_f3(lin.x * celc_pow10(-sig * nz.x), lin.y * celc_pow10(-sig * nz.y), lin.z * celc_pow10(-sig * nz.z));
         }
     }
+    if (hasDmg) lin = celc_display_damage(s, lin, celc_dmg_clean(dmg));
     CelF3 o;
     if (out == CEL_OUT_PQ) o = cel_f3(celc_pq_enc(lin.x * 100.0f), celc_pq_enc(lin.y * 100.0f), celc_pq_enc(lin.z * 100.0f));
     else if (out == CEL_OUT_HLG) o = celc_hlg_from_nits(s, celc_scale(lin, 100.0f));
     else o = celc_encode_sdr(out, lin);
     return cel_f3(cel_finite_or(o.x, 0.0f), cel_finite_or(o.y, 0.0f), cel_finite_or(o.z, 0.0f));
+}
+CEL_DEVICE CelF3 celc_display_finish_px(CEL_GLOBAL const float* s, CelF3 lin, CelF3 noise, int hasNoise) {
+    return celc_display_finish_dmg(s, lin, noise, hasNoise, cel_f4(0.0f, 0.0f, 0.0f, 0.0f), 0);
 }
 
 /* ------------------------------------------------------------------------- kernels */
@@ -445,9 +543,10 @@ CEL_DEVICE void cel_k_color(CEL_KERNEL_PARAMS) {
     /* i[1] = 1: in0 is the encoded host source (Color Only plan: decode fused into this pass,
      * bit-identical to a separate decode pass) */
     if (a->i[1] != 0) sc = celc_decode_px(state, sc);
-    CelF3 r = celc_scene_to_output(state, sc, nz, hasNoise);
+    CelF4 dmg = cel_f4(0.0f, 0.0f, 0.0f, 0.0f);
+    if (a->inStride[3] != 0) dmg = cel_load(in3, a->inStride[3], a->inW[3], a->inH[3], x, y);
+    CelF3 r = celc_scene_to_output_dmg(state, sc, nz, hasNoise, dmg);
     cel_store(out, a->outStride, x, y, cel_f4(r.x, r.y, r.z, alpha));
-    (void)in3;
 }
 
 CEL_DEVICE void cel_k_display_decode(CEL_KERNEL_PARAMS) {
@@ -464,9 +563,11 @@ CEL_DEVICE void cel_k_display_finish(CEL_KERNEL_PARAMS) {
     if (hasNoise) { CelF4 n = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], x, y); nz = cel_f3(n.x, n.y, n.z); }
     float alpha = p.w;
     if (a->inStride[2] != 0) alpha = cel_load(in2, a->inStride[2], a->inW[2], a->inH[2], x, y).w;
-    CelF3 r = celc_display_finish_px(state, cel_f3(p.x, p.y, p.z), nz, hasNoise);
+    int hasDmg = a->inStride[3] != 0;
+    CelF4 dmg = cel_f4(0.0f, 0.0f, 0.0f, 0.0f);
+    if (hasDmg) dmg = cel_load(in3, a->inStride[3], a->inW[3], a->inH[3], x, y);
+    CelF3 r = celc_display_finish_dmg(state, cel_f3(p.x, p.y, p.z), nz, hasNoise, dmg, hasDmg);
     cel_store(out, a->outStride, x, y, cel_f4(r.x, r.y, r.z, alpha));
-    (void)in3;
 }
 
 #endif /* CEL_COLOR_KERNELS_H */

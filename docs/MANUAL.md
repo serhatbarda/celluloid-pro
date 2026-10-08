@@ -262,6 +262,8 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Slide Show Brilliance* — Daylight reversal (slide) film projected directly: brilliant saturation, deep blacks, short latitude - expose carefully.
   - *Monochrome Noir* — Panchromatic black & white negative pushed one stop on the rich-contrast print: inky blacks, glowing highlights, strong vignette.
   - *Home Movie Super 8* — Reversal film in the Super 8 gauge: bold colour, big soft grain, warm halation, nervous gate weave and heavy vignetting.
+  - *Worn Release Print* — A well-run 35 mm release print, timed warm: high-speed negative on the standard print with a few dark specks, the odd white negative speck, a persistent print scratch now and then, gentle gate weave and a rare moment of soft focus.
+  - *Found Footage 16* — A forgotten 16 mm reel: daylight negative on the faded print, its cyan dye gone warm-magenta, coarse grain, nervous weave, lots of dust and lint, flickering scratches, hairs in the gate and focus that drifts in and out.
 - **Preset Status** (`lookPresetStatus`; read-only; shows “Custom” until a preset is chosen) — Which look preset the current settings come from. "(modified)" means you have changed at least one look setting since applying it.
 - **Mode** (`mode`; default: Full)
   - *Full* — complete film emulation (colour + halation, bloom, grain, lens and gate effects).
@@ -360,6 +362,37 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Enable Vignette** (`vignetteEnable`; default on) — Switches the vignette on or off without losing its setting. Off = even illumination; the pass is skipped.
 - **Vignette** (`vignette`; 0 … 1; default 0; keyframable) — Natural lens light fall-off towards the corners, applied to the scene light before the film (so it darkens like an optical vignette, not a grey overlay). 0 = off.
 
+### Film Damage
+
+*Dust, scratches and hair on the negative and on the print - procedural, different every frame.*
+
+- **Enable Film Damage** (`damageEnable`; default off) — Adds the dirt and wear of a real film copy: dust, scratches and the occasional hair. The damage is placed physically: dirt on the camera NEGATIVE holds back the printer light and prints as white specks in the print's own colour and grain, dirt on the PRINT shows dark on the screen. Off (the default) skips everything.
+- **Enable Dust** (`dustEnable`; default on) — Dust and dirt specks, a new pattern on every frame (each frame of film collects its own dirt).
+- **Dust Amount** (`dustAmount`; 0 … 2; default 0.6; keyframable) — How dirty the film is: the number of specks per frame. 0.5 = a clean projection copy with an occasional speck, 1 = a well-used print, 2 = a neglected reel.
+- **Dust Size** (`dustSize`; 0.5 … 3; default 1; keyframable) — Size of the specks and lint fibres relative to a 35 mm frame (1 = nominal). Resolution independent.
+- **White Dust Mix** (`dustNegative`; 0 … 1; default 0.35; keyframable) — Share of the dust that sat on the camera negative. Negative dirt prints as bright WHITE specks (slightly soft, out of the printer's focus); print dirt shows as sharp DARK specks. 0 = only dark specks, 1 = only white specks. Reversal (slide) film has no print: all of its dirt is dark.
+- **Enable Scratches** (`scratchEnable`; default on) — Vertical scratches along the film's travel, cut by grit in a camera or projector gate.
+- **Scratch Amount** (`scratchAmount`; 0 … 2; default 0.5; keyframable) — How many scratches run through the picture at a time (1 = one or two, 2 = a badly worn copy).
+- **Scratch Persistence** (`scratchPersistence`; 0 … 1; default 0.6; keyframable) — How long a scratch stays and how continuous it is. Low = short, broken flicks that come and go within a few frames; high = long continuous lines that stay for seconds, wandering slightly with the film.
+- **Emulsion Scratches** (`scratchEmulsion`; 0 … 1; default 0.3; keyframable) — Share of the scratches that cut into the emulsion instead of only the base. Base scratches scatter light and are neutral (dark on the print, white when on the negative). Emulsion scratches remove dye layers from the top and are coloured: on the print green, then yellow, then clear white as they get deeper; on the negative they print yellow, then red, then dark.
+- **White Scratch Mix** (`scratchNegative`; 0 … 1; default 0.25; keyframable) — Share of the scratches on the camera negative (printed in: white or warm-coloured lines) instead of on the print (dark or green lines).
+- **Enable Hair** (`hairEnable`; default on) — The occasional hair or fibre: on the film for a single frame, or caught in the projector gate - then it sticks out of the frame edge, slightly out of focus, fluttering for a few seconds.
+- **Hair Amount** (`hairAmount`; 0 … 2; default 0.5; keyframable) — How often hairs appear (1 = a hair on the film about every second and now and then one in the gate).
+- **Animated Damage** (`damageAnimated`; default on) — On: the damage changes from frame to frame like real film running through a projector. Off: frozen (the damage of frame 0), for stills.
+- **Damage Seed** (`damageSeed`; 0 … 9999; default 0; keyframable) — Changes the random dust, scratches and hairs. Give different shots different seeds so the damage never repeats.
+
+### Film Blur
+
+*Momentary softness of projected film: focus drift and film breathing in the gate.*
+
+- **Enable Film Blur** (`filmBlurEnable`; default off) — Now and then the picture goes soft and comes back, like film buckling in a warm projector gate or a focus that drifts. The blur acts on the projected image, so grain and damage soften with it. Off (the default) skips it; frames without blur cost nothing.
+- **Blur Radius** (`filmBlurRadius`; 0.5 … 12; default 3; keyframable) — How soft the picture gets at the peak of a soft moment: radius of the out-of-focus blur in pixels at 1920 px width (scaled automatically for other resolutions).
+- **Blur Frequency** (`filmBlurFrequency`; 0 … 1; default 0.3) — How often the picture goes soft: roughly the share of the time spent in a soft moment. 0 = never (only Focus Breathing), 1 = almost always drifting.
+- **Blur Duration** (`filmBlurDuration`; 12 … 240; default 24) — Average length of a soft moment in frames, including easing in and out (individual moments vary from half to one and a half times this, and last at least 18 frames so they can ease in and out).
+- **Focus Breathing** (`filmBlurBreathing`; 0 … 1; default 0.2; keyframable) — A continuous, gentle in-and-out drift of focus between the soft moments (share of the Blur Radius). 0 = sharp between them.
+- **Chromatic Softness** (`filmBlurChromatic`; 0 … 1; default 0.3; keyframable) — Colour of the defocus: red and especially blue go softer than green, as with a real projection lens out of focus (faint coloured fringes on edges). 0 = neutral blur.
+- **Blur Seed** (`filmBlurSeed`; 0 … 9999; default 0; keyframable) — Changes when the soft moments happen. Give different shots different seeds.
+
 ### Output
 
 *Display encoding of the result.*
@@ -401,7 +434,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 - **Every module has its own switch.** The first control of each module is an **Enable** checkbox
   (Enable Exposure, Development, Print Timing, Halation, Bloom, Grain, Acutance, Gate Weave,
-  Vignette, Highlight Unroll). Unticking it switches the module off while its values stay where you
+  Vignette, Film Damage with Dust / Scratches / Hair, Film Blur, Highlight Unroll). Unticking it switches the module off while its values stay where you
   left them, so you can compare with and without at a click, or keep a dialled-in setting for later.
   What "off" means:
 
@@ -411,11 +444,14 @@ Resolve's keyframe editor. Read-only rows are status lines.
   | Enable Development | standard development: Push / Pull 0, Color Density 1, no Neg Bleach Bypass, Neutralize 0 — the film stock stays |
   | Enable Print Timing | printer lights and Print Density at 0 points (automatic grey balance), no Print Bleach Bypass — Process and Print Stock stay |
   | Enable Halation / Bloom / Grain / Acutance / Gate Weave / Vignette | the effect is skipped completely (no render cost) |
+  | Enable Film Damage (and Dust / Scratches / Hair) | no damage at all; a sub-switch off = that kind of damage at Amount 0 |
+  | Enable Film Blur | always sharp; the passes are skipped |
   | Enable Highlight Unroll | the SDR print look in the HDR container (as Unroll 0) |
 
   The stock pair, Process and Mode are never switched off: the choice of stocks *is* the look. A
-  switched-off module renders exactly like the module at its neutral values. All switches are on by
-  default, so projects saved with version 1.0 open and render unchanged.
+  switched-off module renders exactly like the module at its neutral values. The switches of the
+  version 1.0 modules are on by default, so projects saved with version 1.0 open and render
+  unchanged; the new Film Damage and Film Blur modules are off by default.
 - **Halation, bloom and grain scale with the stock.** Each negative has its own halation strength
   (no-backing stocks glow much more), bloom strength and grain size; the Amount and Size controls
   are relative to that. Black & white stocks automatically use monochrome grain.
@@ -426,6 +462,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - Color Only mode: all texture controls. Texture Only mode: all colour controls (Camera Log,
     Exposure, negative and print).
   - A module switched off (Enable box unticked): that module's controls.
+  - Film Damage off: the Dust, Scratches and Hair switches and every damage control.
   - Process = Lab Scan: Print Stock and Print Bleach Bypass.
   - Reversal stocks (RV 100 Slide): Process, Print Stock, printer lights, Print Density and Print
     Bleach Bypass — a slide is a direct positive; time it with Exposure and balance before the node.
@@ -474,15 +511,18 @@ rendering that keeps the negative's character without print contrast.
 
 ### Look presets
 
-Twelve curated looks are in the **Look Preset** menu: Studio Classic, Tungsten Night Drama, Soft
+Fourteen curated looks are in the **Look Preset** menu: Studio Classic, Tungsten Night Drama, Soft
 Daylight Pastel, Archive 1978, Silver Retention Thriller, Neon Nocturne, Golden Hour Portrait, Crisp
-Commercial, Summer Snapshot, Slide Show Brilliance, Monochrome Noir and Home Movie Super 8 (each is
-described in the controls reference above).
+Commercial, Summer Snapshot, Slide Show Brilliance, Monochrome Noir, Home Movie Super 8, and the two
+film-damage looks Worn Release Print and Found Footage 16 (each is described in the controls
+reference above).
 
 A preset is a complete recipe: it sets every look parameter (stocks, development, print, printer
-lights, halation, bloom, grain, lens and gate), and parameters it does not mention return to their
-defaults, so a preset always gives the same image. It never changes Camera Log, Exposure, Mode,
-Output, HDR settings, the grain seed, LUT export or license settings. After any edit the
+lights, halation, bloom, grain, lens and gate, film damage and film blur), and parameters it does
+not mention return to their defaults (so every preset except the two damage looks switches film
+damage and film blur off), so a preset always gives the same image. It never changes Camera Log,
+Exposure, Mode, Output, HDR settings, the grain, damage and blur seeds, LUT export or license
+settings. After any edit the
 **Preset Status** line reads "*name* (modified)"; it is recalculated from the actual values, so it
 stays correct after undo and after reopening a project.
 
@@ -555,6 +595,40 @@ Values are starting points; trust your monitor.
 5. For black & white, **BW 400 Panchromatic** renders colour like a real panchromatic emulsion: use
    the colour of the scene (a warm or cool balance before the node) the way a cinematographer uses
    coloured filters.
+
+### Film damage: dust, scratches, hair and soft focus
+
+Film damage is placed where it happens physically, so it takes the print's colour and grain
+instead of sitting on top like an overlay:
+
+- **Dust and dirt** on the camera *negative* hold back the printer light: they print as bright,
+  slightly soft **white** specks. Dirt on the *print* is in the projector beam: sharp **dark**
+  specks. **White Dust Mix** sets the share of each. Each frame of film collects its own dirt, so
+  the pattern is new every frame; a few specks are lint fibres.
+- **Scratches** run along the film's travel and stay for many frames, wandering slightly. **Scratch
+  Persistence** low = short, broken flicks; high = long continuous lines that last for seconds.
+  Base scratches are neutral (dark on the print, white on the negative). **Emulsion Scratches** cut
+  through the dye layers from the top: on a print they show **green** (magenta layer gone), then
+  yellow, then clear white as they get deeper; on the negative they print yellow, then red.
+- **Hair**: now and then a hair or fibre for a single frame, or a hair caught in the projector gate
+  that sticks out of the frame edge, soft and fluttering, for a few seconds.
+- **Film Blur**: now and then the picture goes soft and comes back (film buckling in a warm gate,
+  focus drift). **Blur Frequency** sets how often, **Blur Duration** how long a soft moment lasts,
+  **Focus Breathing** adds a gentle continuous drift, **Chromatic Softness** makes red and blue
+  softer than green like a real projection lens.
+
+Recipe:
+
+1. Start from **Worn Release Print** (a well-run 35 mm print) or **Found Footage 16** (a battered
+   16 mm reel), or tick **Enable Film Damage** on any look.
+2. Judge damage at 100 % zoom and in playback: single specks are one frame long and read as
+   "film" only in motion.
+3. Keep damage subtle for drama (Dust Amount 0.3–0.6, Scratch Amount 0.2–0.5, Hair 0.2) and
+   generous for archival or music-video work.
+4. Give every shot a different **Damage Seed** (and **Blur Seed**) so the damage never repeats from
+   cut to cut. For stills, untick **Animated Damage**.
+5. Damage and film blur appear in Full and Texture Only mode, never in Color Only or in an exported
+   LUT (a LUT cannot hold texture).
 
 ### HDR deliverable
 
@@ -665,8 +739,9 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
   on AMD/Intel under Windows. Each GPU backend runs a self test when the plug-in loads, and only
   backends that pass are offered to Resolve. Check **Preferences › Memory and GPU** in Resolve: the
   GPU processing mode must be Metal, CUDA or OpenCL, not CPU.
-- **Turn off what you do not use.** Halation, bloom, acutance, gate weave, vignette and grain each
-  skip their passes entirely when their Enable box is unticked (or at 0). Halation and bloom are the
+- **Turn off what you do not use.** Halation, bloom, acutance, gate weave, vignette, grain and film
+  damage each skip their passes entirely when their Enable box is unticked (or at 0); film blur costs
+  nothing on frames that are sharp. Halation and bloom are the
   most expensive texture effects.
 - **Color Only** is the fastest mode. Grade in Color Only and add texture once at the end (section 7)
   when playback is tight.
@@ -700,6 +775,8 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
 | Grain looks too strong or too fine in the viewer | Judge grain at 100 % zoom; the viewer scales it. Grain is resolution independent and matches the final render. |
 | Grain looks identical on two layered clips | Give each instance a different **Grain Seed**. |
 | Grain is frozen | **Animated Grain** is off. |
+| Dust and scratches do not change / are identical on two clips | **Animated Damage** is off, or both clips use the same **Damage Seed**. |
+| Damage or film blur missing | Film Damage / Film Blur are off by default and never render in Color Only mode. |
 | "LUT export is part of the licensed version" | Activate a license key (section 10). |
 | "This license key could not be activated" | Paste the complete key including `CELL1-`; the message explains the reason (for example an expired subscription key or a key for another product). |
 | Watermark still visible after activation | Check License Status. A machine-wide or environment key with an error is reported there. Re-render the frame (Resolve may show a cached frame). |
@@ -722,7 +799,8 @@ Version 1.0.0 is honest about what has and has not been verified yet:
   much faster. The CUDA backend has been compiled for every supported NVIDIA generation but not yet
   executed on NVIDIA hardware; Metal has run only on a virtual GPU in CI.
 - **Real footage.** The looks were designed on carefully built synthetic F-Log2 C scenes (skin,
-  skies, neon, foliage, high and low key). A review on real F-Log2 C clips is in progress.
+  skies, neon, foliage, high and low key). Film damage and film blur (1.1) were tuned on real
+  F-Log2 C frames from a Fujifilm X-H2S; a full review of the looks on real clips is in progress.
 - **Seat counts** in license keys are informational: an offline key can be copied. Seat limits are
   part of the license agreement, not technical copy protection.
 - **Texture Only** works on display-referred images; it does not know how a previous grade was made,

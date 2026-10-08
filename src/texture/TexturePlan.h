@@ -20,6 +20,11 @@ engine::Plan buildTexturePlan(int w, int h, const TextureParams& tp, bool displa
 // exactly what the colour pass receives as in1. src is not read (pass any w x h image).
 engine::Plan buildGrainPlan(int w, int h, const TextureParams& tp);
 
+// Film damage field only (v1.1): dst = what the colour pass receives as in3 (x = negative neutral
+// density, y = negative emulsion depth, z = print neutral density, w = print emulsion depth); a zero
+// field when the damage module draws nothing. src is not read.
+engine::Plan buildDamagePlan(int w, int h, const TextureParams& tp);
+
 // Effective pixel scale used by the plan builder (TextureParams::pixelScale if valid, else w/1920).
 float effectivePixelScale(const TextureParams& tp, int w);
 

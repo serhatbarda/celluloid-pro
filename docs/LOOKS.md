@@ -1,9 +1,11 @@
 # Celluloid Pro - Look presets
 
-Twelve curated looks, chosen in the **Look Preset** menu (Look group). A preset is a complete recipe: it sets
-every look parameter (stocks, development, print, printer lights, halation, bloom, grain, lens and gate);
+Fourteen curated looks, chosen in the **Look Preset** menu (Look group). A preset is a complete recipe: it sets
+every look parameter (stocks, development, print, printer lights, halation, bloom, grain, lens and gate, film
+damage and film blur);
 parameters a preset does not mention go back to their defaults, so a preset always produces the same image.
-Input colour space, Exposure, Mode, Output, HDR, LUT export, license and the grain seed are never touched.
+Input colour space, Exposure, Mode, Output, HDR, LUT export, license and the grain / damage / blur seeds are never
+touched.
 After any change the Preset Status line reads "<name> (modified)".
 
 **Module switches (v1.1).** Every module has an Enable checkbox (Development, Print Timing, Halation,
@@ -11,7 +13,9 @@ Bloom, Grain, Acutance, Gate Weave, Vignette). The switches of the development, 
 part of a preset like the module's sliders. The twelve original looks keep every one of these modules
 switched on: a module a look does not use sits at its neutral value (for example Vignette 0), exactly as in
 version 1.0, so a project saved with 1.0 that uses a look still shows the look's name without "(modified)"
-after the update. Switching a module off in a look marks it "(modified)" like any other edit.
+after the update. Switching a module off in a look marks it "(modified)" like any other edit. The new Film Damage
+and Film Blur modules are off by default, so the twelve original looks show no damage; looks 13 and 14 switch them
+on.
 
 All looks are original designs made for this plug-in on our own stocks; none imitates a particular film
 title, production or commercial product. They were designed and checked on real-world-like F-Log2 C test
@@ -42,6 +46,8 @@ index): new looks will be appended.
 | 10 | **Slide Show Brilliance** | RV 100 Slide | reversal (direct) | Daylight reversal (slide) film projected directly |
 | 11 | **Monochrome Noir** | BW 400 Panchromatic | P3 Rich Contrast | Panchromatic black & white negative pushed one stop on the rich-contrast print |
 | 12 | **Home Movie Super 8** | RV 100 Slide | reversal (direct) | Reversal film in the Super 8 gauge |
+| 13 | **Worn Release Print** | CN 500T High Speed | P1 Standard Projection | A well-run 35 mm release print, timed warm, with light film damage (v1.1) |
+| 14 | **Found Footage 16** | CN 250D Soft Daylight | P4 Faded Archive | A battered, faded 16 mm reel with heavy film damage and drifting focus (v1.1) |
 
 ## 1. Studio Classic
 
@@ -163,6 +169,26 @@ index): new looks will be appended.
 
 **Key settings.** Negative RV 100 Slide, Push/Pull 1.5, Color Density 1.6, Halation 0.8, Hal. Radius 30, Hal. Threshold 3, Hal. Hue 0.3, Bloom 0.45, Bloom Radius 70, Format Super 8, Grain Amount 1.6, Grain Softness 0.6, Acutance -0.15, Gate Weave 1.1, Weave Speed 1.4, Vignette 0.45.
 
+## 13. Worn Release Print
+
+*A well-run 35 mm release print, timed warm: high-speed negative on the standard print with a few dark specks, the odd white negative speck, a persistent print scratch now and then, gentle gate weave and a rare moment of soft focus.*
+
+**Intent.** The cinema experience of a print that has been projected a few dozen times: the picture is clean enough to watch, but it is unmistakably film running through a projector. Timed slightly warm and magenta like many release prints, with mild gate weave and the occasional soft moment.
+
+**When to use.** Period pieces, flashbacks, "screening room" moments, trailers and title sequences. Give each shot its own Damage Seed so the dirt never repeats across a cut.
+
+**Key settings.** Negative CN 500T High Speed, Print P1 Standard Projection, Printer R +1 / G +0.5 / B -0.5, Print Density 0.5, Halation 0.6, Hal. Threshold 3.4, Bloom 0.2, Format Super 35, Grain Amount 1, Acutance 0.25, Gate Weave 0.6, Vignette 0.2; Film Damage on: Dust 0.7 (White Dust Mix 0.3), Scratches 0.5 (Persistence 0.75, Emulsion 0.35, White Scratch Mix 0.2), Hair 0.35; Film Blur on: Radius 2.5, Frequency 0.12, Duration 30, Breathing 0.15, Chromatic 0.3.
+
+## 14. Found Footage 16
+
+*A forgotten 16 mm reel: daylight negative on the faded print, its cyan dye gone warm-magenta, coarse grain, nervous weave, lots of dust and lint, flickering scratches, hairs in the gate and focus that drifts in and out.*
+
+**Intent.** Footage that has been through a lot: a faded print whose colour has drifted toward warm magenta with lifted blacks, 16 mm grain, an unsteady gate, plenty of dirt from both the negative (white) and the print (dark), short flickering scratches and a projector whose focus wanders.
+
+**When to use.** Found-footage and documentary-archive inserts, music videos, memories, horror. Lower Dust and Scratch Amount for a cleaner copy; set Film Blur Frequency to 0 if the soft moments distract.
+
+**Key settings.** Negative CN 250D Soft Daylight, Print P4 Faded Archive, Printer R -1.5 / G +1, Print Density -1.5, Halation 0.8, Hal. Radius 30, Hal. Threshold 3, Hal. Hue 0.25, Bloom 0.35, Bloom Radius 60, Format 16 mm, Grain Amount 1, Grain Softness 0.7, Acutance 0, Gate Weave 1 at Speed 1.2, Vignette 0.4; Film Damage on: Dust 1.4 (Size 1.2, White Dust Mix 0.4), Scratches 1.2 (Persistence 0.4, Emulsion 0.5, White Scratch Mix 0.3), Hair 0.9; Film Blur on: Radius 4, Frequency 0.3, Duration 36, Breathing 0.35, Chromatic 0.5.
+
 ## Revision notes (v1.1)
 
 * Halation no longer floods dark edges next to bright skies (new energy model, default threshold 2.5 -> 3.5
@@ -180,3 +206,5 @@ index): new looks will be appended.
   Hal. Threshold 2.6 -> 3: its own bold colour, clearly grainier than every 35 mm look.
 * Every pair of presets now differs in colour alone (texture off, colour-only chart) by a mean CIEDE2000 >= 2
   (render test `presets`), so no two looks share the same colour.
+* Two looks appended for film damage (feature round 1.1): Worn Release Print and Found Footage 16 (above). Every
+  other preset switches Film Damage and Film Blur off (presets reset unlisted look parameters to their defaults).

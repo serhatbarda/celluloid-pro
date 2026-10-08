@@ -76,6 +76,19 @@ MODULES = [
     ("vignetteEnable", {"vignette": 1.0}, {"vignette": 0.0}, "full", "natural"),
     ("grainEnable", {"grainAmount": 2.0}, {"grainAmount": 0.0}, "full", "natural"),
     ("halationEnable", {"halationAmount": 1.5}, {"halationAmount": 0.0}, "texture", "display"),
+    # v1.1 film damage (master + sub-switches) and film blur; damage frame 2 holds dust, scratches and a hair
+    ("damageEnable", {"dustAmount": 2.0, "scratchAmount": 2.0, "hairAmount": 2.0},
+     {"dustAmount": 0.0, "scratchAmount": 0.0, "hairAmount": 0.0}, "full", "natural"),
+    ("dustEnable", {"damageEnable": True, "dustAmount": 2.0, "scratchAmount": 0.0, "hairAmount": 0.0},
+     {"damageEnable": True, "dustAmount": 0.0, "scratchAmount": 0.0, "hairAmount": 0.0}, "full", "natural"),
+    ("scratchEnable", {"damageEnable": True, "dustAmount": 0.0, "scratchAmount": 2.0, "hairAmount": 0.0},
+     {"damageEnable": True, "dustAmount": 0.0, "scratchAmount": 0.0, "hairAmount": 0.0}, "full", "natural"),
+    ("hairEnable", {"damageEnable": True, "dustAmount": 0.0, "scratchAmount": 0.0, "hairAmount": 2.0},
+     {"damageEnable": True, "dustAmount": 0.0, "scratchAmount": 0.0, "hairAmount": 0.0}, "full", "natural"),
+    ("damageEnable", {"dustAmount": 2.0, "scratchAmount": 2.0, "hairAmount": 2.0},
+     {"dustAmount": 0.0, "scratchAmount": 0.0, "hairAmount": 0.0}, "texture", "display"),
+    ("filmBlurEnable", {"filmBlurFrequency": 1.0, "filmBlurBreathing": 1.0, "filmBlurRadius": 12.0},
+     {"filmBlurFrequency": 0.0, "filmBlurBreathing": 0.0, "filmBlurRadius": 12.0}, "full", "natural"),
 ]
 SPEC_NEGS = ["CN 50D Fine Daylight", "CN 200T Studio Tungsten", "CN 250D Soft Daylight", "CN 500T High Speed",
              "CN 800T No-Backing", "CN Vintage 85", "C41 Portrait 400", "C41 Consumer 200", "RV 100 Slide",
@@ -87,6 +100,8 @@ GRAIN_FORMATS = [("Super 8", r"8"), ("16 mm", r"16"), ("Super 35", r"35(?!\s*mm\
 FORBIDDEN_STOCK = r"\b(kodak|fuji\w*|vision\s*3|portra|ektar|eterna|2383|2393|cinestill|ektachrome|velvia|provia|kodachrome|tri-?x|ilford|hp5|agfa|superia)\b"
 FORBIDDEN_ANY = r"\b(kodak|portra|ektar|eterna|2383|2393|cinestill|ektachrome|velvia|provia|kodachrome|superia)\b"
 
+DAMAGE_ALL = {"damageEnable": True, "dustAmount": 2.0, "scratchAmount": 2.0, "hairAmount": 2.0, "scratchEmulsion": 0.5,
+              "filmBlurEnable": True, "filmBlurFrequency": 1.0, "filmBlurBreathing": 1.0, "filmBlurRadius": 12.0}
 TEX_OFF = {"halationAmount": 0.0, "bloomAmount": 0.0, "grainEnable": False, "acutanceAmount": 0.0,
            "weaveAmount": 0.0, "vignette": 0.0}
 
@@ -742,6 +757,91 @@ class Suite:
             self.check(g, "%s (%s): on changes the image" % (sw, mode), d_on > 1e-4 or m_on > 0.01,
                        "mean diff %.5f, max %.4f" % (d_on, m_on), "mean > 1e-4 or max > 0.01")
 
+    # ------------------------------------------------------------------ film damage / film blur (v1.1)
+    def g_damage(self):
+        """Film damage + film blur through the real bundle: off by default, per-frame dust, persistent
+        scratches, frozen / seeded damage, physical placement (negative dust prints white, print dust
+        dark), soft moments that come and go, finite output in every mode; contact sheet."""
+        g = "damage"
+        if not self.has("damageEnable"):
+            self.check(g, "damageEnable present", False, "missing")
+            return
+        full = ("index", self.ix["full"])
+        off = dict(TEX_OFF, mode=full)
+        dmg = dict(off, damageEnable=True, dustAmount=1.5, scratchAmount=1.5, hairAmount=1.5)
+        L = [self.line("dm_default", "natural", {"mode": full}, frames="0:1"),
+             self.line("dm_off", "natural", off, time_=5),
+             self.line("dm_anim", "natural", dmg, frames="0:5"),
+             self.line("dm_again", "natural", dmg, time_=3),
+             self.line("dm_frozen", "natural", dict(dmg, damageAnimated=False), frames="0:2"),
+             self.line("dm_seed", "natural", dict(dmg, damageSeed=123), time_=3),
+             self.line("dm_grey", "grey", off, time_=4),
+             self.line("dm_white", "grey", dict(off, damageEnable=True, dustAmount=2.0, dustNegative=1.0, scratchAmount=0.0,
+                                                 hairAmount=0.0), time_=4),
+             self.line("dm_dark", "grey", dict(off, damageEnable=True, dustAmount=2.0, dustNegative=0.0, scratchAmount=0.0,
+                                                hairAmount=0.0), time_=4),
+             self.line("dm_blur", "natural", dict(off, filmBlurEnable=True, filmBlurFrequency=0.5, filmBlurDuration=12.0,
+                                                   filmBlurRadius=8.0, filmBlurBreathing=0.0), frames="0:47"),
+             self.line("dm_texonly", "display", dict(DAMAGE_ALL, mode=("index", self.ix["texture"])), time_=2),
+             self.line("dm_half", "natural", dict(DAMAGE_ALL, mode=full), time_=2, scale=0.5)]
+        sheet = [("off", off), ("dust (white + dark)", dict(off, damageEnable=True, dustAmount=2.0, scratchAmount=0.0, hairAmount=0.0)),
+                 ("scratches", dict(off, damageEnable=True, dustAmount=0.0, scratchAmount=2.0, scratchEmulsion=0.6, hairAmount=0.0)),
+                 ("hair", dict(off, damageEnable=True, dustAmount=0.0, scratchAmount=0.0, hairAmount=2.0)),
+                 ("all damage", dict(DAMAGE_ALL, mode=full, filmBlurEnable=False)), ("film blur peak", dict(off, filmBlurEnable=True,
+                  filmBlurFrequency=1.0, filmBlurBreathing=1.0, filmBlurRadius=6.0))]
+        for i, (lab, ov) in enumerate(sheet):
+            L.append(self.line("dms_%d" % i, "natural_sheet", ov, png=True, time_=2))
+        presets = self.P.options("lookPreset")
+        for name in ("Worn Release Print", "Found Footage 16"):
+            if name in presets:
+                L.append(self.line("dms_p_%s" % name.split()[0], "natural_sheet", {"mode": full}, png=True, time_=2,
+                                   post=[("lookPreset", ("index", presets.index(name)))]))
+        self.batch("damage", L)
+        d0 = self.load("dm_default", "natural", 0)
+        self.check(g, "film damage / blur off by default", self.P.default("damageEnable") in (False, 0) and
+                   self.P.default("filmBlurEnable") in (False, 0), "defaults %s / %s" % (self.P.default("damageEnable"),
+                                                                                         self.P.default("filmBlurEnable")))
+        fr = [self.load("dm_anim", "natural", t) for t in range(6)]
+        base = self.load("dm_off", "natural")
+        diffs = [float(np.abs(f - base).max()) for f in fr]
+        self.check(g, "damage visible on every frame", min(diffs) > 0.05, "min max|damage - clean| %.3f" % min(diffs))
+        ch = [float((np.abs(fr[t] - fr[t + 1]).max(axis=2) > 0.02).mean()) for t in range(5)]
+        self.check(g, "damage changes from frame to frame (dust lives one frame)", min(ch) > 1e-4, "min changed share %.5f" % min(ch))
+        d = float(np.abs(self.load("dm_again", "natural") - fr[3]).max())
+        self.check(g, "deterministic: frame 3 rendered again is identical", d == 0.0, "max diff %.2e" % d)
+        fz = [self.load("dm_frozen", "natural", t) for t in range(3)]
+        d = max(float(np.abs(fz[0] - fz[t]).max()) for t in (1, 2))
+        self.check(g, "Animated Damage off: frozen", d == 0.0, "max diff %.2e" % d)
+        d = float(np.abs(self.load("dm_seed", "natural") - fr[3]).mean())
+        self.check(g, "Damage Seed changes the damage", d > 1e-4, "mean diff %.5f" % d)
+        grey = self.load("dm_grey", "grey")[..., :3].mean(axis=2)
+        wh = self.load("dm_white", "grey")[..., :3].mean(axis=2) - grey
+        dk = self.load("dm_dark", "grey")[..., :3].mean(axis=2) - grey
+        self.check(g, "negative dust prints WHITE (only brighter specks)", wh.max() > 0.2 and wh.min() > -0.02,
+                   "speck change %+.3f .. %+.3f" % (wh.min(), wh.max()))
+        self.check(g, "print dust is DARK (only darker specks)", dk.min() < -0.2 and dk.max() < 0.02,
+                   "speck change %+.3f .. %+.3f" % (dk.min(), dk.max()))
+        bl = [self.load("dm_blur", "natural", t)[..., 1] for t in range(48)]
+        sharp = self.load("dm_off", "natural")[..., 1]
+        hf = lambda im: float(np.abs(np.diff(im, axis=1)).mean())
+        ratio = np.array([hf(b) / hf(sharp) for b in bl])
+        soft = int((ratio < 0.8).sum())
+        steps = float(np.abs(np.diff(ratio)).max())
+        self.data["film_blur_ratio"] = [round(float(x), 3) for x in ratio]
+        self.check(g, "film blur: soft some of the time, sharp the rest", 4 <= soft <= 44 and ratio.max() > 0.97,
+                   "%d / 48 soft frames, detail ratio %.2f..%.2f" % (soft, ratio.min(), ratio.max()))
+        self.check(g, "film blur eases in and out", steps < 0.25, "max frame-to-frame detail change %.3f" % steps)
+        for lab, sc, sca in (("dm_texonly", "display", 1.0), ("dm_half", "natural", 0.5)):
+            st = A.finite_stats(self.load(lab, sc, scale=sca))
+            self.check(g, "%s finite and in range" % lab, st["nan"] == 0 and st["inf"] == 0 and st["max"] <= 1.0 + 1e-6 and
+                       st["min"] >= -1e-6, "min %.4f max %.4f NaN %d" % (st["min"], st["max"], st["nan"]))
+        items = [(lab, self.load("dms_%d" % i, "natural_sheet")) for i, (lab, _) in enumerate(sheet)]
+        for name in ("Worn Release Print", "Found Footage 16"):
+            if name in presets:
+                items.append(("preset " + name, self.load("dms_p_%s" % name.split()[0], "natural_sheet")))
+        self.sheets.append(sheets.contact_sheet(items, os.path.join(self.out, "contact_damage.png"),
+                                                "Film damage and film blur (Full mode, frame 2)", cols=4))
+
     # ------------------------------------------------------------------ texture features
     def g_texture(self):
         g = "texture"
@@ -1052,7 +1152,9 @@ class Suite:
                                               "acutanceAmount": 1.0, "weaveAmount": 1.5, "vignette": 0.6}, {"time_": 3}),
                 ("display_texture", "display", {"mode": ("index", self.ix["texture"])}, {}),
                 ("hl_full", "highlights", {"mode": full, "halationAmount": 2.0, "bloomAmount": 2.0}, {}),
-                ("nat_half", "natural", {"mode": full}, {"scale": 0.5})]
+                ("nat_half", "natural", {"mode": full}, {"scale": 0.5}),
+                ("nat_damage_blur", "natural", dict(DAMAGE_ALL, mode=full), {"time_": 2}),
+                ("display_damage_blur", "display", dict(DAMAGE_ALL, mode=("index", self.ix["texture"])), {"time_": 2})]
         if pq is not None:
             cfgs.append(("chart_pq", "chart", {"outputSpace": ("index", pq)}, {}))
         for n in sorted(set([0, len(self.negs) - 1, self.opt("negStock", "RV|slide", default=0)])):
@@ -1368,7 +1470,7 @@ def main():
         print("setup failed: %s" % ex)
         return 2
     groups = [("params", s.g_conformance), ("license", s.g_license), ("stocks", s.g_stocks), ("section6", s.g_section6),
-              ("inputs", s.g_inputs), ("outputs", s.g_outputs), ("modes", s.g_modes), ("modules", s.g_modules), ("texture", s.g_texture), ("presets", s.g_presets),
+              ("inputs", s.g_inputs), ("outputs", s.g_outputs), ("modes", s.g_modes), ("modules", s.g_modules), ("damage", s.g_damage), ("texture", s.g_texture), ("presets", s.g_presets),
               ("animation", s.g_animation), ("render_scale", s.g_scale), ("gpu_parity", s.g_gpu), ("lut_export", s.g_lut),
               ("stock_sheet", s.g_stock_sheet), ("performance", s.g_perf)]
     only = set(x for x in a.only.split(",") if x)
