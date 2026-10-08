@@ -124,6 +124,17 @@ constexpr const char* licenseRemove = "licenseRemove";
 // [About]
 constexpr const char* aboutVersion = "aboutVersion";
 constexpr const char* aboutManual = "aboutManual";
+// ---- v1.1: module switches (one checkbox at the top of every module; appended IDs) ----------
+// Off = the module is bypassed with its values kept (see Params.cpp for each module's "off").
+constexpr const char* exposureEnable = "exposureEnable";        // [Input]
+constexpr const char* developmentEnable = "developmentEnable";  // [Negative]
+constexpr const char* printEnable = "printEnable";              // [Print]
+constexpr const char* halationEnable = "halationEnable";        // [Halation]
+constexpr const char* bloomEnable = "bloomEnable";              // [Bloom]
+constexpr const char* acutanceEnable = "acutanceEnable";        // [Lens & Gate]
+constexpr const char* weaveEnable = "weaveEnable";              // [Lens & Gate]
+constexpr const char* vignetteEnable = "vignetteEnable";        // [Lens & Gate]
+constexpr const char* hdrUnrollEnable = "hdrUnrollEnable";      // [Output]
 } // namespace id
 
 // LUT sizes offered by lutSize, in option order.

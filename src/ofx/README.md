@@ -15,10 +15,19 @@ built with the OpenFX C++ Support library (compiled statically from the pinned O
 
 ## Parameters
 
-IDs and choice-option order are permanent (stored in projects); append only. Groups:
+IDs and choice-option order are permanent (stored in projects); append only (new parameters may be
+*displayed* anywhere, their IDs are new). Groups:
 Look, Input, Negative, Print, Halation, Bloom, Grain, Lens & Gate, Output, LUT Export, License,
 About (see `Params.cpp` for every range, default and hint). Labels are unambiguous outside their
 group too ("Halation Radius", "Grain Size"), because Resolve's keyframe editor shows labels only.
+
+**Module switches (v1.1).** Every module starts with a Bool `<module>Enable` (`exposureEnable`,
+`developmentEnable`, `printEnable`, `halationEnable`, `bloomEnable`, `grainEnable`, `acutanceEnable`,
+`weaveEnable`, `vignetteEnable`, `hdrUnrollEnable`), default on so projects saved before the switch existed
+render unchanged. Off keeps the values and renders the module's neutral state: `lookAt()` substitutes the
+neutral `LookParams` (exposure 0, standard development, 0 printer points / no print bleach, unroll 0; the
+stock pair, Process and Mode always stay), `frameSettingsAt()` sets the texture amount to 0, so the plan
+builder emits none of the module's passes. `refreshEnabledness()` greys a switched-off module's controls.
 
 Derived read-only labels (`lookPresetStatus`, `licenseStatus`, `aboutVersion`) are
 non-persistent and refreshed when an instance is created; `licenseStatus` evaluates on change so

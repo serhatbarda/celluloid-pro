@@ -6,6 +6,13 @@ parameters a preset does not mention go back to their defaults, so a preset alwa
 Input colour space, Exposure, Mode, Output, HDR, LUT export, license and the grain seed are never touched.
 After any change the Preset Status line reads "<name> (modified)".
 
+**Module switches (v1.1).** Every module has an Enable checkbox (Development, Print Timing, Halation,
+Bloom, Grain, Acutance, Gate Weave, Vignette). The switches of the development, print and texture modules are
+part of a preset like the module's sliders. The twelve original looks keep every one of these modules
+switched on: a module a look does not use sits at its neutral value (for example Vignette 0), exactly as in
+version 1.0, so a project saved with 1.0 that uses a look still shows the look's name without "(modified)"
+after the update. Switching a module off in a look marks it "(modified)" like any other edit.
+
 All looks are original designs made for this plug-in on our own stocks; none imitates a particular film
 title, production or commercial product. They were designed and checked on real-world-like F-Log2 C test
 scenes (skin under tungsten and daylight at -2/0/+2 stops, golden hour, night city with neon and sodium light,

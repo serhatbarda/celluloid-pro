@@ -4,6 +4,27 @@ All notable changes to Celluloid Pro. Versions follow [Semantic Versioning](http
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.1.0] — unreleased
+
+### Added
+
+- **Module switches.** Every module has an Enable checkbox at the top of its controls: Exposure,
+  Development (push/pull, colour density, neg bleach bypass, neutralize), Print Timing (printer
+  lights, print density, print bleach bypass), Halation, Bloom, Grain, Acutance, Gate Weave, Vignette and
+  HDR Highlight Unroll. Unticking a module switches it off without losing its values; a switched-off
+  module renders exactly like its neutral setting and costs no render time. Its controls are dimmed.
+  The film stocks, Process and Mode always stay active (the stock pair is the look).
+
+### Changed
+
+- The grain checkbox is labelled "Enable Grain" (identifier `grainEnable` unchanged).
+
+### Compatibility
+
+- New parameters only; no identifier or choice order changed. The new switches default to on, so
+  projects saved with 1.0 open and render unchanged, and a look preset applied in 1.0 still shows its
+  name without "(modified)".
+
 ## [1.0.0] — unreleased
 
 First release of Celluloid Pro, the spectral film-emulation OpenFX plug-in for DaVinci Resolve.

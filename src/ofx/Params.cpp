@@ -122,6 +122,10 @@ std::vector<ParamDef> build() {
              "the camera log intact for this node, or convert to the matching log space before this node. "
              "Wrong settings show up as overly flat or harsh, colour-shifted images.",
              false);
+    b.boolean(id::exposureEnable, "Enable Exposure", true,
+              "Switches the Exposure trim below on or off without losing its value. Off = the footage reaches the "
+              "film exactly as it was recorded (0 stops).",
+              false);
     b.dbl(id::exposure, "Exposure", 0.0, -4.0, 4.0, 0.05, 2,
           "Camera exposure correction in stops, applied to the scene before it reaches the film. Because it acts "
           "before the negative, +/- exposure slides the image along the film's characteristic curve: highlights "
@@ -140,6 +144,12 @@ std::vector<ParamDef> build() {
     int negDefault = indexOf(negNames, "CN 200T Studio Tungsten");
     b.beginGroup(id::gNegative, "Negative", true, "Camera film stock and its development.");
     b.choice(id::negStock, "Film Stock", negNames, negDefault < 0 ? 0 : negDefault, negHint.c_str(), true);
+    b.boolean(id::developmentEnable, "Enable Development", true,
+              "Switches the development controls below (Push / Pull, Color Density, Neg Bleach Bypass, Neutralize) "
+              "on or off without losing their values. Off = the stock's standard development: no push or pull, "
+              "nominal colour density, normal bleach, the stock's own curves. The film stock itself always stays "
+              "active - it is the look.",
+              true);
     b.dbl(id::pushPull, "Push / Pull", 0.0, -2.0, 3.0, 0.1, 2,
           "Development in stops. Push (+) raises contrast and effective speed, lifts fog and makes the grain "
           "coarser (about x1.25 per stop); pull (-) gives a softer, lower-contrast, finer-grained negative. "
@@ -174,6 +184,11 @@ std::vector<ParamDef> build() {
              "The print film the negative is printed on (Process = Print). It sets print contrast, black density, "
              "highlight roll-off and the colour of the projected image.",
              true);
+    b.boolean(id::printEnable, "Enable Print Timing", true,
+              "Switches the lab timing controls below (Printer Red / Green / Blue, Print Density, Print Bleach "
+              "Bypass) on or off without losing their values. Off = the automatically grey-balanced light at 0 "
+              "points and normal print processing. Process and Print Stock always stay active - they are the look.",
+              true);
     const char* pointsNote =
         " Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's "
         "automatically grey-balanced light.";
@@ -198,6 +213,10 @@ std::vector<ParamDef> build() {
 
     // ---------------------------------------------------------------- [Halation]
     b.beginGroup(id::gHalation, "Halation", true, "Red-orange glow around bright light sources.");
+    b.boolean(id::halationEnable, "Enable Halation", true,
+              "Switches halation on or off without losing its settings. Off skips the halation passes entirely "
+              "(no render cost).",
+              true);
     b.dbl(id::halationAmount, "Halation Amount", 0.5, 0.0, 2.0, 0.01, 2,
           "Strength of halation: light that passes through the emulsion, reflects off the film base and re-exposes "
           "the red layer, creating a warm glow that hugs bright edges and practicals. Scaled by the stock "
@@ -217,6 +236,10 @@ std::vector<ParamDef> build() {
 
     // ---------------------------------------------------------------- [Bloom]
     b.beginGroup(id::gBloom, "Bloom", false, "Neutral diffusion of highlights.");
+    b.boolean(id::bloomEnable, "Enable Bloom", true,
+              "Switches bloom on or off without losing its settings. Off skips the bloom passes entirely "
+              "(no render cost).",
+              true);
     b.dbl(id::bloomAmount, "Bloom Amount", 0.15, 0.0, 2.0, 0.01, 2,
           "Gentle, neutral glow of bright areas from lens and emulsion scatter - softens harsh digital "
           "highlights without the warm tint of halation. Scaled by the stock. 0 = off.",
@@ -227,9 +250,10 @@ std::vector<ParamDef> build() {
 
     // ---------------------------------------------------------------- [Grain]
     b.beginGroup(id::gGrain, "Grain", true, "Film grain, generated in the film's density domain.");
-    b.boolean(id::grainEnable, "Grain", true,
+    b.boolean(id::grainEnable, "Enable Grain", true,
               "Adds film grain. Grain is added to the dye densities of the negative, so it behaves like real "
-              "grain: strongest in the mid-tones and shadows of the negative, varying per colour layer.",
+              "grain: strongest in the mid-tones and shadows of the negative, varying per colour layer. Off skips "
+              "the grain passes entirely and keeps the grain settings.",
               true);
     b.choice(id::grainFormat, "Grain Format", {"Super 8", "16 mm", "Super 35", "65 mm", "35 mm Stills"}, 2,
              "Film gauge the image was 'shot' on. Smaller formats enlarge the grain more: Super 8 is very coarse, "
@@ -259,6 +283,10 @@ std::vector<ParamDef> build() {
 
     // ---------------------------------------------------------------- [Lens & Gate]
     b.beginGroup(id::gLens, "Lens & Gate", false, "Sharpness, gate weave and vignetting.");
+    b.boolean(id::acutanceEnable, "Enable Acutance", true,
+              "Switches acutance (Acutance, Acutance Radius) on or off without losing its settings. Off = the "
+              "image's own sharpness; the passes are skipped.",
+              true);
     b.dbl(id::acutanceAmount, "Acutance", 0.3, -1.0, 2.0, 0.01, 2,
           "Edge contrast from development adjacency effects: crisp, film-like apparent sharpness without the "
           "halos of digital sharpening. Negative values soften the image.",
@@ -267,6 +295,10 @@ std::vector<ParamDef> build() {
           "Size of the adjacency effect in pixels at 1920 px width. Small = fine micro-contrast, larger = broader "
           "edge enhancement.",
           true);
+    b.boolean(id::weaveEnable, "Enable Gate Weave", true,
+              "Switches gate weave (Gate Weave, Weave Speed) on or off without losing its settings. Off = a rock "
+              "steady frame; the pass is skipped.",
+              true);
     b.dbl(id::weaveAmount, "Gate Weave", 0.0, 0.0, 2.0, 0.01, 2,
           "Subtle frame-to-frame movement of the film in the camera/projector gate, mostly vertical. 1 = typical "
           "35 mm projection; keep it low for a believable result. 0 = off.",
@@ -274,6 +306,10 @@ std::vector<ParamDef> build() {
     b.dbl(id::weaveSpeed, "Weave Speed", 1.0, 0.25, 4.0, 0.01, 2,
           "How quickly the gate weave wanders (1 = natural; lower is a slow drift, higher a nervous jitter).",
           true);
+    b.boolean(id::vignetteEnable, "Enable Vignette", true,
+              "Switches the vignette on or off without losing its setting. Off = even illumination; the pass is "
+              "skipped.",
+              true);
     b.dbl(id::vignette, "Vignette", 0.0, 0.0, 1.0, 0.01, 2,
           "Natural lens light fall-off towards the corners, applied to the scene light before the film (so it "
           "darkens like an optical vignette, not a grey overlay). 0 = off.",
@@ -292,6 +328,10 @@ std::vector<ParamDef> build() {
           "PQ output only: peak luminance of the HDR master. The film shoulder is unrolled smoothly so the "
           "brightest highlights reach this level.",
           false);
+    b.boolean(id::hdrUnrollEnable, "Enable Highlight Unroll", true,
+              "PQ/HLG only: switches the HDR Highlight Unroll on or off without losing its value. Off = the SDR "
+              "print look placed in the HDR container unchanged (as Unroll 0).",
+              false);
     b.dbl(id::hdrUnroll, "HDR Highlight Unroll", 1.0, 0.0, 1.0, 0.01, 2,
           "PQ/HLG only: 0 places the SDR print look in HDR unchanged (soft film highlights), 1 expands the print "
           "shoulder to use the full HDR range while keeping mid-tones and colour consistent with SDR.",

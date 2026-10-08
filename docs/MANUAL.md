@@ -274,6 +274,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 - **Camera Log** (`inputSpace`; default: Fujifilm F-Log2 C / F-Gamut C) — The log encoding and gamut of the incoming footage. Set this to match your camera (default: Fujifilm F-Log2 C / F-Gamut C). In a colour-managed Resolve project, use a timeline/working space that keeps the camera log intact for this node, or convert to the matching log space before this node. Wrong settings show up as overly flat or harsh, colour-shifted images.
   - Options: Fujifilm F-Log2 C / F-Gamut C · Fujifilm F-Log2 / F-Gamut · Fujifilm F-Log / F-Gamut · DaVinci Intermediate / DaVinci Wide Gamut · ARRI LogC3 (EI 800) / ARRI Wide Gamut 3 · ARRI LogC4 / ARRI Wide Gamut 4 · Sony S-Log3 / S-Gamut3.Cine · Panasonic V-Log / V-Gamut · Canon Log 3 / Cinema Gamut · Blackmagic Film Gen 5 / BMD Wide Gamut Gen 5 · ACEScct / AP1 · Linear Rec.2020
+- **Enable Exposure** (`exposureEnable`; default on) — Switches the Exposure trim below on or off without losing its value. Off = the footage reaches the film exactly as it was recorded (0 stops).
 - **Exposure** (`exposure`; -4 … 4; default 0; keyframable) — Camera exposure correction in stops, applied to the scene before it reaches the film. Because it acts before the negative, +/- exposure slides the image along the film's characteristic curve: highlights roll off and shadows build density the way a real over/under-exposed negative does.
 
 ### Negative
@@ -292,6 +293,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *RV 100 Slide* — Daylight colour reversal (slide) film: brilliant saturation, high contrast, deep blacks, short latitude.
   - *BW 400 Panchromatic* — Classic panchromatic black & white negative: rich mid-tones, visible grain, natural tonal response to colour.
   - *BW 100 Fine* — Fine-grain black & white negative: crisp, higher contrast, slightly blue-leaning (darker reds) panchromatic response.
+- **Enable Development** (`developmentEnable`; default on) — Switches the development controls below (Push / Pull, Color Density, Neg Bleach Bypass, Neutralize) on or off without losing their values. Off = the stock's standard development: no push or pull, nominal colour density, normal bleach, the stock's own curves. The film stock itself always stays active - it is the look.
 - **Push / Pull** (`pushPull`; -2 … 3; default 0; keyframable) — Development in stops. Push (+) raises contrast and effective speed, lifts fog and makes the grain coarser (about x1.25 per stop); pull (-) gives a softer, lower-contrast, finer-grained negative. Unlike Exposure this changes the curve shape, not the position on it.
 - **Color Density** (`interlayer`; 0 … 2; default 1; keyframable) — Interlayer (DIR) effect: how strongly the dye layers inhibit each other. 1 = the stock's nominal colour density; higher values give denser, more separated colours, 0 a flatter, purer-channel rendering. Neutrals stay neutral at any setting.
 - **Neg Bleach Bypass** (`negBleach`; 0 … 1; default 0; keyframable) — Skips (partially) the bleach step of the negative so silver stays in the film alongside the dyes. The extra silver density builds with exposure: higher contrast, harder highlights and muted colour, strongest in the bright parts of the image. 0 = normal processing.
@@ -307,6 +309,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - Reversal (slide) stocks are direct positives and ignore this setting.
 - **Print Stock** (`printStock`; default: P1 Standard Projection) — The print film the negative is printed on (Process = Print). It sets print contrast, black density, highlight roll-off and the colour of the projected image.
   - Options: P1 Standard Projection · P2 Low Contrast · P3 Rich Contrast · P4 Faded Archive · P5 Silver Retention
+- **Enable Print Timing** (`printEnable`; default on) — Switches the lab timing controls below (Printer Red / Green / Blue, Print Density, Print Bleach Bypass) on or off without losing their values. Off = the automatically grey-balanced light at 0 points and normal print processing. Process and Print Stock always stay active - they are the look.
 - **Printer Red** (`printerR`; -12 … 12; default 0; keyframable) — Red printer light. More red light (+) adds cyan to the print: the image gets LESS red / more cyan. Fewer points (-) warm it towards red. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Printer Green** (`printerG`; -12 … 12; default 0; keyframable) — Green printer light. More green light (+) adds magenta to the print: the image gets LESS green / more magenta. Fewer points (-) push it towards green. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Printer Blue** (`printerB`; -12 … 12; default 0; keyframable) — Blue printer light. More blue light (+) adds yellow to the print: the image gets LESS blue / more yellow. Fewer points (-) cool it towards blue. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
@@ -317,6 +320,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 *Red-orange glow around bright light sources.*
 
+- **Enable Halation** (`halationEnable`; default on) — Switches halation on or off without losing its settings. Off skips the halation passes entirely (no render cost).
 - **Halation Amount** (`halationAmount`; 0 … 2; default 0.5; keyframable) — Strength of halation: light that passes through the emulsion, reflects off the film base and re-exposes the red layer, creating a warm glow that hugs bright edges and practicals. Scaled by the stock (no-backing stocks glow much more). 0 = off.
 - **Halation Radius** (`halationRadius`; 2 … 80; default 20; keyframable) — Spread of the glow in pixels at 1920 px image width (automatically scaled for other resolutions and proxy render scales).
 - **Halation Threshold** (`halationThreshold`; 0 … 6; default 3.5; keyframable) — How bright a highlight must be before it halates, in stops above middle grey. The glow eases in over about a stop and a half above it, so broad bright areas (an overcast sky) barely halate while light sources and speculars glow fully. Lower values let more of the image glow.
@@ -326,6 +330,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 *Neutral diffusion of highlights.*
 
+- **Enable Bloom** (`bloomEnable`; default on) — Switches bloom on or off without losing its settings. Off skips the bloom passes entirely (no render cost).
 - **Bloom Amount** (`bloomAmount`; 0 … 2; default 0.15; keyframable) — Gentle, neutral glow of bright areas from lens and emulsion scatter - softens harsh digital highlights without the warm tint of halation. Scaled by the stock. 0 = off.
 - **Bloom Radius** (`bloomRadius`; 5 … 200; default 40; keyframable) — Spread of the bloom in pixels at 1920 px image width (scaled automatically for other resolutions).
 
@@ -333,7 +338,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 *Film grain, generated in the film's density domain.*
 
-- **Grain** (`grainEnable`; default on) — Adds film grain. Grain is added to the dye densities of the negative, so it behaves like real grain: strongest in the mid-tones and shadows of the negative, varying per colour layer.
+- **Enable Grain** (`grainEnable`; default on) — Adds film grain. Grain is added to the dye densities of the negative, so it behaves like real grain: strongest in the mid-tones and shadows of the negative, varying per colour layer. Off skips the grain passes entirely and keeps the grain settings.
 - **Grain Format** (`grainFormat`; default: Super 35) — Film gauge the image was 'shot' on. Smaller formats enlarge the grain more: Super 8 is very coarse, 16 mm clearly visible, Super 35 the cinema standard, 65 mm very fine; 35 mm Stills (36x24 full frame) is finer than Super 35.
   - Options: Super 8 · 16 mm · Super 35 · 65 mm · 35 mm Stills
 - **Grain Amount** (`grainAmount`; 0 … 3; default 1; keyframable) — Grain strength. 1 = the stock's nominal granularity for the chosen format and development; push processing increases it automatically.
@@ -346,10 +351,13 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 *Sharpness, gate weave and vignetting.*
 
+- **Enable Acutance** (`acutanceEnable`; default on) — Switches acutance (Acutance, Acutance Radius) on or off without losing its settings. Off = the image's own sharpness; the passes are skipped.
 - **Acutance** (`acutanceAmount`; -1 … 2; default 0.3; keyframable) — Edge contrast from development adjacency effects: crisp, film-like apparent sharpness without the halos of digital sharpening. Negative values soften the image.
 - **Acutance Radius** (`acutanceRadius`; 0.5 … 10; default 2; keyframable) — Size of the adjacency effect in pixels at 1920 px width. Small = fine micro-contrast, larger = broader edge enhancement.
+- **Enable Gate Weave** (`weaveEnable`; default on) — Switches gate weave (Gate Weave, Weave Speed) on or off without losing its settings. Off = a rock steady frame; the pass is skipped.
 - **Gate Weave** (`weaveAmount`; 0 … 2; default 0; keyframable) — Subtle frame-to-frame movement of the film in the camera/projector gate, mostly vertical. 1 = typical 35 mm projection; keep it low for a believable result. 0 = off.
 - **Weave Speed** (`weaveSpeed`; 0.25 … 4; default 1; keyframable) — How quickly the gate weave wanders (1 = natural; lower is a slow drift, higher a nervous jitter).
+- **Enable Vignette** (`vignetteEnable`; default on) — Switches the vignette on or off without losing its setting. Off = even illumination; the pass is skipped.
 - **Vignette** (`vignette`; 0 … 1; default 0; keyframable) — Natural lens light fall-off towards the corners, applied to the scene light before the film (so it darkens like an optical vignette, not a grey overlay). 0 = off.
 
 ### Output
@@ -359,6 +367,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Output** (`outputSpace`; default: Rec.709 (Gamma 2.4)) — The display the result is encoded for. Rec.709 Gamma 2.4 for broadcast/HD grading monitors, sRGB for web/computer displays, P3 for cinema (DCI) or Apple/P3 displays, PQ or HLG for HDR deliverables. Your timeline/output colour space should match. In Texture Only mode this is the encoding of the incoming (already graded) image.
   - Options: Rec.709 (Gamma 2.4) · Rec.709 (sRGB) · P3-D65 (Gamma 2.6) · DCI-P3 (Gamma 2.6, D65 sim) · Rec.2100 PQ (HDR) · Rec.2100 HLG (HDR)
 - **HDR Peak (nits)** (`hdrPeakNits`; 300 … 4000; default 1000; keyframable) — PQ output only: peak luminance of the HDR master. The film shoulder is unrolled smoothly so the brightest highlights reach this level.
+- **Enable Highlight Unroll** (`hdrUnrollEnable`; default on) — PQ/HLG only: switches the HDR Highlight Unroll on or off without losing its value. Off = the SDR print look placed in the HDR container unchanged (as Unroll 0).
 - **HDR Highlight Unroll** (`hdrUnroll`; 0 … 1; default 1; keyframable) — PQ/HLG only: 0 places the SDR print look in HDR unchanged (soft film highlights), 1 expands the print shoulder to use the full HDR range while keeping mid-tones and colour consistent with SDR.
 
 ### LUT Export
@@ -390,6 +399,23 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 **Notes on the reference.**
 
+- **Every module has its own switch.** The first control of each module is an **Enable** checkbox
+  (Enable Exposure, Development, Print Timing, Halation, Bloom, Grain, Acutance, Gate Weave,
+  Vignette, Highlight Unroll). Unticking it switches the module off while its values stay where you
+  left them, so you can compare with and without at a click, or keep a dialled-in setting for later.
+  What "off" means:
+
+  | Switch | Off renders as |
+  |---|---|
+  | Enable Exposure | Exposure 0 (the footage as recorded) |
+  | Enable Development | standard development: Push / Pull 0, Color Density 1, no Neg Bleach Bypass, Neutralize 0 — the film stock stays |
+  | Enable Print Timing | printer lights and Print Density at 0 points (automatic grey balance), no Print Bleach Bypass — Process and Print Stock stay |
+  | Enable Halation / Bloom / Grain / Acutance / Gate Weave / Vignette | the effect is skipped completely (no render cost) |
+  | Enable Highlight Unroll | the SDR print look in the HDR container (as Unroll 0) |
+
+  The stock pair, Process and Mode are never switched off: the choice of stocks *is* the look. A
+  switched-off module renders exactly like the module at its neutral values. All switches are on by
+  default, so projects saved with version 1.0 open and render unchanged.
 - **Halation, bloom and grain scale with the stock.** Each negative has its own halation strength
   (no-backing stocks glow much more), bloom strength and grain size; the Amount and Size controls
   are relative to that. Black & white stocks automatically use monochrome grain.
@@ -399,7 +425,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Dimmed controls.** Controls that have no effect in the current state are greyed out:
   - Color Only mode: all texture controls. Texture Only mode: all colour controls (Camera Log,
     Exposure, negative and print).
-  - Grain off: the other grain controls.
+  - A module switched off (Enable box unticked): that module's controls.
   - Process = Lab Scan: Print Stock and Print Bleach Bypass.
   - Reversal stocks (RV 100 Slide): Process, Print Stock, printer lights, Print Density and Print
     Bleach Bypass — a slide is a direct positive; time it with Exposure and balance before the node.
@@ -640,8 +666,8 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
   backends that pass are offered to Resolve. Check **Preferences › Memory and GPU** in Resolve: the
   GPU processing mode must be Metal, CUDA or OpenCL, not CPU.
 - **Turn off what you do not use.** Halation, bloom, acutance, gate weave, vignette and grain each
-  skip their passes entirely at 0 (or with Grain off). Halation and bloom are the most expensive
-  texture effects.
+  skip their passes entirely when their Enable box is unticked (or at 0). Halation and bloom are the
+  most expensive texture effects.
 - **Color Only** is the fastest mode. Grade in Color Only and add texture once at the end (section 7)
   when playback is tight.
 - **Changing stocks** costs a one-off calculation of a few tens of milliseconds the first time a pair

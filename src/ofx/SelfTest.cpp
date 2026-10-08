@@ -124,6 +124,49 @@ int main() {
     check(hasBool("grainEnable", true), "grainEnable default true");
     check(hasBool("grainAnimated", true), "grainAnimated default true");
 
+    // ---- module switches (v1.1, SPEC §7): one Bool per module, placed directly before the controls it
+    // switches, default ON for every module that existed in v1.0 (projects saved before the switch
+    // existed load the default and must render as before), part of looks exactly like their module.
+    struct Switch {
+        const char* id;
+        const char* group;
+        bool def, look;
+        std::vector<const char*> controls;   // the module's controls, which must follow the switch
+    };
+    const std::vector<Switch> switches = {
+        {"exposureEnable", "groupInput", true, false, {"exposure"}},
+        {"developmentEnable", "groupNegative", true, true, {"pushPull", "interlayer", "negBleach", "neutralize"}},
+        {"printEnable", "groupPrint", true, true, {"printerR", "printerG", "printerB", "printExposure", "printBleach"}},
+        {"halationEnable", "groupHalation", true, true, {"halationAmount", "halationRadius", "halationThreshold", "halationHue"}},
+        {"bloomEnable", "groupBloom", true, true, {"bloomAmount", "bloomRadius"}},
+        {"grainEnable", "groupGrain", true, true, {"grainFormat", "grainAmount", "grainSize", "grainSoftness", "grainAnimated", "grainSeed"}},
+        {"acutanceEnable", "groupLensGate", true, true, {"acutanceAmount", "acutanceRadius"}},
+        {"weaveEnable", "groupLensGate", true, true, {"weaveAmount", "weaveSpeed"}},
+        {"vignetteEnable", "groupLensGate", true, true, {"vignette"}},
+        {"hdrUnrollEnable", "groupOutput", true, false, {"hdrUnroll"}},
+    };
+    auto position = [&](const std::string& pid) {
+        for (size_t i = 0; i < defs.size(); ++i)
+            if (defs[i].id == pid) return int(i);
+        return -1;
+    };
+    for (const Switch& sw : switches) {
+        const ParamDef* d = findParam(sw.id);
+        check(d != nullptr, std::string("missing module switch ") + sw.id);
+        if (!d) continue;
+        check(d->type == PType::Bool && (d->def != 0.0) == sw.def, std::string(sw.id) + ": Bool with default " + (sw.def ? "on" : "off"));
+        check(d->group == sw.group, std::string(sw.id) + ": wrong group " + d->group);
+        check(d->look == sw.look, std::string(sw.id) + ": look flag must match its module");
+        check(!d->animates, std::string(sw.id) + ": module switches are not keyframable");
+        check(d->label.rfind("Enable ", 0) == 0, std::string(sw.id) + ": label must start with \"Enable \"");
+        const int ps = position(sw.id);
+        for (const char* c : sw.controls) {
+            const ParamDef* cd = findParam(c);
+            check(cd && cd->group == sw.group && position(c) > ps, std::string(c) + " must follow its switch " + sw.id);
+            if (cd) check(cd->look == sw.look || std::string(c) == "grainSeed", std::string(c) + ": look flag differs from its switch");
+        }
+    }
+
     // ---- choice lists match the core / texture enumerations (order = enum order) ----
     auto count = [](const char* pid) { const ParamDef* d = findParam(pid); return d ? int(d->options.size()) : -1; };
     check(count("inputSpace") == int(core::InputSpace::Count), "inputSpace options != InputSpace::Count");
@@ -157,7 +200,8 @@ int main() {
     for (size_t i = 0; i < lookPresets().size(); ++i)
         check(resolvePreset(i).size() == lookCount, "preset " + lookPresets()[i].name + " does not resolve all look params");
     // look params never include colour-space / exposure / license / LUT parameters
-    for (const char* p : {"inputSpace", "outputSpace", "exposure", "mode", "hdrPeakNits", "hdrUnroll", "grainSeed", "lutSize"})
+    for (const char* p : {"inputSpace", "outputSpace", "exposure", "exposureEnable", "mode", "hdrPeakNits", "hdrUnroll",
+                          "hdrUnrollEnable", "grainSeed", "lutSize"})
         check(findParam(p) && !findParam(p)->look, std::string(p) + " must not be a look (preset) parameter");
 
     // ---- platform helpers ----

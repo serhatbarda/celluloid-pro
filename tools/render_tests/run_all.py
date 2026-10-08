@@ -54,6 +54,28 @@ SPEC7 = [
     ("lutSize", "choice", "33", None, None), ("lutPath", "string", None, None, None), ("lutExport", "button", None, None, None),
     ("licenseStatus", "string", None, None, None), ("licenseKey", "string", None, None, None),
     ("licenseActivate", "button", None, None, None), ("licenseRemove", "button", None, None, None),
+    # v1.1 module switches (default on: projects saved before they existed render unchanged)
+    ("exposureEnable", "bool", True, None, None), ("developmentEnable", "bool", True, None, None),
+    ("printEnable", "bool", True, None, None), ("halationEnable", "bool", True, None, None),
+    ("bloomEnable", "bool", True, None, None), ("acutanceEnable", "bool", True, None, None),
+    ("weaveEnable", "bool", True, None, None), ("vignetteEnable", "bool", True, None, None),
+    ("hdrUnrollEnable", "bool", True, None, None),
+]
+# v1.1 module switches: (switch, module values used for the "on" render, neutral values the "off"
+# render must reproduce bit for bit, mode, scene)
+MODULES = [
+    ("exposureEnable", {"exposure": 1.5}, {"exposure": 0.0}, "full", "natural"),
+    ("developmentEnable", {"pushPull": 2.0, "interlayer": 1.7, "negBleach": 0.4, "neutralize": 0.6},
+     {"pushPull": 0.0, "interlayer": 1.0, "negBleach": 0.0, "neutralize": 0.0}, "full", "natural"),
+    ("printEnable", {"printerR": 4.0, "printerG": -3.0, "printerB": 2.5, "printExposure": -3.0, "printBleach": 0.5},
+     {"printerR": 0.0, "printerG": 0.0, "printerB": 0.0, "printExposure": 0.0, "printBleach": 0.0}, "full", "natural"),
+    ("halationEnable", {"halationAmount": 1.5}, {"halationAmount": 0.0}, "full", "highlights"),
+    ("bloomEnable", {"bloomAmount": 1.5}, {"bloomAmount": 0.0}, "full", "highlights"),
+    ("acutanceEnable", {"acutanceAmount": 1.5}, {"acutanceAmount": 0.0}, "full", "natural"),
+    ("weaveEnable", {"weaveAmount": 2.0}, {"weaveAmount": 0.0}, "full", "natural"),
+    ("vignetteEnable", {"vignette": 1.0}, {"vignette": 0.0}, "full", "natural"),
+    ("grainEnable", {"grainAmount": 2.0}, {"grainAmount": 0.0}, "full", "natural"),
+    ("halationEnable", {"halationAmount": 1.5}, {"halationAmount": 0.0}, "texture", "display"),
 ]
 SPEC_NEGS = ["CN 50D Fine Daylight", "CN 200T Studio Tungsten", "CN 250D Soft Daylight", "CN 500T High Speed",
              "CN 800T No-Backing", "CN Vintage 85", "C41 Portrait 400", "C41 Consumer 200", "RV 100 Slide",
@@ -687,6 +709,39 @@ class Suite:
             [("Full", fu), ("Color Only", co), ("Texture Only (display-referred input)", tx), ("Texture Only input", src)],
             os.path.join(self.out, "contact_modes.png"), "Modes", cols=2))
 
+    # ------------------------------------------------------------------ module switches (v1.1)
+    def g_modules(self):
+        """Every module switch: off == the module's neutral values (bit-identical render, so a switched-off
+        module costs nothing and changes nothing), on == the module's values (visible change)."""
+        g = "modules"
+        base = dict(TEX_OFF)
+        L, todo = [], []
+        cases = list(MODULES)
+        pq = self.opt("outputSpace", "pq|2084")
+        if pq is not None:   # the unroll only exists for HDR outputs
+            cases.append(("hdrUnrollEnable", {"hdrUnroll": 1.0, "outputSpace": ("index", pq)},
+                          {"hdrUnroll": 0.0, "outputSpace": ("index", pq)}, "full", "highlights"))
+        for i, (sw, on, neutral, mode, sc) in enumerate(cases):
+            if not self.has(sw):
+                self.check(g, sw, False, "missing", "present")
+                continue
+            m = {"mode": ("index", self.ix[mode])}
+            others = dict(base, grainEnable=sw == "grainEnable")
+            L.append(self.line("mod%02d_on" % i, sc, dict(others, **m, **on, **{sw: True}), time_=2))
+            L.append(self.line("mod%02d_off" % i, sc, dict(others, **m, **on, **{sw: False}), time_=2))
+            L.append(self.line("mod%02d_neutral" % i, sc, dict(others, **m, **neutral, **{sw: True}), time_=2))
+            todo.append((i, sw, mode, sc))
+        if not L:
+            return
+        self.batch("modules", L)
+        for i, sw, mode, sc in todo:
+            on, off, neu = (self.load("mod%02d_%s" % (i, k), sc) for k in ("on", "off", "neutral"))
+            d_off = float(np.max(np.abs(off - neu)))
+            d_on, m_on = float(np.abs(on - neu).mean()), float(np.abs(on - neu).max())
+            self.check(g, "%s (%s): off == neutral values" % (sw, mode), d_off == 0.0, "max diff %.2e" % d_off, "0 (bit-identical)")
+            self.check(g, "%s (%s): on changes the image" % (sw, mode), d_on > 1e-4 or m_on > 0.01,
+                       "mean diff %.5f, max %.4f" % (d_on, m_on), "mean > 1e-4 or max > 0.01")
+
     # ------------------------------------------------------------------ texture features
     def g_texture(self):
         g = "texture"
@@ -1313,7 +1368,7 @@ def main():
         print("setup failed: %s" % ex)
         return 2
     groups = [("params", s.g_conformance), ("license", s.g_license), ("stocks", s.g_stocks), ("section6", s.g_section6),
-              ("inputs", s.g_inputs), ("outputs", s.g_outputs), ("modes", s.g_modes), ("texture", s.g_texture), ("presets", s.g_presets),
+              ("inputs", s.g_inputs), ("outputs", s.g_outputs), ("modes", s.g_modes), ("modules", s.g_modules), ("texture", s.g_texture), ("presets", s.g_presets),
               ("animation", s.g_animation), ("render_scale", s.g_scale), ("gpu_parity", s.g_gpu), ("lut_export", s.g_lut),
               ("stock_sheet", s.g_stock_sheet), ("performance", s.g_perf)]
     only = set(x for x in a.only.split(",") if x)

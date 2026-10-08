@@ -408,26 +408,34 @@ void CelluloidEffect::setEnabled(const std::string& pid, bool on) {
 
 // ------------------------------------------------------------------------- settings
 
+// Module switches (SPEC §7, v1.1): a switched-off module keeps its values but renders as its neutral
+// state. Colour modules map to the neutral LookParams values (exposure 0, standard development,
+// grey-balanced print at 0 points, unroll 0); the stock pair, Process and Output always stay
+// active because the stock choice IS the look. Texture modules are skipped in the plan (no passes).
 core::LookParams CelluloidEffect::lookAt(double t) const {
     core::LookParams lp;
     auto clampIdx = [](int v, int count) { return std::min(std::max(v, 0), std::max(count - 1, 0)); };
     lp.input = core::InputSpace(clampIdx(choice(id::inputSpace, t), int(core::InputSpace::Count)));
     lp.output = core::OutputSpace(clampIdx(choice(id::outputSpace, t), int(core::OutputSpace::Count)));
-    lp.exposure = float(num(id::exposure, t));
+    lp.exposure = flag(id::exposureEnable, t) ? float(num(id::exposure, t)) : 0.f;
     lp.negStock = clampIdx(choice(id::negStock, t), int(negStocks().size()));
-    lp.pushPull = float(num(id::pushPull, t));
-    lp.interlayer = float(num(id::interlayer, t));
-    lp.negBleach = float(num(id::negBleach, t));
-    lp.neutralize = float(num(id::neutralize, t));
+    if (flag(id::developmentEnable, t)) {
+        lp.pushPull = float(num(id::pushPull, t));
+        lp.interlayer = float(num(id::interlayer, t));
+        lp.negBleach = float(num(id::negBleach, t));
+        lp.neutralize = float(num(id::neutralize, t));
+    }   // else: LookParams defaults = standard development (0 / 1 / 0 / 0)
     lp.process = core::Process(clampIdx(choice(id::process, t), int(core::Process::Count)));
     lp.printStock = clampIdx(choice(id::printStock, t), int(core::printStockNames().size()));
-    lp.printerR = float(num(id::printerR, t));
-    lp.printerG = float(num(id::printerG, t));
-    lp.printerB = float(num(id::printerB, t));
-    lp.printExposure = float(num(id::printExposure, t));
-    lp.printBleach = float(num(id::printBleach, t));
+    if (flag(id::printEnable, t)) {
+        lp.printerR = float(num(id::printerR, t));
+        lp.printerG = float(num(id::printerG, t));
+        lp.printerB = float(num(id::printerB, t));
+        lp.printExposure = float(num(id::printExposure, t));
+        lp.printBleach = float(num(id::printBleach, t));
+    }   // else: grey-balanced light at 0 points, normal print processing
     lp.hdrPeakNits = float(num(id::hdrPeakNits, t));
-    lp.hdrUnroll = float(num(id::hdrUnroll, t));
+    lp.hdrUnroll = flag(id::hdrUnrollEnable, t) ? float(num(id::hdrUnroll, t)) : 0.f;
     lp.grainAmount = flag(id::grainEnable, t) ? float(num(id::grainAmount, t)) : 0.f;
     return lp;
 }
@@ -448,17 +456,18 @@ engine::FrameSettings CelluloidEffect::frameSettingsAt(double t, int fullWidthPx
     // all texture sizes are specified at 1920 px image width; the rendered image width already
     // includes the host's render scale (proxy renders), so this is render-scale correct.
     tp.pixelScale = float(std::max(1, fullWidthPx)) / 1920.f;
-    tp.weaveAmount = float(num(id::weaveAmount, t));
+    // a switched-off module renders like amount 0: the plan builder then emits none of its passes
+    tp.weaveAmount = flag(id::weaveEnable, t) ? float(num(id::weaveAmount, t)) : 0.f;
     tp.weaveSpeed = float(num(id::weaveSpeed, t));
-    tp.acutanceAmount = float(num(id::acutanceAmount, t));
+    tp.acutanceAmount = flag(id::acutanceEnable, t) ? float(num(id::acutanceAmount, t)) : 0.f;
     tp.acutanceRadius = float(num(id::acutanceRadius, t));
-    tp.halationAmount = float(num(id::halationAmount, t)) * halScale;
+    tp.halationAmount = flag(id::halationEnable, t) ? float(num(id::halationAmount, t)) * halScale : 0.f;
     tp.halationRadius = float(num(id::halationRadius, t));
     tp.halationThreshold = float(num(id::halationThreshold, t));
     tp.halationHue = float(num(id::halationHue, t));
-    tp.bloomAmount = float(num(id::bloomAmount, t)) * bloomScale;
+    tp.bloomAmount = flag(id::bloomEnable, t) ? float(num(id::bloomAmount, t)) * bloomScale : 0.f;
     tp.bloomRadius = float(num(id::bloomRadius, t));
-    tp.vignette = float(num(id::vignette, t));
+    tp.vignette = flag(id::vignetteEnable, t) ? float(num(id::vignette, t)) : 0.f;
     tp.grainEnabled = flag(id::grainEnable, t) && fs.look.grainAmount > 0.f;
     tp.grainFormat = tex::GrainFormat(std::min(std::max(choice(id::grainFormat, t), 0), int(tex::GrainFormat::Count) - 1));
     tp.grainSize = float(num(id::grainSize, t)) * grainScale;
@@ -487,7 +496,7 @@ void CelluloidEffect::getClipPreferences(OFX::ClipPreferencesSetter& prefs) {
     // Grain/weave make the output change every frame even for a still source.
     const bool texture = choice(id::mode, 0.0) != int(core::Mode::ColorOnly);
     const bool animatedGrain = flag(id::grainEnable, 0.0) && flag(id::grainAnimated, 0.0) && num(id::grainAmount) > 0.0;
-    const bool weave = num(id::weaveAmount) > 0.0;
+    const bool weave = flag(id::weaveEnable, 0.0) && num(id::weaveAmount) > 0.0;
     prefs.setOutputFrameVarying(texture && (animatedGrain || weave));
 }
 
@@ -771,9 +780,9 @@ void CelluloidEffect::changedParam(const OFX::InstanceChangedArgs& args, const s
 
         const ParamDef* d = findParam(name);
         if (d && d->look && !m_applyingPreset) refreshPresetStatus(args.time);
-        if (name == id::negStock || name == id::process || name == id::mode || name == id::outputSpace ||
-            name == id::grainEnable)
-            refreshEnabledness(args.time);
+        if (d && (d->type == PType::Bool || name == id::negStock || name == id::process || name == id::mode ||
+                  name == id::outputSpace))
+            refreshEnabledness(args.time);   // every module switch (and grain/damage sub-switch) is a Bool
     } catch (const OFX::Exception::Suite&) {
         throw;
     } catch (const std::exception& e) {
@@ -830,28 +839,48 @@ void CelluloidEffect::refreshEnabledness(double t) {
     const bool pq = out == core::OutputSpace::Rec2100_PQ;
     const bool hdr = pq || out == core::OutputSpace::Rec2100_HLG;
     const bool grainOn = flag(id::grainEnable, t);
+    // module switches: a switched-off module greys its controls (the switch itself stays usable
+    // whenever the module applies in the current mode / stock / output)
+    const bool expOn = flag(id::exposureEnable, t);
+    const bool devOn = flag(id::developmentEnable, t);
+    const bool printOn = flag(id::printEnable, t);
+    const bool unrollOn = flag(id::hdrUnrollEnable, t);
+    const bool halOn = flag(id::halationEnable, t);
+    const bool bloomOn = flag(id::bloomEnable, t);
+    const bool acutOn = flag(id::acutanceEnable, t);
+    const bool weaveOn = flag(id::weaveEnable, t);
+    const bool vigOn = flag(id::vignetteEnable, t);
 
     // colour (negative/print)
     setEnabled(id::inputSpace, colour);
-    setEnabled(id::exposure, colour);
-    setEnabled(id::pushPull, colour);
-    setEnabled(id::interlayer, colour && !mono);
-    setEnabled(id::negBleach, colour);
-    setEnabled(id::neutralize, colour && !mono);
+    setEnabled(id::exposureEnable, colour);
+    setEnabled(id::exposure, colour && expOn);
+    setEnabled(id::developmentEnable, colour);
+    setEnabled(id::pushPull, colour && devOn);
+    setEnabled(id::interlayer, colour && devOn && !mono);
+    setEnabled(id::negBleach, colour && devOn);
+    setEnabled(id::neutralize, colour && devOn && !mono);
     setEnabled(id::process, colour && !reversal);
     setEnabled(id::printStock, colour && !reversal && !scan);
-    setEnabled(id::printerR, colour && !reversal && !mono);
-    setEnabled(id::printerG, colour && !reversal && !mono);
-    setEnabled(id::printerB, colour && !reversal && !mono);
-    setEnabled(id::printExposure, colour && !reversal);
-    setEnabled(id::printBleach, colour && !reversal && !scan);
+    setEnabled(id::printEnable, colour && !reversal);
+    setEnabled(id::printerR, colour && printOn && !reversal && !mono);
+    setEnabled(id::printerG, colour && printOn && !reversal && !mono);
+    setEnabled(id::printerB, colour && printOn && !reversal && !mono);
+    setEnabled(id::printExposure, colour && printOn && !reversal);
+    setEnabled(id::printBleach, colour && printOn && !reversal && !scan);
     setEnabled(id::hdrPeakNits, pq);
-    setEnabled(id::hdrUnroll, colour && hdr);
+    setEnabled(id::hdrUnrollEnable, colour && hdr);
+    setEnabled(id::hdrUnroll, colour && hdr && unrollOn);
     // texture
-    for (const char* p : {id::halationAmount, id::halationRadius, id::halationThreshold, id::halationHue,
-                          id::bloomAmount, id::bloomRadius, id::grainEnable, id::acutanceAmount, id::acutanceRadius,
-                          id::weaveAmount, id::weaveSpeed, id::vignette})
+    for (const char* p : {id::halationEnable, id::bloomEnable, id::grainEnable, id::acutanceEnable, id::weaveEnable,
+                          id::vignetteEnable})
         setEnabled(p, texture);
+    for (const char* p : {id::halationAmount, id::halationRadius, id::halationThreshold, id::halationHue})
+        setEnabled(p, texture && halOn);
+    for (const char* p : {id::bloomAmount, id::bloomRadius}) setEnabled(p, texture && bloomOn);
+    for (const char* p : {id::acutanceAmount, id::acutanceRadius}) setEnabled(p, texture && acutOn);
+    for (const char* p : {id::weaveAmount, id::weaveSpeed}) setEnabled(p, texture && weaveOn);
+    setEnabled(id::vignette, texture && vigOn);
     for (const char* p : {id::grainFormat, id::grainAmount, id::grainSize, id::grainSoftness, id::grainAnimated,
                           id::grainSeed})
         setEnabled(p, texture && grainOn);
