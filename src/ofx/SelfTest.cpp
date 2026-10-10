@@ -213,6 +213,13 @@ int main() {
                           "licenseStatus", "licenseKey", "licenseActivate", "licenseRemove", "aboutVersion",
                           "aboutManual"})
         check(findParam(p) != nullptr, std::string("missing param ") + p);
+    // build variant (SPEC §9): the personal build keeps the License group (saved projects) but
+    // secret; the licensed build shows it. Nothing else is ever secret.
+    for (const ParamDef& d : defs) {
+        const bool inLicense = d.id == "groupLicense" || d.group == "groupLicense";
+        check(d.secret == (kPersonalBuild && inLicense),
+              d.id + (d.secret ? " must not be secret" : " must be secret in the personal build"));
+    }
 
     // ---- presets ----
     std::vector<std::string> problems;

@@ -7,6 +7,8 @@
 # Targets: celcore (colour science), celtex (texture + frame engine + CPU backend), celgpu
 # (OpenCL/CUDA/Metal backends, from src/gpu), cellic (licensing), cel_ofxsupport (OpenFX C++
 # Support library, static, from the pinned OpenFX sources) and celluloid_ofx (the plug-in module).
+#
+# Default = PERSONAL build (no licensing); -DCEL_LICENSING=ON = licensed build (SPEC §9).
 cmake_minimum_required(VERSION 3.20)
 
 # ---- platform defaults that must be set before project() -----------------------------------
@@ -50,6 +52,20 @@ else()
   set(CEL_ENABLE_METAL OFF CACHE BOOL "Metal GPU backend (Apple only)" FORCE)
 endif()
 option(CEL_DEV_LICENSE "Accept the DEVELOPMENT license key pair (tests only, never for releases)" OFF)
+# Personal build (default, SPEC §9/§13): no license check, no trial watermark, LUT export always
+# available; the License group is kept (hidden) so saved projects stay compatible.
+# -DCEL_LICENSING=ON builds the licensed (commercial) variant with keys, trial watermark and the
+# LUT-export gate. An existing build dir configured with CEL_DEV_LICENSE=ON (only meaningful for a
+# licensed build) is switched to the licensed variant on first configure.
+if(CEL_DEV_LICENSE AND NOT DEFINED CACHE{CEL_LICENSING})
+  message(WARNING "Celluloid: CEL_DEV_LICENSE=ON implies the licensed build - setting CEL_LICENSING=ON")
+  set(CEL_LICENSING ON CACHE BOOL "Licensed build (license keys, trial watermark, LUT-export gate); OFF = personal build")
+endif()
+option(CEL_LICENSING "Licensed build (license keys, trial watermark, LUT-export gate); OFF = personal build" OFF)
+if(CEL_DEV_LICENSE AND NOT CEL_LICENSING)
+  message(FATAL_ERROR "CEL_DEV_LICENSE=ON needs the licensed build: configure with -DCEL_LICENSING=ON "
+                      "(the personal build has no license check at all)")
+endif()
 option(CEL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors in our own code" OFF)
 set(CEL_BUILD_ID "" CACHE STRING "Build identifier shown in the About group (default: git commit)")
 
@@ -196,5 +212,11 @@ endif()
 message(STATUS "Celluloid Pro ${PROJECT_VERSION} (build ${CEL_BUILD_ID}) - ${CMAKE_SYSTEM_NAME} ${CMAKE_OSX_ARCHITECTURES}")
 message(STATUS "  OpenFX:  ${CEL_OPENFX_DIR}")
 message(STATUS "  GPU:     OpenCL=${CEL_ENABLE_OPENCL} CUDA=${CEL_ENABLE_CUDA} Metal=${CEL_ENABLE_METAL} ")
+if(CEL_LICENSING)
+  set(_cel_variant "licensed (keys, trial watermark)")
+else()
+  set(_cel_variant "personal (no licensing)")
+endif()
+message(STATUS "  Build:   ${_cel_variant}")
 message(STATUS "  Tests:   ${CEL_BUILD_TESTS}  Dev license: ${CEL_DEV_LICENSE}")
 message(STATUS "  Bundle:  ${CEL_BUNDLE_DIR}")

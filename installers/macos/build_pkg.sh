@@ -7,7 +7,11 @@
 #   installers/macos/build_pkg.sh --bundle build/Celluloid.ofx.bundle --version 1.0.0 --out dist \
 #       [--app-identity "Developer ID Application: NAME (TEAMID)"] \
 #       [--installer-identity "Developer ID Installer: NAME (TEAMID)"] \
-#       [--keychain /path/to/build.keychain] [--notarize]
+#       [--keychain /path/to/build.keychain] [--notarize] [--licensed]
+#
+# --licensed: installer texts of the licensed build (-DCEL_LICENSING=ON, trial + activation);
+# default: the personal build. Lines of resources/*.html tagged data-build="licensed" or
+# data-build="personal" are kept only for that variant.
 #
 # Notarization (--notarize) needs APPLE_ID, APPLE_TEAM_ID and APPLE_APP_PASSWORD (an app-specific
 # password) in the environment and a Developer ID Installer identity. Without identities the
@@ -22,6 +26,7 @@ APP_ID=""
 INST_ID=""
 KEYCHAIN=""
 NOTARIZE=0
+VARIANT="personal"
 PKG_ID="de.serhatbarda.CelluloidPro.plugin"
 BUNDLE_NAME="Celluloid.ofx.bundle"
 INSTALL_DIR="/Library/OFX/Plugins"
@@ -37,7 +42,8 @@ while [[ $# -gt 0 ]]; do
     --installer-identity) INST_ID="$2"; shift 2 ;;
     --keychain) KEYCHAIN="$2"; shift 2 ;;
     --notarize) NOTARIZE=1; shift ;;
-    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    --licensed) VARIANT="licensed"; shift ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) die "unknown argument $1" ;;
   esac
 done
@@ -104,7 +110,17 @@ pkgbuild --root "$WORK/root" \
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@PKG_ID@/$PKG_ID/g" "$HERE/distribution.xml.in" > "$WORK/distribution.xml"
 PRODUCT="$OUT/CelluloidPro-$VERSION-macOS.pkg"
 rm -f "$PRODUCT"
-PB_ARGS=(--distribution "$WORK/distribution.xml" --package-path "$WORK" --resources "$HERE/resources" --version "$VERSION")
+# installer texts for this build variant
+OTHER="licensed"; [[ "$VARIANT" == "licensed" ]] && OTHER="personal"
+mkdir -p "$WORK/resources"
+for f in "$HERE/resources/"*; do
+  case "$f" in
+    *.html) grep -v "data-build=\"$OTHER\"" "$f" > "$WORK/resources/$(basename "$f")" ;;
+    *) cp -R "$f" "$WORK/resources/" ;;
+  esac
+done
+echo "== Installer texts: $VARIANT build"
+PB_ARGS=(--distribution "$WORK/distribution.xml" --package-path "$WORK" --resources "$WORK/resources" --version "$VERSION")
 if [[ -n "$INST_ID" ]]; then
   echo "== Signing installer with: $INST_ID"
   productbuild "${PB_ARGS[@]}" --sign "$INST_ID" ${KC_ARGS[@]+"${KC_ARGS[@]}"} --timestamp "$PRODUCT"

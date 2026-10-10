@@ -189,11 +189,15 @@ if(DEFINED CEL_BUNDLE_DIR AND TARGET celluloid_ofx)
       set_tests_properties(ofx_smoke_gpu PROPERTIES LABELS "ofx;gpu-device" TIMEOUT 900)
     endif()
     # the manual's controls reference is generated from the plug-in's own parameter description:
-    # fails when a label, range, default or hint changed without regenerating docs/MANUAL.md
-    add_test(NAME docs_manual_controls
-      COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../docs/gen_manual_controls.py" --check
-              --ofxhost $<TARGET_FILE:ofxhost> --bundle "${CEL_BUNDLE_DIR}")
-    set_tests_properties(docs_manual_controls PROPERTIES LABELS "ofx;docs" TIMEOUT 300)
+    # fails when a label, range, default or hint changed without regenerating docs/MANUAL.md.
+    # The manual documents the default (personal) build; the licensed build shows the License group
+    # and licensed-only hints, so the check is registered for the personal build only.
+    if(NOT CEL_LICENSING)
+      add_test(NAME docs_manual_controls
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../docs/gen_manual_controls.py" --check
+                --ofxhost $<TARGET_FILE:ofxhost> --bundle "${CEL_BUNDLE_DIR}")
+      set_tests_properties(docs_manual_controls PROPERTIES LABELS "ofx;docs" TIMEOUT 300)
+    endif()
   endif()
 endif()
 

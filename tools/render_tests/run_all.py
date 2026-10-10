@@ -128,6 +128,7 @@ class Suite:
         self.t0 = time.time()
         self.gpu = not a.no_gpu
         self.licensed = False
+        self.personal = False      # personal build (default): no licensing at all
 
     # ------------------------------------------------------------------ bookkeeping
     def rec(self, group, name, status, measured="", expected="", detail=""):
@@ -367,10 +368,37 @@ class Suite:
             act = ["--set", "licenseKey=" + key, "--press", "licenseActivate"]
             lines.append(act + ["--list-params-json", os.path.join(self.out, "host", "license_after.json")])
             lines.append(self.line("licensed_natural", "natural", {"mode": ("index", self.ix["full"]), **TEX_OFF}, png=True))
+        if not key:
+            # personal build check (the default build): pressing Activate with any text is a no-op
+            lines.append(["--set", "licenseKey=CELL1-NOT-A-KEY", "--press", "licenseActivate",
+                          "--list-params-json", os.path.join(self.out, "host", "license_after.json")])
+            lines.append(self.line("personal_natural", "natural", {"mode": ("index", self.ix["full"]), **TEX_OFF}, png=True))
         rep = self.host.batch("license", lines, check=False)
         before = json.load(open(os.path.join(self.out, "host", "license_before.json")))
-        st0 = {p["name"]: p for p in before["params"]}.get("licenseStatus", {}).get("value", "")
+        bparams = {p["name"]: p for p in before["params"]}
+        st0 = bparams.get("licenseStatus", {}).get("value", "")
         self.info(g, "status before activation", st0)
+        if "Personal build" in st0:
+            # personal build (default, SPEC §9): no license check, no watermark, LUT export always on;
+            # the License group stays (saved projects) but is secret
+            lic = [n for n, p in bparams.items() if n == "groupLicense" or p.get("parent") == "groupLicense"]
+            self.check(g, "personal build: License group kept and secret",
+                       len(lic) == 5 and all(bparams[n].get("secret") for n in lic), ", ".join(lic))
+            ver = str(bparams.get("aboutVersion", {}).get("value", ""))
+            self.check(g, "personal build: About shows 'Personal build'", "Personal build" in ver, ver)
+            try:
+                a0 = self.load("trial_natural", "natural")
+                a1 = self.load("personal_natural", "natural")
+                after = json.load(open(os.path.join(self.out, "host", "license_after.json")))
+                st1 = {p["name"]: p for p in after["params"]}.get("licenseStatus", {}).get("value", "")
+                same = st1 == st0 and float(np.abs(a0 - a1).max()) == 0.0
+                self.check(g, "personal build: Activate is a no-op (status and render unchanged)", same,
+                           "status after: %s" % st1)
+            except Exception as ex:
+                self.check(g, "personal build: renders", False, str(ex))
+            self.licensed = True   # never watermarked: LUT export and every measured image are clean
+            self.personal = True
+            return
         if not key:
             self.skip(g, "activation", "no key (use --license-key or --dev-license)")
             self.info(g, "WARNING", "renders are unlicensed: the trial watermark is part of every measured image")
@@ -1369,7 +1397,7 @@ class Suite:
             counts[r["status"]] = counts.get(r["status"], 0) + 1
         meta = dict(bundle=os.path.abspath(self.a.bundle), host=os.path.abspath(self.a.host), date=time.strftime("%Y-%m-%d %H:%M:%S"),
                     seconds=round(time.time() - self.t0, 1), quick=self.a.quick, full=self.a.full, gpu=self.gpu,
-                    licensed=self.licensed, counts=counts, host_calls=[dict(name=n, seconds=round(s, 2), ok=o) for n, s, o in self.host.calls])
+                    licensed=self.licensed, personal=self.personal, counts=counts, host_calls=[dict(name=n, seconds=round(s, 2), ok=o) for n, s, o in self.host.calls])
         rep = dict(meta=meta, results=self.results, data=self.data, contact_sheets=[os.path.basename(s) for s in self.sheets if s])
         with open(os.path.join(self.out, "report.json"), "w") as f:
             json.dump(rep, f, indent=1, default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o))
@@ -1378,7 +1406,8 @@ class Suite:
         md.append("# Celluloid Pro render test report\n")
         md.append("- Bundle: `%s`  (plug-in `%s` v%s.%s)" % (meta["bundle"], pl.get("id"), pl.get("versionMajor"), pl.get("versionMinor")))
         md.append("- Date: %s, %.0f s, mode: %s, OpenCL: %s, licensed: %s" % (meta["date"], meta["seconds"],
-                  "quick" if self.a.quick else ("full" if self.a.full else "standard"), "yes" if self.gpu else "no", "yes" if self.licensed else "NO (trial watermark in renders)"))
+                  "quick" if self.a.quick else ("full" if self.a.full else "standard"), "yes" if self.gpu else "no",
+                  "personal build (no watermark)" if self.personal else ("yes" if self.licensed else "NO (trial watermark in renders)")))
         md.append("- Results: " + ", ".join("%s %d" % (k, v) for k, v in sorted(counts.items())) + "\n")
         groups = []
         for r in self.results:

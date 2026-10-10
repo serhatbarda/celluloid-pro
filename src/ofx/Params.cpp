@@ -441,17 +441,28 @@ std::vector<ParamDef> build() {
           "<Documents>/Celluloid LUTs of the user who exports. File name: "
           "Celluloid_<input>_<negative>_<print>_<output>.cube. Add this folder to Resolve's LUT list "
           "(Project Settings > Color Management > Open LUT Folder) to use the LUTs elsewhere.");
-    b.push(id::lutExport, "Export LUT",
-           "Licensed version only. Writes the current colour settings (Color Only: input space, exposure, stocks, "
-           "development, print, output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, "
-           "cameras or other applications. The LUT expects the selected camera log as input (Linear Rec.2020: "
-           "the file carries a log2 shaper).");
+    // the licensed build gates LUT export (SPEC §9); the personal build always exports
+#define CEL_LUT_EXPORT_HINT                                                                                  \
+    "Writes the current colour settings (Color Only: input space, exposure, stocks, development, print, "   \
+    "output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, cameras or other "        \
+    "applications. The LUT expects the selected camera log as input (Linear Rec.2020: the file carries a " \
+    "log2 shaper)."
+    b.push(id::lutExport, "Export LUT", kPersonalBuild ? CEL_LUT_EXPORT_HINT : "Licensed version only. " CEL_LUT_EXPORT_HINT);
+#undef CEL_LUT_EXPORT_HINT
 
     // ---------------------------------------------------------------- [License]
-    b.beginGroup(id::gLicense, "License", false, "Activation.");
-    b.label(id::licenseStatus, "License Status", "Trial - renders carry a watermark",
-            "Current license state. The trial includes every feature except LUT export; renders carry a small "
-            "watermark until a license key is activated.");
+    // Personal build: the group and its parameters are still defined (IDs are permanent, saved
+    // projects stay compatible) but secret, so the host does not show them.
+    const size_t licenseFirst = b.defs.size();
+    b.beginGroup(id::gLicense, "License", false,
+                 kPersonalBuild ? "Not used in the personal build (hidden; kept so saved projects stay compatible)."
+                                : "Activation.");
+    b.label(id::licenseStatus, "License Status",
+            kPersonalBuild ? kPersonalLicenseStatus : "Trial - renders carry a watermark",
+            kPersonalBuild ? "Personal build for non-commercial use: no license key, no watermark, LUT export "
+                             "always available."
+                           : "Current license state. The trial includes every feature except LUT export; renders "
+                             "carry a small watermark until a license key is activated.");
     {
         ParamDef& st = b.defs.back();
         st.evaluateOnChange = true;   // re-render (remove/add the watermark) when the state changes
@@ -468,10 +479,12 @@ std::vector<ParamDef> build() {
     b.push(id::licenseRemove, "Deactivate",
            "Removes the license from this computer (for example before moving it to another machine). Renders "
            "return to trial mode.");
+    if constexpr (kPersonalBuild)
+        for (size_t i = licenseFirst; i < b.defs.size(); ++i) b.defs[i].secret = true;
 
     // ---------------------------------------------------------------- [About]
     b.beginGroup(id::gAbout, "About", false, "Version information.");
-    b.label(id::aboutVersion, "Version", "", "Plugin version and build.")   // value set from Version.h
+    b.label(id::aboutVersion, "Version", "", "Plugin version, build variant and build.")   // value set from Version.h
         .persistent = false;
     b.label(id::aboutManual, "Manual",
             "See the User Manual (MANUAL.md in the plugin bundle's Resources folder).",

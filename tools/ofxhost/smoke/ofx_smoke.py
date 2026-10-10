@@ -8,9 +8,12 @@ platforms (macOS universal bundle, Windows Win64 DLL) and on the Linux workbench
 Checks
   1. describe: identifier, contexts, parameter count; GPU support is declared for exactly the APIs
      whose describe-time self test passed (CELLULOID_LOG=1 log lines "<API> self test: ok|...").
-  2. CPU render of a 64x48 test pattern (Full mode, defaults, trial): finite, alpha passed through,
-     and equal to the committed reference render (reference_gradient_64x48.f32) within 2e-3.
-  3. Trial LUT export is refused with a message and writes no file.
+  2. CPU render of a 64x48 test pattern (Full mode, defaults, no license key): finite, alpha passed
+     through, and equal to the committed reference render within 2e-3 - the personal build (default,
+     no watermark) against reference_gradient_64x48_personal.f32, the licensed build
+     (-DCEL_LICENSING=ON, trial watermark) against reference_gradient_64x48.f32.
+  3. Personal build: the License group is secret and LUT export writes a .cube without a key.
+     Licensed build: the trial refuses LUT export with a message and writes no file.
   4. --gpu: the same frame through the plug-in's GPU path with a host-created queue and buffers
      (Metal: MTLCommandQueue + MTLBuffers; OpenCL: cl_mem) equals the CPU render within 2e-4.
 """
@@ -24,7 +27,9 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REF = os.path.join(HERE, "reference_gradient_64x48.f32")
+REF_TRIAL = os.path.join(HERE, "reference_gradient_64x48.f32")              # licensed build, trial
+REF_PERSONAL = os.path.join(HERE, "reference_gradient_64x48_personal.f32")  # personal build
+PERSONAL_STATUS = "Personal build"   # licenseStatus of the personal build (src/ofx/Params.h)
 W, H = 64, 48
 FAILS = []
 
@@ -66,7 +71,8 @@ def main():
     os.makedirs(a.work, exist_ok=True)
     cfg = os.path.join(a.work, "cfg")
     os.makedirs(cfg, exist_ok=True)
-    # no license: trial (watermark is part of the reference); keep the user's real key out
+    # no license key: the licensed build runs as a trial (watermark is part of its reference), the
+    # personal build never watermarks; keep the user's real key out
     env = {"CELLULOID_LOG": "1", "XDG_CONFIG_HOME": cfg, "CELLULOID_LICENSE_KEY": ""}
 
     print("[describe]")
@@ -80,6 +86,18 @@ def main():
     check(pl.get("id") == "de.serhatbarda.CelluloidPro", "identifier", str(pl.get("id")))
     check(all(any(c.endswith(x) for c in pl.get("contexts", [])) for x in ("Filter", "General")), "contexts Filter + General")
     check(len(d.get("params", [])) >= 50, "parameters", "%d" % len(d.get("params", [])))
+    params = {p.get("name"): p for p in d.get("params", [])}
+    status = params.get("licenseStatus", {})
+    personal = PERSONAL_STATUS in str(status.get("value", status.get("default", "")))
+    print("  build variant: %s" % ("personal" if personal else "licensed"))
+    if personal:
+        lic = [n for n, p in params.items() if n == "groupLicense" or p.get("parent") == "groupLicense"]
+        check(len(lic) == 5 and all(params[n].get("secret") for n in lic),
+              "personal build: License group kept (saved projects) and secret", ", ".join(lic))
+        check(not any(p.get("secret") for n, p in params.items() if n not in lic), "no other parameter is secret")
+        ver = str(params.get("aboutVersion", {}).get("value", ""))
+        check("Personal build" in ver, "About shows the personal build", ver)
+    REF = REF_PERSONAL if personal else REF_TRIAL
     gpu = pl.get("gpu", {})
     tests = dict(re.findall(r"(OpenCL|CUDA|Metal) self test: (ok|not usable)", err))
     print("  self tests: %s; declared: %s" % (tests, json.dumps(gpu)))
@@ -107,19 +125,31 @@ def main():
     elif os.path.exists(REF):
         r = read_f32(REF)
         md = maxdiff(c, r)
-        check(md <= 2e-3, "CPU render equals the reference render (Linux workbench)", "max abs diff %.2e" % md)
+        check(md <= 2e-3, "CPU render equals the reference render (Linux workbench, %s)" % os.path.basename(REF),
+              "max abs diff %.2e" % md)
         ad = max(abs(c[i] - r[i]) for i in range(3, len(c), 4))
         check(ad <= 1e-6, "alpha passed through", "max alpha diff %.2e" % ad)
     else:
         check(False, "reference render present", REF)
 
-    print("[LUT export in the trial]")
+    print("[LUT export without a license key]")
     lut = os.path.join(a.work, "luts")
+    if os.path.isdir(lut):
+        for f in os.listdir(lut):
+            os.remove(os.path.join(lut, f))
     rc, out, err = run([a.host, a.bundle, "--in", "pattern:grey", "--width", "16", "--height", "16",
-                        "--set", "lutPath=" + lut, "--press", "lutExport"], env)
+                        "--set", "lutSize=index:0", "--set", "lutPath=" + lut, "--press", "lutExport"], env)
     cubes = [f for f in (os.listdir(lut) if os.path.isdir(lut) else []) if f.endswith(".cube")]
-    check(rc == 0 and not cubes and "licensed version" in (out + err), "trial refuses LUT export with a message",
-          "files=%s" % cubes)
+    if personal:
+        ok = rc == 0 and len(cubes) == 1
+        if ok:
+            with open(os.path.join(lut, cubes[0]), encoding="utf-8") as f:
+                rows = [l for l in f if re.match(r"^\s*-?[0-9.]", l)]
+            ok = len(rows) >= 17 ** 3
+        check(ok, "personal build exports a LUT without a license key", "rc=%d files=%s %s" % (rc, cubes, err.strip()[-300:]))
+    else:
+        check(rc == 0 and not cubes and "licensed version" in (out + err), "trial refuses LUT export with a message",
+              "files=%s" % cubes)
 
     if a.gpu != "none":
         print("[GPU render: %s]" % a.gpu)
