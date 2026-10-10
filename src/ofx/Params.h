@@ -159,6 +159,10 @@ constexpr const char* filmBlurDuration = "filmBlurDuration";
 constexpr const char* filmBlurBreathing = "filmBlurBreathing";
 constexpr const char* filmBlurChromatic = "filmBlurChromatic";
 constexpr const char* filmBlurSeed = "filmBlurSeed";
+// ---- v1.2: film resolution (negative MTF + Integrate) ------------------------------------------
+constexpr const char* gFilmResolution = "groupFilmResolution";
+constexpr const char* filmResolutionEnable = "filmResolutionEnable";
+constexpr const char* integrate = "integrate";
 } // namespace id
 
 // LUT sizes offered by lutSize, in option order.

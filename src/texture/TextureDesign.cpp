@@ -76,27 +76,46 @@ int levelSize(int fullSize, int level) {
     return s;
 }
 
+// ---- gauge -------------------------------------------------------------------------------------------
+// Camera aperture widths: Super 8 5.79 mm, Super 16 12.52 mm, Super 35 24.89 mm, 65 mm 5-perf 52.48 mm,
+// 35 mm stills (135 full frame) 36 mm.
+double gaugeGateMm(GrainFormat f) {
+    switch (f) {
+        case GrainFormat::Super8:    return 5.79;
+        case GrainFormat::Mm16:      return 12.52;
+        case GrainFormat::Super35:   return 24.89;
+        case GrainFormat::Mm65:      return 52.48;
+        case GrainFormat::Stills135: return 36.0;
+        default:                     return 24.89;
+    }
+}
+double gaugeRadiusScale(GrainFormat f) { return std::sqrt(gaugeGateMm(GrainFormat::Super35) / gaugeGateMm(f)); }
+
 // ---- grain -----------------------------------------------------------------------------------------
-// Dominant (green layer) dye-cloud sigma in px of a 1920 px wide frame, for grainSize = 1 and a
-// 200-speed-class emulsion. Derived from the physical gate width: the same emulsion is magnified
-// more when the gate is smaller (Super 35 24.9 mm, 16 mm/Super 16 ~12.4 mm, Super 8 5.8 mm,
-// 65 mm 52.5 mm, 135 full frame 36 mm), with S35 calibrated so grain at 1080p reads like a
-// typical 2K scan.
+// Coarse (fast emulsion) dye-cloud sigma in px of a 1920 px wide frame, grainSize 1. The owner's
+// power-grade ladder for 16 / 35 / 65 (size 1.25 : 1 : 0.5); Super 8 2.5x and 35 mm stills 0.75x of
+// Super 35 (between 35 and 65 by gate width).
 double grainFormatSigma(GrainFormat f) {
     switch (f) {
-        case GrainFormat::Super8:    return 3.40;
-        case GrainFormat::Mm16:      return 1.60;
+        case GrainFormat::Super8:    return 2.00;
+        case GrainFormat::Mm16:      return 1.00;
         case GrainFormat::Super35:   return 0.80;
         case GrainFormat::Mm65:      return 0.40;
         case GrainFormat::Stills135: return 0.60;
         default:                     return 0.80;
     }
 }
-// Visible granularity grows with magnification. Per-pixel RMS of the grain field is normalised to
-// 1, so the colour pipeline should scale its grain amplitude by this factor for the chosen format
-// (square root of the relative grain size: Super 8 ~2x, 16 mm ~1.4x, 65 mm ~0.7x of Super 35).
+// Density amplitude vs Super 35 (owner's ladder 1.7 : 1 : 0.67 for 16 / 35 / 65; Super 8 and stills
+// placed on the same curve: amplitude ~ (gate ratio)^0.72).
 float grainFormatAmplitude(GrainFormat f) {
-    return float(std::sqrt(grainFormatSigma(f) / grainFormatSigma(GrainFormat::Super35)));
+    switch (f) {
+        case GrainFormat::Super8:    return 2.60f;
+        case GrainFormat::Mm16:      return 1.70f;
+        case GrainFormat::Super35:   return 1.00f;
+        case GrainFormat::Mm65:      return 0.67f;
+        case GrainFormat::Stills135: return 0.80f;
+        default:                     return 1.00f;
+    }
 }
 const char* grainFormatName(GrainFormat f) {
     switch (f) {
@@ -111,7 +130,8 @@ const char* grainFormatName(GrainFormat f) {
 
 namespace {
 
-struct Quad {                               // trapezoid quadrature for E[.] over N(0,1)
+// Gauss-Hermite-like trapezoid quadrature over N(0,1)
+struct Quad {
     std::vector<double> z, w;
     explicit Quad(double h) {
         const double L = 8.5;
@@ -126,70 +146,57 @@ struct Quad {                               // trapezoid quadrature for E[.] ove
         for (double& v : w) v /= sum;
     }
 };
-
-struct ShapeMoments { double mu, sigma, corr; };
-
-ShapeMoments shapeMoments(const GrainShape& s, double b, const Quad& q) {
-    double a = std::sqrt(std::max(0.0, 1.0 - b * b));
-    double invX = 1.0 / std::sqrt(a * a * (1.0 + s.m * s.m) + b * b);
-    double k2 = s.kappa * s.kappa;
-    double m1 = 0.0, m2 = 0.0, g2 = 0.0;
-    for (size_t j = 0; j < q.z.size(); ++j) {          // shared field s
-        double sh = q.z[j], gs = 0.0;
-        for (size_t i = 0; i < q.z.size(); ++i) {      // per-layer noise n
-            double X = (a * q.z[i] * (1.0 + s.m * (sh * sh - 1.0) * kInvSqrt2) + b * sh) * invX;
-            double d = X - s.t;
-            double y = X + s.gamma * std::sqrt(d * d + k2);
-            gs += q.w[i] * y;
-            m2 += q.w[j] * q.w[i] * y * y;
-        }
-        m1 += q.w[j] * gs;
-        g2 += q.w[j] * gs * gs;
+double phi(double x) { return 0.5 * std::erfc(-x * kInvSqrt2); }
+// fast / slow emulsion probit arguments at exposure s (== celg_layer)
+void emulsionZ(double s, double& zf, double& zs) {
+    double z = (s - kGrainFastCentre) / kGrainFastWidth, d = z - kGrainFogZ;
+    zf = 0.5 * (z + kGrainFogZ + std::sqrt(d * d + kGrainFogKappa * kGrainFogKappa));
+    zs = (s - kGrainSlowCentre) / kGrainSlowWidth;
+}
+// variance of the soft indicator Phi((G + c z) / w) - Phi(z) over G ~ N(0,1)
+double indicatorVar(double z, double w) {
+    static const Quad q(0.01);
+    double c = std::sqrt(1.0 + w * w), m = phi(z), v = 0.0;
+    for (size_t i = 0; i < q.z.size(); ++i) {
+        double d = phi((q.z[i] + c * z) / w) - m;
+        v += q.w[i] * d * d;
     }
-    double var = std::max(1e-12, m2 - m1 * m1);
-    return {m1, std::sqrt(var), (g2 - m1 * m1) / var};
+    return v;
+}
+// amplitudes (fast, slow) with unit total std at grey and the fitted fast / slow ratio
+void grainAmplitudes(double w, double& aF, double& aS) {
+    double zf, zs;
+    emulsionZ(0.0, zf, zs);
+    double v = kGrainFastSlowRatio * kGrainFastSlowRatio * indicatorVar(zf, w) + indicatorVar(zs, w);
+    aS = kGrainGain / std::sqrt(std::max(v, 1e-12));
+    aF = kGrainFastSlowRatio * aS;
 }
 
 } // namespace
 
-GrainShape grainShape(float softness) {
-    static std::mutex mtx;
-    static std::map<int, GrainShape> cache;
-    double S = std::min(1.0, std::max(0.0, double(std::isfinite(softness) ? softness : 0.5f)));
-    int key = int(std::lround(S * 10000.0));
-    {
-        std::lock_guard<std::mutex> lk(mtx);
-        auto it = cache.find(key);
-        if (it != cache.end()) return it->second;
+double grainModelStd(double s, double w) {
+    double aF, aS, zf, zs;
+    grainAmplitudes(w, aF, aS);
+    emulsionZ(s, zf, zs);
+    return std::sqrt(aF * aF * indicatorVar(zf, w) + aS * aS * indicatorVar(zs, w));
+}
+
+// ---- film resolution ----------------------------------------------------------------------------------
+MtfDesign designMtf(const TextureParams& tp, float pixelScale) {
+    MtfDesign d;
+    const double ps = (std::isfinite(pixelScale) && pixelScale > 0.f) ? double(pixelScale) : 1.0;
+    const double umPerPx = gaugeGateMm(tp.grainFormat) * 1000.0 / 1920.0 / ps;   // film micrometres per pixel
+    const double integ = std::isfinite(tp.integrate) ? std::min(1.0, std::max(0.0, double(tp.integrate))) : 0.0;
+    const double sys = integ * kIntegrateSigmaUm / umPerPx;
+    for (int c = 0; c < 3; ++c) {
+        double neg = tp.filmResolution ? kNegMtfSigmaUm[c] / umPerPx : 0.0;
+        d.sigma[c] = std::sqrt(neg * neg + sys * sys);
+        d.g[c] = gaussKernel(std::min(kMaxBlurSigma, d.sigma[c]));
+        if (d.g[c].radius > 0) d.on = true;
     }
-    S = key / 10000.0;
-    GrainShape s{};
-    // Softness: 0 = crisp, distinct, skewed grains; 1 = soft, nearly Gaussian clumps, and wider
-    // (HF roll-off).
-    s.sigmaScale = 1.0 + 0.35 * S;
-    s.gamma = 0.25 * (1.0 - 0.6 * S);
-    s.kappa = 0.12 + 0.55 * S;
-    s.t = 0.0;
-    s.m = 0.22;
-    static const Quad q(0.08);
-    // correlation is monotonic in b: bisection to hit kGrainLayerCorrelation
-    double lo = 0.0, hi = 0.99;
-    for (int it = 0; it < 30; ++it) {
-        double mid = 0.5 * (lo + hi);
-        if (shapeMoments(s, mid, q).corr < kGrainLayerCorrelation) lo = mid; else hi = mid;
-    }
-    s.b = 0.5 * (lo + hi);
-    s.a = std::sqrt(1.0 - s.b * s.b);
-    s.invX = 1.0 / std::sqrt(s.a * s.a * (1.0 + s.m * s.m) + s.b * s.b);
-    static const Quad qf(0.02);                        // fine grid for the final normalisation
-    ShapeMoments mm = shapeMoments(s, s.b, qf);
-    s.mu = mm.mu;
-    s.invSigma = 1.0 / mm.sigma;
-    s.corr = mm.corr;
-    std::lock_guard<std::mutex> lk(mtx);
-    if (cache.size() > 256) cache.clear();
-    cache[key] = s;
-    return s;
+    d.g[3] = Gauss1D{};                  // alpha: identity (the kernel keeps it exactly, i[5])
+    d.grainSigma = kIntegrateGrainShare * sys;
+    return d;
 }
 
 namespace {
@@ -254,39 +261,55 @@ GrainOctave designOctave(const double sigmaFull[4], int w, int h, uint32_t seed)
     o.gh = std::max(1, int(std::ceil(double(h) / D))) + 2 * o.margin;
     return o;
 }
-double smoothstep(double e0, double e1, double x) {
-    double t = std::min(1.0, std::max(0.0, (x - e0) / (e1 - e0)));
-    return t * t * (3.0 - 2.0 * t);
-}
 } // namespace
 
 GrainDesign designGrain(const TextureParams& tp, int w, int h, float pixelScale) {
     GrainDesign d;
-    d.shape = grainShape(tp.grainSoftness);
     double S = std::min(1.0, std::max(0.0, double(std::isfinite(tp.grainSoftness) ? tp.grainSoftness : 0.5f)));
     double size = std::isfinite(tp.grainSize) ? std::min(20.0, std::max(0.05, double(tp.grainSize))) : 1.0;
     double ps = (std::isfinite(pixelScale) && pixelScale > 0.f) ? double(pixelScale) : 1.0;
-    double sgRef = grainFormatSigma(tp.grainFormat) * size * d.shape.sigmaScale;   // @1920
-    double sg = sgRef * ps;
+    // softness: wider clouds (HF roll-off) and a softer cloud edge (indicator width)
+    const double sigmaScale = 1.0 + 0.35 * S;
+    d.w = 0.45 + 0.40 * S;
+    const double cRef = grainFormatSigma(tp.grainFormat) * size * sigmaScale;          // @1920
+    const double fRef = std::max(kGrainFineRel * cRef, std::min(cRef, kGrainFineMinPx));
+    // Integrate: the print / scan system blurs the grain like the image (Gaussian clouds stay
+    // Gaussian: sigma^2 adds); a blurred field keeps rms ~ 1 / sigma (2D)
+    const MtfDesign mtf = designMtf(tp, pixelScale);
+    const double gs = mtf.grainSigma;
+    const double c0 = cRef * ps, f0 = fRef * ps;
+    const double c1 = std::sqrt(c0 * c0 + gs * gs), f1 = std::sqrt(f0 * f0 + gs * gs);
     uint32_t seed = grainFrameSeed(tp.grainSeed, tp.grainAnimated, tp.time);
-    double sc[4];
-    for (int c = 0; c < 4; ++c) sc[c] = sg * kGrainRelSigma[c];
+    double sc[4], sf[4];
+    for (int c = 0; c < 4; ++c) { sc[c] = c1 * kGrainRelSigma[c]; sf[c] = f1 * kGrainRelSigma[c]; }
     d.coarse = designOctave(sc, w, h, seed);
-    double beta = kGrainFineWeight * (1.0 - S) * smoothstep(0.45, 0.8, sgRef * kGrainFineRel);
-    if (beta > 0.02) {
-        double sf[4];
-        for (int c = 0; c < 3; ++c) sf[c] = sc[c] * kGrainFineRel;
-        sf[3] = 0.0;
-        d.fine = designOctave(sf, w, h, hashU32(seed ^ 0x2545f491U));
-        d.wFine = beta;
-        d.wCoarse = std::sqrt(1.0 - beta * beta);
-    }
+    d.fine = designOctave(sf, w, h, hashU32(seed ^ 0x2545f491U));
+    d.cs = std::sqrt(kGrainSharedVar);
+    d.ci = std::sqrt(1.0 - kGrainSharedVar);
+    grainAmplitudes(d.w, d.aFast, d.aSlow);
+    d.aFast *= c0 / c1;
+    d.aSlow *= f0 / f1;
     d.mono = tp.grainMonochrome;
+    // kernel argument block (GrainKernels.h)
+    float* f = d.f;
+    f[0] = float(1.0 / d.coarse.spacing); f[1] = float(d.coarse.margin);
+    f[2] = float(1.0 / d.fine.spacing);   f[3] = float(d.fine.margin);
+    for (int c = 0; c < 4; ++c) { f[4 + c] = d.coarse.norm[c]; f[8 + c] = d.fine.norm[c]; }
+    f[12] = float(d.cs); f[13] = float(d.ci);
+    f[14] = float(1.0 / d.w); f[15] = float(std::sqrt(1.0 + d.w * d.w));
+    f[16] = float(kGrainFastCentre); f[17] = float(1.0 / kGrainFastWidth);
+    f[18] = float(kGrainFogZ); f[19] = float(kGrainFogKappa * kGrainFogKappa);
+    f[20] = float(kGrainSlowCentre); f[21] = float(1.0 / kGrainSlowWidth);
+    f[22] = float(d.aFast); f[23] = float(d.aSlow);
+    d.i[0] = 2;
+    d.i[3] = d.coarse.spacing > 1.0 ? 1 : 0;
+    d.i[4] = d.fine.spacing > 1.0 ? 1 : 0;
+    d.i[5] = d.mono ? 1 : 0;
     return d;
 }
 
 // ---- glow ------------------------------------------------------------------------------------------
-GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h) {
+GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h, bool halRing) {
     GlowDesign gd;
     struct Scale { int group; double sigma, weight; };
     std::vector<Scale> sc;
@@ -294,7 +317,8 @@ GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadi
     if (bloom && ok(bloomRadiusPx))
         for (int i = 0; i < kBloomScales; ++i) sc.push_back({0, bloomRadiusPx * kBloomRel[i], kBloomW[i]});
     if (hal && ok(halRadiusPx))
-        for (int i = 0; i < kHalScales; ++i) sc.push_back({1, halRadiusPx * kHalRel[i], kHalW[i]});
+        for (int i = 0; i < kHalScales; ++i)
+            sc.push_back({1, halRadiusPx * (halRing ? kHalRingRel[i] : kHalRel[i]), halRing ? kHalRingW[i] : kHalW[i]});
     if (sc.empty()) return gd;
     // deepest useful level: stop once the image is a single pixel
     int maxLevel = 1;
@@ -313,7 +337,7 @@ GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadi
     }
     int finest = 0, deepest = 0;
     for (int l = 1; l <= maxLevel; ++l) {
-        if (wsum[0][size_t(l)] > 0.0 || wsum[1][size_t(l)] > 0.0) {
+        if (wsum[0][size_t(l)] != 0.0 || wsum[1][size_t(l)] != 0.0) {
             gd.level[size_t(l)].used = true;
             if (!finest) finest = l;
             deepest = l;
@@ -333,7 +357,7 @@ GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadi
             if (gd.level[size_t(j)].used) inherent += std::ldexp(1.0, 2 * j) / 3.0;
         for (int g = 0; g < 2; ++g) {
             double ws = wsum[g][size_t(l)];
-            if (ws <= 0.0) continue;
+            if (ws == 0.0) continue;   // (the annular halation PSF has a negative inner scale)
             double var = vsum[g][size_t(l)] / ws;
             Gauss1D k = gaussKernel(std::sqrt(std::max(0.0, (var - inherent) / s4)));
             if (g == 0) { L.gBloom = k; L.wBloom = float(ws); L.sigmaBloom = std::sqrt(var); }
@@ -346,14 +370,31 @@ GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadi
 HalationLook halationLook(float amount, float thresholdStops, float hue) {
     HalationLook L{};
     double hh = std::isfinite(hue) ? std::min(1.0, std::max(-1.0, double(hue))) : 0.0;
-    // tint anchors: deep red (-1), red-orange (0), orange-yellow (+1)
+    double th = std::isfinite(thresholdStops) ? std::min(12.0, std::max(-4.0, double(thresholdStops))) : 0.0;
+    double am = std::isfinite(amount) ? std::max(0.0, double(amount)) : 0.0;
+    L.ring = !(th > 0.0);
+    if (L.ring) {
+        // v1.2 physical halation: red (+ some green) light re-exposes the red- (and green-) sensitive
+        // layers; the tint is the light ADDED to the scene-linear exposure: deep red (-1), red with the
+        // green-layer share of the reflected light (0: R 1, G 0.25, B 0), orange (+1). The film then
+        // renders it (a warm ring, never magenta, see VALIDATION.md).
+        const double A[3][3] = {{1.0, 0.10, 0.0}, {1.0, 0.25, 0.0}, {1.0, 0.45, 0.03}};
+        int i0 = hh < 0.0 ? 0 : 1;
+        double t = hh < 0.0 ? hh + 1.0 : hh;
+        for (int c = 0; c < 3; ++c) L.tint[c] = float(A[i0][c] + (A[i0 + 1][c] - A[i0][c]) * t);
+        L.gain = float(am * kHalRingGainPerAmount);   // fraction of the red-weighted light
+        L.threshold = 0.f;
+        L.knee = 0.f;
+        L.emax = float(0.18 * 512.0);                  // compress only beyond +9 stops
+        L.srcW[0] = 0.85f; L.srcW[1] = 0.15f; L.srcW[2] = 0.0f;
+        return L;
+    }
+    // v1.1 soft-knee gate (unchanged)
     const double A[3][3] = {{1.0, 0.06, 0.02}, {1.0, 0.24, 0.06}, {1.0, 0.50, 0.13}};
     int i0 = hh < 0.0 ? 0 : 1;
     double t = hh < 0.0 ? hh + 1.0 : hh;
     for (int c = 0; c < 3; ++c) L.tint[c] = float(A[i0][c] + (A[i0 + 1][c] - A[i0][c]) * t);
-    double am = std::isfinite(amount) ? std::max(0.0, double(amount)) : 0.0;
     L.gain = float(am * 0.24);
-    double th = std::isfinite(thresholdStops) ? std::min(12.0, std::max(-4.0, double(thresholdStops))) : 3.5;
     L.threshold = float(0.18 * std::exp2(th));
     L.knee = 2.0f;
     L.emax = 32.f;

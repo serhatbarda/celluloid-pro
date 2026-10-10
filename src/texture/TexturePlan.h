@@ -16,9 +16,11 @@ namespace cel { namespace tex {
 //   Texture-Only chain never produces values above 1.0.
 engine::Plan buildTexturePlan(int w, int h, const TextureParams& tp, bool displayReferred, bool hdrOutput = false);
 
-// Grain field only: dst = grain noise (x, y, z = red, green, blue layer; w = 0) of size w x h,
-// exactly what the colour pass receives as in1. src is not read (pass any w x h image).
-engine::Plan buildGrainPlan(int w, int h, const TextureParams& tp);
+// Grain field only (v1.2 diagnostic): dst = the density fluctuation the colour pass adds per layer (x,
+// y, z = red, green, blue layer, in units of the stock's grain sigma at grey; w = 0) when every layer is
+// exposed at `stops` relative to 18 % grey (the production plan evaluates it per pixel from the layer
+// exposures). src is not read (pass any w x h image).
+engine::Plan buildGrainPlan(int w, int h, const TextureParams& tp, float stops = 0.f);
 
 // Film damage field only (v1.1): dst = what the colour pass receives as in3 (x = negative neutral
 // density, y = negative emulsion depth, z = print neutral density, w = print emulsion depth); a zero

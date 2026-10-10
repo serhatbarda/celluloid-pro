@@ -113,6 +113,14 @@ std::vector<ParamDef> build() {
              "the colour untouched. Use it after your own grade or after another film look.",
              false);
 
+    // v1.2: the gauge (ID grainFormat, moved here from [Grain]) couples every texture to the film format
+    b.choice(id::grainFormat, "Gauge", {"Super 8", "16 mm", "Super 35", "65 mm", "35 mm Stills"}, 2,
+             "Film gauge the image was 'shot' on. It sets the whole texture ladder at once, like changing the "
+             "camera: grain size and strength (Super 8 very coarse, 16 mm clearly visible, Super 35 the cinema "
+             "standard, 65 mm very fine; 35 mm Stills between Super 35 and 65 mm), the film's own sharpness "
+             "(Film Resolution), and the size of the halation ring and of the acutance edge effect.",
+             true);
+
     // ---------------------------------------------------------------- [Input]
     const std::vector<std::string> inputs = core::inputSpaceNames();
     b.beginGroup(id::gInput, "Input", true, "What the camera recorded.");
@@ -219,17 +227,20 @@ std::vector<ParamDef> build() {
               true);
     b.dbl(id::halationAmount, "Halation Amount", 0.5, 0.0, 2.0, 0.01, 2,
           "Strength of halation: light that passes through the emulsion, reflects off the film base and re-exposes "
-          "the red layer, creating a warm glow that hugs bright edges and practicals. Scaled by the stock "
+          "the red (and a little of the green) layer, creating a warm ring that hugs bright edges and practicals. "
+          "It is added to the film's exposure, so the film curve shapes it like the image. Scaled by the stock "
           "(no-backing stocks glow much more). 0 = off.",
           true);
     b.dbl(id::halationRadius, "Halation Radius", 20.0, 2.0, 80.0, 0.5, 1,
-          "Spread of the glow in pixels at 1920 px image width (automatically scaled for other resolutions "
-          "and proxy render scales).",
+          "Size of the halation ring in pixels at 1920 px image width for Super 35 (automatically scaled for other "
+          "resolutions, proxy render scales and the Gauge: smaller gauges enlarge the ring).",
           true);
-    b.dbl(id::halationThreshold, "Halation Threshold", 3.5, 0.0, 6.0, 0.05, 2,
-          "How bright a highlight must be before it halates, in stops above middle grey. The glow eases in over "
-          "about a stop and a half above it, so broad bright areas (an overcast sky) barely halate while light "
-          "sources and speculars glow fully. Lower values let more of the image glow.",
+    b.dbl(id::halationThreshold, "Halation Threshold", 0.0, 0.0, 6.0, 0.05, 2,
+          "0 (default) = physical halation: a fixed share of ALL the light reflects off the film base, so every "
+          "bright edge gets a thin warm ring in proportion to its brightness, and flat areas (an overcast sky) "
+          "stay clean because the ring only shows where light spills beyond an edge. Above 0 = an artistic "
+          "gate: only highlights brighter than this many stops above middle grey halate (the v1.1 behaviour; "
+          "the glow eases in over about a stop and a half).",
           true);
     b.dbl(id::halationHue, "Halation Hue", 0.0, -1.0, 1.0, 0.01, 2,
           "Colour of the glow: -1 deep red, 0 the classic red-orange, +1 orange-yellow.", true);
@@ -251,17 +262,14 @@ std::vector<ParamDef> build() {
     // ---------------------------------------------------------------- [Grain]
     b.beginGroup(id::gGrain, "Grain", true, "Film grain, generated in the film's density domain.");
     b.boolean(id::grainEnable, "Enable Grain", true,
-              "Adds film grain. Grain is added to the dye densities of the negative, so it behaves like real "
-              "grain: strongest in the mid-tones and shadows of the negative, varying per colour layer. Off skips "
-              "the grain passes entirely and keeps the grain settings.",
+              "Adds film grain: dye clouds of a fast (coarse) and a slow (fine) emulsion in every colour layer, "
+              "developed from each layer's own exposure (granularity measured from published film data). Coarse, "
+              "sparse grain lives in the shadows and lower mid-tones, finer grain in the highlights, and the film "
+              "curves shape it - it sits inside the image instead of on top of it. Off skips the grain passes "
+              "entirely and keeps the grain settings.",
               true);
-    b.choice(id::grainFormat, "Grain Format", {"Super 8", "16 mm", "Super 35", "65 mm", "35 mm Stills"}, 2,
-             "Film gauge the image was 'shot' on. Smaller formats enlarge the grain more: Super 8 is very coarse, "
-             "16 mm clearly visible, Super 35 the cinema standard, 65 mm very fine; 35 mm Stills (36x24 full "
-             "frame) is finer than Super 35.",
-             true);
     b.dbl(id::grainAmount, "Grain Amount", 1.0, 0.0, 3.0, 0.01, 2,
-          "Grain strength. 1 = the stock's nominal granularity for the chosen format and development; push "
+          "Grain strength. 1 = the stock's nominal granularity for the chosen Gauge and development; push "
           "processing increases it automatically.",
           true);
     b.dbl(id::grainSize, "Grain Size", 1.0, 0.5, 3.0, 0.01, 2,
@@ -269,8 +277,8 @@ std::vector<ParamDef> build() {
           "at HD, UHD and in proxy renders.",
           true);
     b.dbl(id::grainSoftness, "Grain Softness", 0.5, 0.0, 1.0, 0.01, 2,
-          "0 = crisp, sharply defined grains (like a sharp scan), 1 = soft clumps (like an optical print or a "
-          "softer scan).",
+          "0 = crisp, sharply defined dye clouds (like a sharp scan), 1 = soft clumps with soft edges (like an "
+          "optical print or a softer scan). Integrate (Film Resolution) softens grain and image together.",
           true);
     b.boolean(id::grainAnimated, "Animated Grain", true,
               "On: a new grain pattern every frame, like real film. Off: a frozen pattern (useful for stills or "
@@ -281,19 +289,34 @@ std::vector<ParamDef> build() {
               "never lines up.",
               false);
 
+    // ---------------------------------------------------------------- [Film Resolution] (v1.2)
+    b.beginGroup(id::gFilmResolution, "Film Resolution", false,
+                 "The film's own sharpness, so grain and picture share one resolution.");
+    b.boolean(id::filmResolutionEnable, "Enable Film Resolution", true,
+              "Gives the image the modulation transfer of the camera negative for the chosen Gauge (measured from "
+              "published film data: the red layer softest, blue sharpest). Digital micro-contrast is finer than "
+              "any film grain; without this the grain looks laid on top of a too-sharp picture. Off skips the "
+              "passes (Integrate still applies).",
+              true);
+    b.dbl(id::integrate, "Integrate", 0.5, 0.0, 1.0, 0.01, 2,
+          "The print and scan resolution that picture AND grain share: higher values soften both together, so the "
+          "grain is part of the image instead of an overlay (the colourist's 'defocus under the grain', done "
+          "physically). 0 = off.",
+          true);
+
     // ---------------------------------------------------------------- [Lens & Gate]
     b.beginGroup(id::gLens, "Lens & Gate", false, "Sharpness, gate weave and vignetting.");
     b.boolean(id::acutanceEnable, "Enable Acutance", true,
               "Switches acutance (Acutance, Acutance Radius) on or off without losing its settings. Off = the "
               "image's own sharpness; the passes are skipped.",
               true);
-    b.dbl(id::acutanceAmount, "Acutance", 0.3, -1.0, 2.0, 0.01, 2,
+    b.dbl(id::acutanceAmount, "Acutance", 0.35, -1.0, 2.0, 0.01, 2,
           "Edge contrast from development adjacency effects: crisp, film-like apparent sharpness without the "
           "halos of digital sharpening. Negative values soften the image.",
           true);
     b.dbl(id::acutanceRadius, "Acutance Radius", 2.0, 0.5, 10.0, 0.05, 2,
-          "Size of the adjacency effect in pixels at 1920 px width. Small = fine micro-contrast, larger = broader "
-          "edge enhancement.",
+          "Size of the adjacency effect in pixels at 1920 px width for Super 35 (scaled with the Gauge: the effect "
+          "is a fixed distance on the film). Small = fine micro-contrast, larger = broader edge enhancement.",
           true);
     b.boolean(id::weaveEnable, "Enable Gate Weave", true,
               "Switches gate weave (Gate Weave, Weave Speed) on or off without losing its settings. Off = a rock "

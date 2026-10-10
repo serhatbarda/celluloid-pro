@@ -132,7 +132,7 @@ void testGrainStatistics() {
             for (int c = 0; c < 3; ++c) {
                 CHECK(std::fabs(mean[c]) < 0.02, "%s soft %.1f mean[%d] = %f", cel::tex::grainFormatName(f), s, c, mean[c]);
                 CHECK(std::fabs(var[c] - 1.0) < 0.02, "%s soft %.1f var[%d] = %f", cel::tex::grainFormatName(f), s, c, var[c]);
-                CHECK(std::fabs(corr[c] - cel::tex::kGrainLayerCorrelation) < 0.05, "%s soft %.1f corr[%d] = %f", cel::tex::grainFormatName(f), s, c, corr[c]);
+                CHECK(std::fabs(corr[c] - 0.95) < 0.05, "%s soft %.1f corr[%d] = %f", cel::tex::grainFormatName(f), s, c, corr[c]);
             }
         }
     // monochrome: one field
