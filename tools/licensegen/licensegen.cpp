@@ -238,7 +238,7 @@ std::string headerText(const std::vector<std::vector<uint8_t>>& keys, bool dev, 
       << (provisional ? " --provisional" : "") << "`). Do not edit by hand.\n";
     if (dev) {
         h << "// DEVELOPMENT public key. Compiled in ONLY when the build is configured with\n"
-             "// -DCEL_DEV_LICENSE=ON; its private half is tools/licensegen/dev-keys/ (public in the repo,\n"
+             "// -DCEL_DEV_LICENSE=ON; its private half is tools/licensegen/dev-keys/ (committed to the repo,\n"
              "// so keys signed with it prove nothing). Release builds never contain this key.\n";
     } else {
         h << "// PRODUCTION public key(s): license keys signed by the matching private key(s) are accepted.\n"
@@ -306,7 +306,7 @@ int cmdKeygen(const Args& a) {
     if (!sign::osRandomBytes(seed, sizeof(seed))) return fail("the operating system RNG is unavailable");
     sign::derivePublicKey(seed, pub);
     const std::string label = dev
-        ? "Celluloid Pro DEVELOPMENT signing key - NOT FOR PRODUCTION. Public in the repository on purpose."
+        ? "Celluloid Pro DEVELOPMENT signing key - NOT FOR PRODUCTION. Committed to the repository on purpose."
         : "Celluloid Pro PRODUCTION license signing key";
     std::string privText = fmt::privateKeyFileText(seed, label);
     fmt::secureWipe(seed, sizeof(seed));

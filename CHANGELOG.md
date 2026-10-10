@@ -4,6 +4,22 @@ All notable changes to Celluloid Pro. Versions follow [Semantic Versioning](http
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.2.0] — unreleased
+
+### Changed
+
+- **Personal build by default.** Celluloid Pro is now built for the owner's personal, non-commercial
+  use: no license check, no trial watermark, and LUT export is always available. The License group
+  is hidden; its parameters still exist, so projects saved with earlier versions (licensed or trial)
+  open unchanged. About › Version reads "… - Personal build". Renders are pixel-identical to a
+  licensed render of the same settings.
+- The licensed variant (offline keys, trial watermark, licensed-only LUT export) is still in the
+  source and builds with the CMake option `-DCEL_LICENSING=ON`; its tests pass unchanged.
+  `CEL_DEV_LICENSE=ON` now requires `CEL_LICENSING=ON`.
+- CI builds the personal build by default (macOS `.pkg` + `.dmg`, Windows installer); the release
+  licence gate applies only to licensed builds. Installer texts follow the build variant.
+- Documentation: the repository is private (corrected "public" wording).
+
 ## [1.1.0] — unreleased
 
 ### Added

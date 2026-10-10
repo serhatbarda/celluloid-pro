@@ -1,6 +1,10 @@
 // Celluloid Pro - the OFX plug-in: parameters, presets, license UI, LUT export and render
 // orchestration (FrameSettings -> core::Pipeline -> engine::Plan -> Backend).
 //
+// Build variants (SPEC §9): the default PERSONAL build (CEL_PERSONAL_BUILD=1) contains no license
+// code - no key check, no trial watermark, LUT export always on, the License group secret. The
+// licensed build (-DCEL_LICENSING=ON, CEL_PERSONAL_BUILD=0) links cellic and gates both.
+//
 // ---------------------------------------------------------------------------------------------
 // Threading model
 //   * Render thread safety = eRenderInstanceSafe, host frame threading OFF. The host may render
@@ -47,7 +51,9 @@
 #include "../common/Common.h"
 #include "../core/Core.h"
 #include "../engine/Engine.h"
-#include "../license/License.h"
+#if !CEL_PERSONAL_BUILD
+#  include "../license/License.h"
+#endif
 #include "../texture/Texture.h"
 #include "../texture/TextureDesign.h"   // grainFormatAmplitude()
 #if defined(CEL_HAVE_GPU_API) && CEL_HAVE_GPU_API
@@ -178,15 +184,24 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
 
 std::string versionString() {
     std::string s = std::string(CEL_PRODUCT_NAME) + " " + CEL_VERSION_STRING;
+    if constexpr (kPersonalBuild) s += " - Personal build";
     std::string build = CEL_BUILD_ID;
     if (!build.empty()) s += " (build " + build + ", " + CEL_BUILD_DATE + ")";
     return s;
 }
 
+#if CEL_PERSONAL_BUILD
+// personal build: never watermarked, every feature on, nothing to check
+bool renderNeedsWatermark() { return false; }
+std::string licenseStatus() { return kPersonalLicenseStatus; }
+#else
+bool renderNeedsWatermark() { return lic::needsWatermark(lic::current()); }
 std::string licenseStatusText(const lic::LicenseInfo& li) {
     if (!li.message.empty()) return li.message;   // the license module's wording ("Licensed to ...", "Trial ...")
     return lic::needsWatermark(li) ? "Trial - renders carry a watermark" : "Licensed";
 }
+std::string licenseStatus() { return licenseStatusText(lic::current()); }
+#endif
 
 [[noreturn]] void fail(OfxStatus st) { throw OFX::Exception::Suite(st); }
 
@@ -509,7 +524,7 @@ engine::FrameSettings CelluloidEffect::frameSettingsAt(double t, int fullWidthPx
         tp.damageEnabled = false;
         tp.blurEnabled = false;
     }
-    fs.watermark = lic::needsWatermark(lic::current());
+    fs.watermark = renderNeedsWatermark();   // always false in the personal build
     return fs;
 }
 
@@ -929,8 +944,19 @@ void CelluloidEffect::refreshEnabledness(double t) {
         setEnabled(p, blurOn);
 }
 
-void CelluloidEffect::refreshLicenseStatus() { setStr(id::licenseStatus, licenseStatusText(lic::current())); }
+void CelluloidEffect::refreshLicenseStatus() { setStr(id::licenseStatus, licenseStatus()); }
 
+#if CEL_PERSONAL_BUILD
+// The License group is secret in the personal build; scripts that still press its buttons get a
+// note and nothing is checked or stored.
+void CelluloidEffect::activateLicense() {
+    setStr(id::licenseKey, "");
+    sendMessage(OFX::Message::eMessageMessage, "",
+                "This is the personal build of Celluloid Pro: no license key is needed. Renders never carry a "
+                "watermark and LUT export is always available.");
+}
+void CelluloidEffect::deactivateLicense() { activateLicense(); }
+#else
 void CelluloidEffect::activateLicense() {
     std::string key = normalizeUserPath(str(id::licenseKey));   // trims white space / quotes
     if (key.empty()) {
@@ -980,11 +1006,13 @@ void CelluloidEffect::deactivateLicense() {
     if (!err.empty()) msg += "\n" + err;
     sendMessage(OFX::Message::eMessageMessage, "", msg);
 }
+#endif
 
 void CelluloidEffect::exportLut(double t) {
-    // LUT export is a licensed feature: a .cube carries the whole colour pipeline without the trial
-    // watermark (SPEC section 9, section 13 entry of 2026-10-07)
-    if (lic::needsWatermark(lic::current())) {
+    // Licensed build: LUT export is a licensed feature, a .cube carries the whole colour pipeline
+    // without the trial watermark (SPEC section 9, section 13 entry of 2026-10-07). The personal
+    // build never watermarks, so it always exports.
+    if (renderNeedsWatermark()) {
         sendMessage(OFX::Message::eMessageError, "",
                     "LUT export is part of the licensed version. Activate a license key in the License group "
                     "to export LUTs.");
@@ -1198,6 +1226,7 @@ void CelluloidFactory::describeInContext(OFX::ImageEffectDescriptor& desc, OFX::
         pd->setLabels(d.label, d.label, d.label);
         pd->setScriptName(d.id);
         if (!d.hint.empty()) pd->setHint(d.hint);
+        if (d.secret) pd->setIsSecret(true);   // personal build: the License group (IDs kept for old projects)
         if (d.type != PType::Group) {
             if (OFX::ValueParamDescriptor* vp = dynamic_cast<OFX::ValueParamDescriptor*>(pd)) {
                 vp->setEvaluateOnChange(d.evaluateOnChange);

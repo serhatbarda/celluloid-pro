@@ -114,6 +114,8 @@ def render(params):
     groups = page["children"] if page else [p["name"] for p in params if p["type"] == "Group"]
     for g in groups:
         gp = by_name[g]
+        if gp.get("secret"):
+            continue           # hidden in the host (personal build: the License group)
         out.append("### %s" % gp["label"])
         out.append("")
         if gp.get("hint"):

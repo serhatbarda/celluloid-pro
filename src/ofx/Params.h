@@ -10,7 +10,19 @@
 #include <string>
 #include <vector>
 
+// Build variant (SPEC §9): CEL_PERSONAL_BUILD=1 is the default personal, non-commercial build (no
+// license check, no trial watermark, LUT export always on; the License group stays in the table as
+// secret parameters so saved projects keep their IDs). CEL_PERSONAL_BUILD=0 is the licensed build
+// (-DCEL_LICENSING=ON). src/ofx/CMakeLists.txt always defines it.
+#ifndef CEL_PERSONAL_BUILD
+#  define CEL_PERSONAL_BUILD 1
+#endif
+
 namespace cel { namespace ofxp {
+
+constexpr bool kPersonalBuild = CEL_PERSONAL_BUILD != 0;
+// License Status text of the personal build (also how tools detect the variant from --list-params).
+constexpr const char* kPersonalLicenseStatus = "Personal build - non-commercial use, no license needed";
 
 enum class PType { Group, Double, Int, Bool, Choice, String, Label, Push };
 
@@ -36,6 +48,7 @@ struct ParamDef {
     bool persistent = true;
     bool groupOpen = false;     // Group: expanded by default
     bool look = false;          // part of a look preset (set by lookPreset, compared for "(modified)")
+    bool secret = false;        // hidden from the user (kOfxParamPropSecret); still defined and saved
 };
 
 // The full ordered table (groups precede their children). Built once on first use; choice

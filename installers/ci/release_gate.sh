@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Celluloid Pro CI: licence gate for PUBLIC releases (tags v*). Normal main/PR builds never run it.
+# Celluloid Pro CI: licence gate for releases of the LICENSED build (tags v*, CEL_LICENSING=ON).
+# Normal main/PR builds and the personal build never run it.
 #   release_gate.sh <build dir> <path/Celluloid.ofx.bundle>
 # Refuses to publish when
 #   - src/license/PublicKey.h still holds the PROVISIONAL production key (its private half was
 #     generated on a development machine; regenerate with tools/licensegen on the owner's machine),
-#   - the build was configured with CEL_DEV_LICENSE=ON (accepts keys anyone can sign from the
-#     public repository),
+#   - the build was configured with CEL_DEV_LICENSE=ON (accepts keys anyone with access to the
+#     repository can sign with the committed development key),
 #   - the development public key bytes occur in the plug-in binary (every architecture slice).
 set -euo pipefail
 BUILD="${1:?build dir}"

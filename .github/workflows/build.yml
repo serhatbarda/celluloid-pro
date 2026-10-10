@@ -4,9 +4,14 @@
 # There is deliberately NO Linux job: unit tests, POCL GPU parity and host render tests run on the
 # Linux development workbench.
 #
+# Build variant: the PERSONAL build (default, CEL_LICENSING=OFF: no license check, no trial
+# watermark, LUT export always on) - the owner's own non-commercial build. The licensed variant
+# (-DCEL_LICENSING=ON) is built by a manual run with the "licensing" input switched on.
+#
 # Every push/PR builds both installers and uploads them as workflow artifacts. A tag "v*" (e.g.
-# v1.0.0, must match the project version in CMakeLists.txt) also runs the release licence gate in
-# both jobs and then publishes both installers together from the "release" job.
+# v1.0.0, must match the project version in CMakeLists.txt) also publishes both installers together
+# from the "release" job; the release licence gate runs only for licensed builds (a personal build
+# has no license keys to check).
 #
 # Signing is optional and switched on by repository secrets:
 #   macOS:   MACOS_CERT_P12 (base64 Developer ID Application .p12), MACOS_CERT_PASSWORD,
@@ -22,6 +27,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      licensing:
+        description: 'Licensed build (-DCEL_LICENSING=ON: license keys, trial watermark) instead of the personal build'
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # needed to create the release on tags
@@ -32,6 +42,8 @@ concurrency:
 
 env:
   BUILD_TYPE: Release
+  # OFF = personal build (default); ON only for a manual run with the "licensing" input
+  CEL_LICENSING: ${{ (github.event_name == 'workflow_dispatch' && inputs.licensing) && 'ON' || 'OFF' }}
 
 jobs:
   macos:
@@ -73,6 +85,7 @@ jobs:
           -DCEL_ENABLE_METAL=ON
           -DCEL_ENABLE_OPENCL=ON
           -DCEL_BUILD_TESTS=ON
+          -DCEL_LICENSING=${CEL_LICENSING}
           -DCEL_BUILD_ID=${{ steps.ver.outputs.build_id }}
 
       - name: Build
@@ -97,10 +110,10 @@ jobs:
       - name: Verify bundle
         run: bash installers/ci/verify_bundle.sh build/Celluloid.ofx.bundle macos
 
-      # Tags only (never main/PR builds): no provisional production key, no CEL_DEV_LICENSE build,
-      # no development public key in the binary
+      # Licensed builds on tags only (never main/PR builds, never the personal build): no provisional
+      # production key, no CEL_DEV_LICENSE build, no development public key in the binary
       - name: Release licence gate
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && env.CEL_LICENSING == 'ON'
         run: bash installers/ci/release_gate.sh build build/Celluloid.ofx.bundle
 
       - name: Unit tests
@@ -144,6 +157,7 @@ jobs:
           [ -n "${APP_IDENTITY:-}" ] && args+=(--app-identity "$APP_IDENTITY")
           [ -n "${INSTALLER_IDENTITY:-}" ] && args+=(--installer-identity "$INSTALLER_IDENTITY")
           [ -n "${KEYCHAIN:-}" ] && args+=(--keychain "$KEYCHAIN")
+          [ "$CEL_LICENSING" = "ON" ] && args+=(--licensed)
           if [ -n "${INSTALLER_IDENTITY:-}" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
             args+=(--notarize)
           fi
@@ -166,8 +180,12 @@ jobs:
 
           If the installer is not signed yet, macOS may block it: right-click the
           .pkg and choose Open, or allow it in System Settings > Privacy & Security.
-          Without a license key the plug-in runs as a full trial with a watermark.
           EOF
+          if [ "$CEL_LICENSING" = "ON" ]; then
+            echo "Without a license key the plug-in runs as a full trial with a watermark." >> "$STAGE/READ ME FIRST.txt"
+          else
+            echo "Personal build for non-commercial use: no license key needed, no watermark." >> "$STAGE/READ ME FIRST.txt"
+          fi
           hdiutil create -volname "Celluloid Pro $VER" -srcfolder "$STAGE" -fs HFS+ \
             -format UDZO -ov "dist/CelluloidPro-$VER-macOS.dmg"
           if [ -n "${APP_IDENTITY:-}" ]; then
@@ -248,6 +266,7 @@ jobs:
           -DCEL_ENABLE_CUDA=ON
           -DCEL_ENABLE_OPENCL=ON
           -DCEL_BUILD_TESTS=ON
+          -DCEL_LICENSING=${CEL_LICENSING}
           -DCEL_BUILD_ID=${{ steps.ver.outputs.build_id }}
 
       - name: Build
@@ -257,7 +276,7 @@ jobs:
         run: bash installers/ci/verify_bundle.sh build/Celluloid.ofx.bundle windows
 
       - name: Release licence gate
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && env.CEL_LICENSING == 'ON'
         run: bash installers/ci/release_gate.sh build build/Celluloid.ofx.bundle
 
       - name: Unit tests
@@ -303,7 +322,7 @@ jobs:
           if-no-files-found: error
 
   # Tags only: one job publishes the release after BOTH platforms built, passed their tests and
-  # their licence gates, so a release is never half-populated.
+  # (licensed builds) their licence gates, so a release is never half-populated.
   release:
     name: GitHub Release (tags v*)
     if: startsWith(github.ref, 'refs/tags/v')

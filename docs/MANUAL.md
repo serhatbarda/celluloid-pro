@@ -25,7 +25,7 @@ refer to real film stocks.
 7. [Workflow recipes](#7-workflow-recipes)
 8. [LUT export](#8-lut-export)
 9. [HDR](#9-hdr)
-10. [Licensing and trial](#10-licensing-and-trial)
+10. [Personal build and licensing](#10-personal-build-and-licensing)
 11. [Performance](#11-performance)
 12. [Troubleshooting](#12-troubleshooting)
 13. [Known limitations](#13-known-limitations)
@@ -96,7 +96,8 @@ your node settings, because the parameter identifiers never change between versi
 - Windows: **Settings › Apps › Installed apps › Celluloid Pro (OFX plug-in) › Uninstall**, or delete
   the bundle folder if you installed from the zip.
 
-License keys are stored per user (section 10) and are not removed on uninstall.
+The personal build uses no license key. In the licensed build, license keys are stored per user
+(section 10) and are not removed on uninstall.
 
 ### Where is this manual?
 
@@ -410,22 +411,13 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **LUT Size** (`lutSize`; default: 33) — Lattice size of the exported 3D LUT. 33 is the usual choice; 65 is the most accurate (larger file); 17 for devices with small LUT memory.
   - Options: 17 · 33 · 65
 - **Folder** (`lutPath`; folder; default empty) — Folder the LUT is written to (created if needed). Leave empty for the default folder `<Documents>/Celluloid` LUTs of the user who exports. File name: `Celluloid_<input>_<negative>_<print>_<output>.cube`. Add this folder to Resolve's LUT list (Project Settings > Color Management > Open LUT Folder) to use the LUTs elsewhere.
-- **Export LUT** (`lutExport`; button) — Licensed version only. Writes the current colour settings (Color Only: input space, exposure, stocks, development, print, output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, cameras or other applications. The LUT expects the selected camera log as input (Linear Rec.2020: the file carries a log2 shaper).
-
-### License
-
-*Activation.*
-
-- **License Status** (`licenseStatus`; read-only) — Current license state. The trial includes every feature except LUT export; renders carry a small watermark until a license key is activated.
-- **License Key** (`licenseKey`; text field) — Paste the license key you received by e-mail (starts with CELL1-), then press Activate. The key is stored for your user account, not in the project; the field is cleared after activation.
-- **Activate** (`licenseActivate`; button) — Verifies the pasted key and activates Celluloid Pro on this computer.
-- **Deactivate** (`licenseRemove`; button) — Removes the license from this computer (for example before moving it to another machine). Renders return to trial mode.
+- **Export LUT** (`lutExport`; button) — Writes the current colour settings (Color Only: input space, exposure, stocks, development, print, output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, cameras or other applications. The LUT expects the selected camera log as input (Linear Rec.2020: the file carries a log2 shaper).
 
 ### About
 
 *Version information.*
 
-- **Version** (`aboutVersion`; read-only) — Plugin version and build.
+- **Version** (`aboutVersion`; read-only) — Plugin version, build variant and build.
 - **Manual** (`aboutManual`; read-only; “See the User Manual (MANUAL.md in the plugin bundle's Resources folder).”) — The user manual explains every control, recommended Resolve setups (YRGB, RCM, ACES) and workflow recipes. It is installed inside the plugin bundle: Celluloid.ofx.bundle/Contents/Resources.
 
 <!-- END GENERATED: controls -->
@@ -469,8 +461,8 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - Black & white stocks: Color Density, Neutralize and the three printer colour lights (Print
     Density still works).
   - HDR Peak needs Output = PQ; HDR Highlight Unroll needs a PQ or HLG Output.
-- **License Status** shows the trial state or, once activated, "Licensed to *name* - *edition*".
-  The trial includes every image feature; only **LUT export** needs a license (section 10).
+- **No License group.** This is the personal build (section 10): there is no license key, no
+  watermark, and LUT export always works. **About › Version** reads "… - Personal build".
 
 ---
 
@@ -663,7 +655,7 @@ exposure and white balance before the node, in each camera's log.
 
 ## 8. LUT export
 
-**Export LUT** (LUT Export group, licensed version only) writes the **Color Only** pipeline of the
+**Export LUT** (LUT Export group; always available in the personal build) writes the **Color Only** pipeline of the
 current settings — Camera Log, Exposure, stocks, development, print, printer lights and Output —
 as a `.cube` 3D LUT. Grain, halation, bloom and the other texture effects cannot be stored in a LUT
 and are left out.
@@ -703,9 +695,27 @@ encoding.
 
 ---
 
-## 10. Licensing and trial
+## 10. Personal build and licensing
 
-Without a license key Celluloid Pro runs as a **trial**: every feature works except **LUT export**,
+This copy of Celluloid Pro is the **personal build** for non-commercial use, the default
+configuration of the source repository:
+
+- **No license check.** The plug-in never looks for a license key, offline or online.
+- **No watermark.** Every render is clean, at any resolution and in every mode.
+- **LUT export always works** (section 8).
+- The **License** group is hidden. Its parameters still exist inside the plug-in, so projects saved
+  with any earlier version, licensed or trial, open unchanged.
+- **About › Version** reads "Celluloid Pro *version* - Personal build".
+
+Nothing in the image pipeline differs between the builds: a personal-build render is
+pixel-identical to a licensed render of the same settings.
+
+### The licensed build (`-DCEL_LICENSING=ON`)
+
+The commercial variant is still in the source and builds with the CMake option
+`-DCEL_LICENSING=ON` (README, CMake options). It shows the License group and behaves as follows.
+
+Without a license key the licensed build runs as a **trial**: every feature works except **LUT export**,
 and renders carry a small "CELLULOID PRO — TRIAL" badge in the bottom-right corner plus a faint
 diagonal band. There is no time limit.
 
@@ -777,9 +787,9 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
 | Grain is frozen | **Animated Grain** is off. |
 | Dust and scratches do not change / are identical on two clips | **Animated Damage** is off, or both clips use the same **Damage Seed**. |
 | Damage or film blur missing | Film Damage / Film Blur are off by default and never render in Color Only mode. |
-| "LUT export is part of the licensed version" | Activate a license key (section 10). |
-| "This license key could not be activated" | Paste the complete key including `CELL1-`; the message explains the reason (for example an expired subscription key or a key for another product). |
-| Watermark still visible after activation | Check License Status. A machine-wide or environment key with an error is reported there. Re-render the frame (Resolve may show a cached frame). |
+| "LUT export is part of the licensed version" | Licensed build only: activate a license key (section 10). The personal build always exports. |
+| "This license key could not be activated" | Licensed build only. Paste the complete key including `CELL1-`; the message explains the reason (for example an expired subscription key or a key for another product). |
+| Watermark still visible after activation | Licensed build only (the personal build never watermarks). Check License Status. A machine-wide or environment key with an error is reported there. Re-render the frame (Resolve may show a cached frame). |
 | Slow playback | Check Resolve's GPU processing mode, lower texture settings or use Color Only plus one Texture Only node (section 11). With `CELLULOID_LOG=1` the plug-in logs which GPU backends passed their self test. |
 | A GPU error in one frame | The plug-in re-renders a failed GPU frame on the CPU and, if that fails, asks Resolve to render on the CPU; persistent errors disable that GPU backend for the node. Update the GPU driver. |
 
@@ -801,7 +811,7 @@ Version 1.0.0 is honest about what has and has not been verified yet:
 - **Real footage.** The looks were designed on carefully built synthetic F-Log2 C scenes (skin,
   skies, neon, foliage, high and low key). Film damage and film blur (1.1) were tuned on real
   F-Log2 C frames from a Fujifilm X-H2S; a full review of the looks on real clips is in progress.
-- **Seat counts** in license keys are informational: an offline key can be copied. Seat limits are
-  part of the license agreement, not technical copy protection.
+- **Seat counts** (licensed build only) in license keys are informational: an offline key can be
+  copied. Seat limits are part of the license agreement, not technical copy protection.
 - **Texture Only** works on display-referred images; it does not know how a previous grade was made,
   so halation thresholds refer to the display image, not to scene light.

@@ -1,6 +1,7 @@
 # Celluloid Pro - licensing (SPEC §9).
 #   cel_monocypher  vendored Monocypher 4.0.3 (Ed25519, RFC 8032), C99
-#   cellic          verifyKey / saveKey / removeKey / current  (linked into the plugin)
+#   cellic          verifyKey / saveKey / removeKey / current  (linked into the plugin of the licensed
+#                   build, -DCEL_LICENSING=ON; built and tested in every configuration)
 #   cellic_sign     key issuing (tools/licensegen and tests only, never the plugin)
 # Usage from the top-level CMakeLists.txt:  add_subdirectory(src/license)
 if(NOT CMAKE_C_COMPILER_LOADED)
@@ -37,7 +38,7 @@ if(WIN32)
 endif()
 if(CEL_DEV_LICENSE)
   target_compile_definitions(cellic PRIVATE CEL_DEV_LICENSE=1)
-  message(STATUS "cellic: CEL_DEV_LICENSE=ON - accepts the PUBLIC development license key (never ship this build)")
+  message(STATUS "cellic: CEL_DEV_LICENSE=ON - accepts the committed DEVELOPMENT license key (never ship this build)")
 endif()
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/PublicKey.h" _cel_pubkey_h)

@@ -18,7 +18,8 @@ designs; see the originality rules in [SPEC.md](SPEC.md) §1.
 | Looks | 14 curated presets (2 with film damage) |
 | Cameras | Fujifilm F-Log2 C (primary), F-Log2, F-Log, ARRI LogC3/LogC4, Sony S-Log3, Panasonic V-Log, Canon Log 3, Blackmagic Film Gen 5, DaVinci Intermediate, ACEScct, Linear Rec.2020 |
 | Outputs | Rec.709 (2.4 / sRGB), P3-D65, DCI-P3, Rec.2100 PQ and HLG with highlight unroll |
-| Extras | .cube LUT export (licensed), offline Ed25519 license keys, trial watermark |
+| Extras | .cube LUT export |
+| Build | **personal build** (default, non-commercial): no licensing, no watermark. The licensed variant (offline Ed25519 keys, trial watermark, licensed-only LUT export) builds with `-DCEL_LICENSING=ON` |
 | Shipping platforms | macOS 11+ (arm64 + x86_64) · Windows 10/11 x64. Linux builds are for development and tests only |
 
 Documentation:
@@ -28,7 +29,8 @@ Documentation:
 - [docs/LOOKS.md](docs/LOOKS.md) — look presets.
 - [docs/VALIDATION.md](docs/VALIDATION.md) — measured results, timings, contact sheets, open items.
 - [SPEC.md](SPEC.md) — the engineering specification and its change log (§13).
-- [tools/licensegen/README.md](tools/licensegen/README.md) — license keys, signing and shop integration.
+- [tools/licensegen/README.md](tools/licensegen/README.md) — license keys, signing and shop integration
+  (licensed build only).
 - [CHANGELOG.md](CHANGELOG.md) · [docs/EULA_TEMPLATE.md](docs/EULA_TEMPLATE.md) (template, not yet
   reviewed by a lawyer).
 
@@ -117,6 +119,10 @@ git clone https://github.com/AcademySoftwareFoundation/openfx.git external-openf
 git -C external-openfx-ref checkout e40728885390ec16276d11e00025de9b4282060c
 ```
 
+Every configuration below builds the **personal build** (no license check, no trial watermark,
+LUT export always on), the default of this repository. Add `-DCEL_LICENSING=ON` for the licensed
+variant (see [CMake options](#cmake-options)).
+
 The result of every build is `<build>/Celluloid.ofx.bundle`
 (`Contents/{MacOS|Win64|Linux-x86-64}/Celluloid.ofx`, `Info.plist`, `Resources/` with the icon,
 `MANUAL.md` and licence texts).
@@ -178,7 +184,8 @@ tools/render_tests/run_all.sh build/Celluloid.ofx.bundle /tmp/cel-render   # end
 | `CEL_ENABLE_CUDA` | OFF | CUDA backend (needs nvcc); ON in Windows CI |
 | `CEL_ENABLE_METAL` | ON on Apple | Metal backend |
 | `CEL_UNIVERSAL` | ON on Apple | arm64 + x86_64 |
-| `CEL_DEV_LICENSE` | OFF | accept the public **development** key pair — tests only, never ship |
+| `CEL_LICENSING` | OFF | OFF = **personal build**: the plug-in contains no license code, never watermarks, always exports LUTs, and keeps the License group as hidden parameters (saved projects stay compatible). ON = licensed build: offline keys, trial watermark, licensed-only LUT export, License group visible |
+| `CEL_DEV_LICENSE` | OFF | licensed build only (needs `CEL_LICENSING=ON`): accept the committed **development** key pair — tests only, never ship |
 | `CEL_WARNINGS_AS_ERRORS` | OFF | `-Werror` / `/WX` for our own code |
 | `CEL_BUILD_ID` | git commit | build id shown in the About group |
 
@@ -186,7 +193,11 @@ tools/render_tests/run_all.sh build/Celluloid.ofx.bundle /tmp/cel-render   # end
 
 `ctest` labels: `gpu-device` (needs a GPU or POCL device; exits 77 = skipped without one),
 `linux-only` (workbench tools), `ofx` (the real bundle in `ofxhost`), `docs` (the manual's controls
-reference matches the plug-in). Results and numbers are in [docs/VALIDATION.md](docs/VALIDATION.md).
+reference matches the plug-in; personal build only). Results and numbers are in
+[docs/VALIDATION.md](docs/VALIDATION.md). The license unit tests (`cel_license_tests*`) run in both
+build variants; the end-to-end smoke test (`ofx_smoke`) checks the variant it finds (personal: no
+watermark, hidden License group, LUT export without a key; licensed: trial watermark and refused
+LUT export) against its own reference render.
 
 When you change a parameter's label, range, default or hint in `src/ofx/Params.cpp`, regenerate the
 manual's controls reference (the `docs_manual_controls` test fails until you do):
@@ -200,7 +211,9 @@ python3 tools/docs/gen_manual_controls.py --bundle build/Celluloid.ofx.bundle \
 
 ## CI, releases and signing
 
-`.github/workflows/build.yml` runs on every push to `main`, on pull requests and on tags `v*`:
+`.github/workflows/build.yml` runs on every push to `main`, on pull requests and on tags `v*`. It
+builds the **personal build** by default; a manual run (*Run workflow*) with the `licensing` input
+builds the licensed variant (`-DCEL_LICENSING=ON`):
 
 | Job | Runner | Does |
 |---|---|---|
@@ -236,7 +249,8 @@ and stapled, and the `.dmg` is signed.
 
 ### Release checklist
 
-1. **License key ceremony done** (next section) — the release gate refuses any `v*` tag while
+1. Licensed builds only: **license key ceremony done** (next section) — the release gate (which
+   runs only for licensed builds) refuses any `v*` tag while
    `src/license/PublicKey.h` is provisional, the build has `CEL_DEV_LICENSE=ON`, or the development
    public key is found in the plug-in binary (`installers/ci/release_gate.sh`).
 2. Signing secrets added (strongly recommended for any build installed outside CI).
@@ -248,6 +262,8 @@ and stapled, and the `.dmg` is signed.
 ---
 
 ## License keys: generation workflow
+
+*Licensed build (`-DCEL_LICENSING=ON`) only; the default personal build has no license keys.*
 
 Celluloid Pro uses **offline, signed keys**: `CELL1-` + Base32 of a small payload (product, edition,
 licensee, order id, issue and expiry dates, seats) and an Ed25519 signature. The plug-in contains
@@ -318,8 +334,8 @@ DaVinci Resolve, which is being tested now. See the open items in
 
 ## Legal
 
-Copyright © 2026 Serhat (serhatbarda.de). The source code is published in this public repository
-for transparency; no open-source licence is granted, and all rights are reserved unless a separate
+Copyright © 2026 Serhat (serhatbarda.de). The source code is kept in a private repository for the
+owner's personal, non-commercial use; no open-source licence is granted, and all rights are reserved unless a separate
 licence says otherwise. End users receive the plug-in under the end-user licence agreement (see the
 [template](docs/EULA_TEMPLATE.md)). Third-party components: Monocypher (BSD-2-Clause / CC0),
 Khronos OpenCL headers (Apache-2.0, compile time), the OpenFX SDK Support library (BSD-3-Clause), and

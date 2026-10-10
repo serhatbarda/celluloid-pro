@@ -44,7 +44,16 @@ set(CEL_OFX_SOURCES
 
 add_library(celluloid_ofx MODULE ${CEL_OFX_SOURCES})
 target_include_directories(celluloid_ofx PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(celluloid_ofx PRIVATE cel_ofxsupport celgpu celtex celcore cellic)
+target_link_libraries(celluloid_ofx PRIVATE cel_ofxsupport celgpu celtex celcore)
+# Personal build (default): no license code in the plug-in at all. Licensed build (CEL_LICENSING=ON):
+# key verification, trial watermark and the LUT-export gate (SPEC §9).
+if(CEL_LICENSING)
+  target_link_libraries(celluloid_ofx PRIVATE cellic)
+  set(_cel_personal 0)
+else()
+  set(_cel_personal 1)
+endif()
+target_compile_definitions(celluloid_ofx PRIVATE CEL_PERSONAL_BUILD=${_cel_personal})
 add_dependencies(celluloid_ofx cel_build_id)
 # celgpu is always built and linked: the GPU self test at describe, the in-plug-in CPU fallback
 # and GPU cleanup at unload must always be compiled in (CelluloidPlugin.cpp, CEL_GPU_EXTRAS).
@@ -173,6 +182,7 @@ if(CEL_BUILD_TESTS)
   add_executable(cel_ofx_selftest SelfTest.cpp Params.cpp Presets.cpp Platform.cpp)
   target_include_directories(cel_ofx_selftest PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" "${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(cel_ofx_selftest PRIVATE celcore)
+  target_compile_definitions(cel_ofx_selftest PRIVATE CEL_PERSONAL_BUILD=${_cel_personal})
   if(WIN32)
     target_link_libraries(cel_ofx_selftest PRIVATE shell32 ole32)
   endif()
