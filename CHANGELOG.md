@@ -4,6 +4,18 @@ All notable changes to Celluloid Pro. Versions follow [Semantic Versioning](http
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.3.0] — unreleased
+
+### Added
+
+- **Pipeline Stage** (Look group): run one part of the film chain per node. *Negative -> Log Scan*
+  writes the developed negative as a Cineon-style printing-density scan, *Print Only* prints such a
+  scan, *Negative -> Scene* gives the negative back as scene light in **Scene Encoding** (ARRI LogC4 /
+  AWG4, LogC3 / AWG3, ACEScct, DaVinci Intermediate, Linear Rec.2020) for your own display transform,
+  *Negative Only (clean)* is that without any texture, *Texture Only* is the existing mode. Grain,
+  halation and damage act in the film layer the stage holds. Default Full Chain: existing projects
+  render unchanged. Identical on CPU, OpenCL, CUDA and Metal.
+
 ## [1.2.0] — unreleased
 
 ### Added

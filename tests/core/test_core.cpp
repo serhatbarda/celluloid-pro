@@ -892,6 +892,97 @@ static void testBehaviour() {
     CHECK(negativeStocks()[1].name == "CN 200T Studio Tungsten" && printStockNames()[0] == "P1 Standard Projection", "defaults");
 }
 
+// v1.3 WP-1: pipeline stage exits (SPEC 4.7)
+static void testStages() {
+    std::printf("[stage exits: log scan, negative -> scene, print only]\n");
+    const float pts[][3] = {{0.18f, 0.18f, 0.18f}, {0.0f, 0.0f, 0.0f}, {0.002f, 0.002f, 0.002f}, {0.02f, 0.02f, 0.02f},
+                            {1.5f, 1.5f, 1.5f}, {12.f, 12.f, 12.f}, {0.30f, 0.10f, 0.05f}, {0.05f, 0.12f, 0.30f},
+                            {0.10f, 0.30f, 0.08f}, {0.40f, 0.25f, 0.18f}, {0.9f, 0.02f, 0.4f}, {-0.02f, 0.3f, 0.01f}};
+    double worstRt = 0;
+    for (int neg : {1, 9, 12, 14, 4}) {
+        for (int prt : {0, 5, 8}) {
+            LookParams p;
+            p.input = InputSpace::LinearRec2020;
+            p.negStock = neg; p.printStock = prt;
+            p.printerR = 1.5f; p.printExposure = -1.f; p.pushPull = 0.5f;
+            Pipeline full, ls, po;
+            full.prepare(p);
+            CHECK(full.state()[CEL_CS_STAGE] == 0.f, "Full chain must not set a stage");
+            LookParams q = p;
+            q.stage = int(Stage::NegativeLogScan); ls.prepare(q);
+            q.stage = int(Stage::PrintOnly); po.prepare(q);
+            for (const auto& c : pts) {
+                const Float3 in{c[0], c[1], c[2]};
+                const Float3 f = full.processColor(in), l = ls.processColor(in), r = po.processColor(l);
+                const double e = std::max({std::fabs(f.r - r.r), std::fabs(f.g - r.g), std::fabs(f.b - r.b)});
+                worstRt = std::max(worstRt, e);
+                // out-of-gamut (negative) or extremely saturated scene values (channel ratio > 20): the hue hold
+                // sees the Log Scan's scene estimate, not the scene
+                const float lo = std::min({c[0], c[1], c[2]}), hi = std::max({c[0], c[1], c[2]});
+                const bool oog = lo < 0.f || hi > 20.f * lo;
+                CHECK(e < (oog ? 4e-2 : 2e-3), "neg %d prt %d: Log Scan -> Print Only differs from the full chain by %.2e at (%g %g %g)",
+                      neg, prt, e, double(c[0]), double(c[1]), double(c[2]));
+                CHECK(std::isfinite(l.r) && std::isfinite(l.g) && std::isfinite(l.b), "log scan not finite");
+            }
+            // clear film (no exposure) at code 95 (Cineon D-min), grey within the usual printing-density range
+            const Float3 b = ls.processColor({0.f, 0.f, 0.f}), g = ls.processColor({0.18f, 0.18f, 0.18f});
+            CHECK(std::fabs(b.g - 95.f / 1023.f) < 2e-3, "neg %d: log scan of black %.4f, expected ~95/1023", neg, double(b.g));
+            CHECK(g.g > 0.30f && g.g < 0.70f, "neg %d prt %d: log scan grey %.4f out of 0.30 .. 0.70", neg, prt, double(g.g));
+        }
+    }
+    std::printf("  log scan -> print only vs full chain: worst %.2e\n", worstRt);
+    // Negative -> Scene: 18 % grey comes back as 18 % grey in every encoding, neutrals stay neutral and
+    // monotonic along the grey ramp, everything finite
+    for (int neg : {1, 9, 12, 13, 15, 16}) {
+        for (int e = 0; e < int(SceneEncoding::Count); ++e) {
+            LookParams p;
+            p.input = InputSpace::LinearRec2020;
+            p.negStock = neg;
+            p.process = Process::NegativeScan;   // ignored by the exits
+            p.stage = int(Stage::NegativeToScene);
+            p.sceneEncoding = e;
+            Pipeline ns;
+            ns.prepare(p);
+            int tf = CEL_IN_LOGC4;
+            if (e == 1) tf = CEL_IN_LOGC3; else if (e == 2) tf = CEL_IN_ACESCCT; else if (e == 3) tf = CEL_IN_DAVINCI; else if (e == 4) tf = CEL_IN_LINEAR;
+            const Float3 g = ns.processColor({0.18f, 0.18f, 0.18f});
+            const float want = celc_encode_transfer(tf, 0.18f);
+            CHECK(std::fabs(g.r - want) < 2e-4 && std::fabs(g.g - want) < 2e-4 && std::fabs(g.b - want) < 2e-4,
+                  "neg %d enc %d: grey -> (%.5f %.5f %.5f), expected %.5f", neg, e, double(g.r), double(g.g), double(g.b), double(want));
+            float prev = -1e9f;
+            for (int k = 0; k <= 120; ++k) {
+                const float v = 0.18f * std::pow(2.f, -9.f + 0.15f * float(k));
+                const Float3 o = ns.processColor({v, v, v});
+                const float lin = celc_decode_transfer(tf, o.g);
+                const float tol = k >= 30 ? 3e-3f : 8e-3f;   // deep toe (below -4.5 stops): within ~0.1 stop
+                CHECK(std::fabs(o.r - o.g) < tol && std::fabs(o.b - o.g) < tol, "neg %d enc %d: neutral %g -> (%g %g %g)",
+                      neg, e, double(v), double(o.r), double(o.g), double(o.b));
+                CHECK(o.g >= prev - 1e-6f, "neg %d enc %d: grey ramp not monotonic at %g", neg, e, double(v));
+                if (k >= 30 && k <= 100)   // -4.5 .. +6 stops: the film keeps the information, the scene comes back
+                    CHECK(std::fabs(std::log2(std::max(lin, 1e-9f) / v)) < 0.35, "neg %d enc %d: neutral %g -> %g",
+                          neg, e, double(v), double(lin));
+                prev = o.g;
+            }
+            for (const auto& c : pts) {
+                const Float3 o = ns.processColor({c[0], c[1], c[2]});
+                CHECK(std::isfinite(o.r) && std::isfinite(o.g) && std::isfinite(o.b), "negative -> scene not finite");
+            }
+        }
+    }
+    // reversal stocks have no negative stage: every exit renders the full chain
+    {
+        LookParams p;
+        p.input = InputSpace::LinearRec2020;
+        p.negStock = 8;
+        Pipeline a, b;
+        a.prepare(p);
+        p.stage = int(Stage::NegativeToScene);
+        b.prepare(p);
+        const Float3 x = a.processColor({0.3f, 0.2f, 0.1f}), y = b.processColor({0.3f, 0.2f, 0.1f});
+        CHECK(x.r == y.r && x.g == y.g && x.b == y.b, "reversal stock: stage exit must render the full chain");
+    }
+}
+
 int main(int argc, char** argv) {
     std::string golden = CEL_REFERENCE_DIR "/golden/core_golden.txt";
     std::string tmp = "/tmp";
@@ -914,6 +1005,7 @@ int main(int argc, char** argv) {
     testTextureOnlyIdentity();
     testHDR();
     testBehaviour();
+    testStages();
     testGolden(golden);
     testCube(tmp);
     testCubeAccuracy(tmp);

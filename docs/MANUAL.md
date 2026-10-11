@@ -273,6 +273,8 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Full* — complete film emulation (colour + halation, bloom, grain, lens and gate effects).
   - *Color Only* — the colour pipeline alone - exactly what an exported LUT contains.
   - *Texture Only* — for footage that is ALREADY graded/display-referred in the selected Output space; adds only the photographic texture (halation, bloom, grain, acutance, weave, vignette) and leaves the colour untouched. Use it after your own grade or after another film look.
+- **Pipeline Stage** (`pipelineStage`; default: Full Chain) — Where the film chain stops (or starts), so one node can do one job and you can build the chain from several nodes or finish with your own display transform (OpenDRT, 2499 DRT, ARRI REVEAL, ACES). Full Chain: camera -> negative -> print -> display (the complete look). Negative -> Log Scan: stops after the developed negative and writes it as a Cineon-style log scan (printing density as the selected Print Stock sees it, 0.002 density per 10-bit code value, clear film at code 95). Feed it to a second node set to Print Only. Negative -> Scene: the developed negative turned back into scene light (grey-balanced, film colour, curve shape, halation and grain kept, print and display left out), encoded in Scene Encoding (Output group). Put your own DRT after the node. Print Only: the input is a Log Scan from this plug-in (or any Cineon printing-density scan); prints it on the Print Stock and renders the display. Camera Log and Camera Emulation are not used. Texture Only: same as Mode = Texture Only. Negative Only (clean): Negative -> Scene without any texture (no halation, bloom, grain, acutance, weave, vignette, damage) - the node that only flips the negative stock. Grain, halation and damage always act in the film domain of the stage: in the negative for the negative exits, on the scanned negative's density for Print Only. Reversal (slide) stocks have no negative stage and always render the full chain.
+  - Options: Full Chain · Negative -> Log Scan · Negative -> Scene · Print Only · Texture Only · Negative Only (clean)
 
 ### Input
 
@@ -424,6 +426,8 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **HDR Peak (nits)** (`hdrPeakNits`; 300 … 4000; default 1000; keyframable) — PQ output only: peak luminance of the HDR master. The film shoulder is unrolled smoothly so the brightest highlights reach this level.
 - **Enable Highlight Unroll** (`hdrUnrollEnable`; default on) — PQ/HLG only: switches the HDR Highlight Unroll on or off without losing its value. Off = the SDR print look placed in the HDR container unchanged (as Unroll 0).
 - **HDR Highlight Unroll** (`hdrUnroll`; 0 … 1; default 1; keyframable) — PQ/HLG only: 0 places the SDR print look in HDR unchanged (soft film highlights), 1 expands the print shoulder to use the full HDR range while keeping mid-tones and colour consistent with SDR.
+- **Scene Encoding** (`sceneEncoding`; default: ARRI LogC4 / ARRI Wide Gamut 4) — Pipeline Stage = Negative -> Scene / Negative Only (clean) only: the scene-referred encoding of the result. Set the next node (or Resolve's colour management) to read this encoding, then apply your display transform. ARRI LogC4 / AWG4 is the default; ACEScct for ACES pipelines, DaVinci Intermediate for DaVinci Wide Gamut timelines, Linear Rec.2020 for compositing.
+  - Options: ARRI LogC4 / ARRI Wide Gamut 4 · ARRI LogC3 (EI 800) / ARRI Wide Gamut 3 · ACEScct / AP1 · DaVinci Intermediate / DaVinci Wide Gamut · Linear Rec.2020
 
 ### LUT Export
 
@@ -671,6 +675,43 @@ film look). Colour is left untouched.
 Give each camera group its own Celluloid Pro node with its own **Camera Log**, and the same stocks
 and printer lights. Both cameras are then rendered through the same negative and print. Match
 exposure and white balance before the node, in each camera's log.
+
+### Building the chain from stages (Pipeline Stage)
+
+**Pipeline Stage** (Look group) lets one node do one part of the film chain, the way a lab splits
+the work between negative development, scanning, printing and projection. **Full Chain** (the
+default) is everything in one node, exactly as before.
+
+A three-node chain in Resolve (each node its own Celluloid Pro instance, same Print Stock):
+
+1. **Negative -> Log Scan**: your camera log in (Camera Log as usual), the developed negative out
+   as a Cineon-style printing-density scan (clear film at code 95, 0.002 density per 10-bit code).
+   Grain, halation and negative dust/scratches are rendered here, in the negative. Grade *the scan*
+   after this node if you like: offset = printer lights, like a timer would.
+2. **Print Only**: the scan in, printed on the Print Stock and rendered to your Output. Printer
+   lights, print density, print bleach and print damage live here. Leave the texture modules off
+   (they already ran in node 1), or add print-side damage only.
+3. **Texture Only** (optional): grain or weave on the finished display image, for example after
+   titles or a final trim.
+
+Nodes 1 + 2 with the same settings look like one Full Chain node (within two 10-bit code values;
+extremely saturated or out-of-gamut colours can differ a little more, because the print node only
+sees the scan).
+
+**Your own display transform.** Set Pipeline Stage to **Negative -> Scene**: the node gives you the
+developed negative turned back into scene light - film colour, curve shape, halation and grain kept,
+print and display left out - in **Scene Encoding** (Output group): ARRI LogC4 / AWG4 (default), ARRI
+LogC3 / AWG3, ACEScct / AP1, DaVinci Intermediate / DaVinci Wide Gamut or Linear Rec.2020. Follow it
+with your DRT (OpenDRT, 2499 DRT, ARRI REVEAL, an ACES output transform) set to read that encoding.
+Grey stays at 18 % grey, so exposure carries over.
+
+**Negative Only (clean)** is the same without any texture (no halation, bloom, grain, acutance,
+weave, vignette or damage): the node that only swaps the camera for the negative stock. Put the
+texture in a later Texture Only node or keep it out entirely.
+
+Notes: reversal (slide) stocks have no negative stage, so every stage renders the full chain with
+them. In the negative stages Process, the print timing controls, Output and Film Blur are greyed:
+they belong to the print. Print Only ignores Camera Log and Camera Emulation (the input is a scan).
 
 ---
 

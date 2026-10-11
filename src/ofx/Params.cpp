@@ -112,6 +112,32 @@ std::vector<ParamDef> build() {
              "adds only the photographic texture (halation, bloom, grain, acutance, weave, vignette) and leaves "
              "the colour untouched. Use it after your own grade or after another film look.",
              false);
+    {   // v1.3 WP-1: modular pipeline
+        std::vector<std::string> stages = core::stageNames();
+        stages.push_back("Texture Only");
+        stages.push_back("Negative Only (clean)");
+        b.choice(id::pipelineStage, "Pipeline Stage", stages, 0,
+                 "Where the film chain stops (or starts), so one node can do one job and you can build the chain "
+                 "from several nodes or finish with your own display transform (OpenDRT, 2499 DRT, ARRI REVEAL, "
+                 "ACES).\n"
+                 "Full Chain: camera -> negative -> print -> display (the complete look).\n"
+                 "Negative -> Log Scan: stops after the developed negative and writes it as a Cineon-style log "
+                 "scan (printing density as the selected Print Stock sees it, 0.002 density per 10-bit code value, "
+                 "clear film at code 95). Feed it to a second node set to Print Only.\n"
+                 "Negative -> Scene: the developed negative turned back into scene light (grey-balanced, film "
+                 "colour, curve shape, halation and grain kept, print and display left out), encoded in Scene "
+                 "Encoding (Output group). Put your own DRT after the node.\n"
+                 "Print Only: the input is a Log Scan from this plug-in (or any Cineon printing-density scan); "
+                 "prints it on the Print Stock and renders the display. Camera Log and Camera Emulation are not "
+                 "used.\n"
+                 "Texture Only: same as Mode = Texture Only.\n"
+                 "Negative Only (clean): Negative -> Scene without any texture (no halation, bloom, grain, "
+                 "acutance, weave, vignette, damage) - the node that only flips the negative stock.\n"
+                 "Grain, halation and damage always act in the film domain of the stage: in the negative for the "
+                 "negative exits, on the scanned negative's density for Print Only. Reversal (slide) stocks have "
+                 "no negative stage and always render the full chain.",
+                 false);
+    }
 
     // ---------------------------------------------------------------- [Input]
     const std::vector<std::string> inputs = core::inputSpaceNames();
@@ -453,6 +479,12 @@ std::vector<ParamDef> build() {
           "PQ/HLG only: 0 places the SDR print look in HDR unchanged (soft film highlights), 1 expands the print "
           "shoulder to use the full HDR range while keeping mid-tones and colour consistent with SDR.",
           false);
+    b.choice(id::sceneEncoding, "Scene Encoding", core::sceneEncodingNames(), 0,
+             "Pipeline Stage = Negative -> Scene / Negative Only (clean) only: the scene-referred encoding of the "
+             "result. Set the next node (or Resolve's colour management) to read this encoding, then apply your "
+             "display transform. ARRI LogC4 / AWG4 is the default; ACEScct for ACES pipelines, DaVinci "
+             "Intermediate for DaVinci Wide Gamut timelines, Linear Rec.2020 for compositing.",
+             false);
 
     // ---------------------------------------------------------------- [LUT Export]
     b.beginGroup(id::gLut, "LUT Export", false, "Export the colour pipeline as a 3D LUT (.cube).");

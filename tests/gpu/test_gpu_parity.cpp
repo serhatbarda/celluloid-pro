@@ -43,6 +43,11 @@ struct Case {
     int w, h;
     PlanKind kind = PlanKind::Frame;
     Scene scene = Scene::Natural;
+    // v1.3: Negative -> Scene undoes the film's tone compression, so the GPU's last-ulp differences in the
+    // negative come back amplified by 1 / film gamma (still < 0.01 stop); linear output is unbounded and
+    // compared relative to max(1, |value|) (DiffStats::maxRel). 0 = the global tolerance, absolute.
+    double tol = 0;
+    bool relTol = false;
 };
 
 // F-Log2 C-like code values: grey ramp, colour patches, skin-ish patch, bright speculars, a few
@@ -241,7 +246,25 @@ std::vector<Case> makeCases(bool all) {
         c.fs.look.process = core::Process::NegativeScan; });
     add("v1.2 default: Vision3 250D 5207 / P6, emulation on", [](Case& c) { fullTexture(c.fs);
         c.fs.look.negStock = 12; c.fs.look.printStock = 8; c.fs.look.cameraEmulation = 1; });
+    // ---- v1.3 WP-1: pipeline stage exits (Log Scan, Negative -> Scene in every encoding, Print Only)
+    add("stage log scan, all texture + damage", [](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h);
+        c.fs.look.stage = int(core::Stage::NegativeLogScan); });
+    for (int e = 0; e < int(core::SceneEncoding::Count); ++e)
+        add("stage negative -> scene, " + core::sceneEncodingNames()[size_t(e)], [e](Case& c) { fullTexture(c.fs);
+            c.fs.look.stage = int(core::Stage::NegativeToScene); c.fs.look.sceneEncoding = e;
+            c.tol = 1e-3; c.relTol = e == int(core::SceneEncoding::LinearRec2020); });
+    add("stage negative -> scene, clean (color only plan), Vision3 250D", [](Case& c) { c.fs.mode = core::Mode::ColorOnly;
+        c.fs.look.negStock = 12; c.fs.look.stage = int(core::Stage::NegativeToScene); });
+    add("stage print only, all texture + damage", [](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h);
+        c.fs.look.stage = int(core::Stage::PrintOnly); c.scene = Scene::Display; });
+    add("stage print only, PQ, color only", [](Case& c) { c.fs.mode = core::Mode::ColorOnly; c.fs.look.output = OS::Rec2100_PQ;
+        c.fs.look.stage = int(core::Stage::PrintOnly); c.scene = Scene::Display; });
+    add("stage negative -> scene, B&W, lab scan process ignored", [](Case& c) { fullTexture(c.fs); c.fs.look.negStock = 9;
+        c.fs.look.process = core::Process::NegativeScan; c.fs.look.stage = int(core::Stage::NegativeToScene); });
     // ---- hostile inputs
+    add("torture, stage print only", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::PrintOnly); c.scene = Scene::Torture; });
+    add("torture, stage negative -> scene ACEScct", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::NegativeToScene);
+        c.fs.look.sceneEncoding = int(core::SceneEncoding::ACEScct_AP1); c.scene = Scene::Torture; c.tol = 1e-3; });
     add("torture, full all texture", [](Case& c) { fullTexture(c.fs); c.scene = Scene::Torture; });
     add("torture, full PQ + watermark", [](Case& c) { fullTexture(c.fs); c.fs.look.output = OS::Rec2100_PQ;
         c.fs.watermark = true; c.scene = Scene::Torture; });
@@ -413,6 +436,7 @@ int main(int argc, char** argv) {
         const double cpuMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         CHECK(okCpu, "%s: CPU backend failed: %s", c.name.c_str(), err.c_str());
         RefBackend ref = makeProductionRef();
+        const double ctol = c.tol > 0 ? c.tol : tol;
         const bool okRef = ref.execute(plan, pipe.state(), pipe.stateVersion(), src.host(), refOut.host(),
                                        engine::GpuContext(), &err);
         CHECK(okRef, "%s: reference failed: %s", c.name.c_str(), err.c_str());
@@ -428,9 +452,9 @@ int main(int argc, char** argv) {
                                           engine::GpuContext(), &err);
             CHECK(okP, "%s: perturbed reference failed: %s", c.name.c_str(), err.c_str());
             const DiffStats dp = compare(cpuOut, pertOut);
-            worstModel = std::max(worstModel, dp.maxAbs);
+            if (c.tol <= 0) worstModel = std::max(worstModel, dp.maxAbs);
             std::printf("    %-8s gpu-math model vs cpu %s\n", "model", describe(dp).c_str());
-            CHECK(dp.nanMismatch == 0 && dp.maxAbs <= tol, "%s: worst-case GPU math model exceeds the tolerance: %s",
+            CHECK(dp.nanMismatch == 0 && (c.relTol ? dp.maxRel : dp.maxAbs) <= ctol, "%s: worst-case GPU math model exceeds the tolerance: %s",
                   c.name.c_str(), describe(dp).c_str());
         }
         if (c.kind == PlanKind::Frame) {   // frame plans never emit NaN/Inf, whatever the input
@@ -449,8 +473,8 @@ int main(int argc, char** argv) {
             if (!ok) continue;
             const DiffStats d = compare(cpuOut, gpuOut);
             std::printf("    %-8s %.1f ms  gpu-vs-cpu %s\n", envs[g]->name(), ms, describe(d).c_str());
-            const bool pass = d.nanMismatch == 0 && d.maxAbs <= tol;
-            worstGpu = std::max(worstGpu, d.maxAbs);
+            const bool pass = d.nanMismatch == 0 && (c.relTol ? d.maxRel : d.maxAbs) <= ctol;
+            if (c.tol <= 0) worstGpu = std::max(worstGpu, d.maxAbs);
             CHECK(pass, "%s: %s parity %s", c.name.c_str(), envs[g]->name(), describe(d).c_str());
             CHECK(gpuOut.paddingIntact(), "%s: %s overwrote destination padding", c.name.c_str(), envs[g]->name());
             const char* trace = std::getenv("CEL_PARITY_TRACE");   // case-name substring: always report
@@ -463,7 +487,7 @@ int main(int argc, char** argv) {
         CHECK(kernelUse[size_t(k)] > 0, "kernel %s is not covered by any parity case", engine::kernelName(engine::KernelId(k)));
     std::printf("kernel coverage:");
     for (int k = 0; k < int(engine::KID_COUNT); ++k) std::printf(" %s=%d", engine::kernelName(engine::KernelId(k)), kernelUse[size_t(k)]);
-    std::printf("\nworst GPU vs CPU max abs diff over all cases: %.3g, worst-case GPU math model: %.3g (tolerance %.1g)\n",
+    std::printf("\nworst GPU vs CPU max abs diff over all cases (global tolerance): %.3g, worst-case GPU math model: %.3g (tolerance %.1g)\n",
                 worstGpu, worstModel, tol);
     std::printf("%d checks, %d failures\n", counters().checks, counters().failures);
     if (counters().failures) return 1;

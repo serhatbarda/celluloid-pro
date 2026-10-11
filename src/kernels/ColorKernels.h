@@ -23,6 +23,11 @@
  *                   (as above), in2 = host source (alpha, as above), in3 = damage field (as above,
  *                   display-referred approximation) -> out = display-encoded. Also re-encodes the
  *                   film-blur chain's result (no grain, no damage).
+ * v1.3 stage exits (state CEL_CS_STAGE, SPEC 4.7; same kernels, branches on the state):
+ *   1 Negative -> Log Scan  color writes printing density as Cineon-style code values
+ *   2 Negative -> Scene     color writes the developed negative as scene light (CEL_CS_SCENE_TF / MSCENE)
+ *   3 Print Only            decode reads a Log Scan (-> scene estimate for the texture passes), color
+ *                           takes it back to printing density, adds grain / negative damage there, prints
  * Helper functions are prefixed celc_ (never cel_<kernel name>, which the GPU entry points use).
  */
 #ifndef CEL_COLOR_KERNELS_H
@@ -105,7 +110,64 @@ CEL_DEVICE CelF3 celc_emulate(CEL_GLOBAL const float* s, CelF3 l) {
     CelF3 q = celc_mat3(s, CEL_CS_EMU_B, rp);
     return cel_f3(o.x + q.x, o.y + q.y, o.z + q.z);
 }
+/* ---- v1.3 stage exits: the neutral stage axis (NS block, ColorState.h) ---------------------------
+ * Rows 0..2 = printing density of each print layer for a neutral scene at the knots, row 3 = the
+ * scene-referred log10 level the knot maps back to; all rows strictly increasing, so every lookup is
+ * an exact piecewise-linear inverse of the other (Log Scan -> Print Only round trips exactly).
+ * celc_ns_find: fractional knot index of v in row r (binary search; linear extrapolation outside,
+ * bounded); celc_ns_at: value of row r at fractional knot index t (same extrapolation). */
+CEL_DEVICE float celc_ns_find(CEL_GLOBAL const float* s, int r, float v) {
+    int n = celc_i(s, CEL_CS_NS_N);
+    CEL_GLOBAL const float* p = s + celc_i(s, CEL_CS_NS_OFF) + r * n;
+    float t;
+    if (!(v > p[0])) t = (v - p[0]) / (p[1] - p[0]);
+    else if (!(v < p[n - 1])) t = (float)(n - 1) + (v - p[n - 1]) / (p[n - 1] - p[n - 2]);
+    else {
+        int lo = 0, hi = n - 1;
+        while (hi - lo > 1) {
+            int m = (lo + hi) / 2;
+            if (p[m] <= v) lo = m; else hi = m;
+        }
+        t = (float)lo + (v - p[lo]) / (p[hi] - p[lo]);
+    }
+    return cel_clamp(cel_finite_or(t, 0.0f), -4.0f * (float)n, 5.0f * (float)n);
+}
+CEL_DEVICE float celc_ns_at(CEL_GLOBAL const float* s, int r, float t) {
+    int n = celc_i(s, CEL_CS_NS_N);
+    CEL_GLOBAL const float* p = s + celc_i(s, CEL_CS_NS_OFF) + r * n;
+    int i = cel_imin(cel_imax((int)cel_floor(t), 0), n - 2);
+    return p[i] + (p[i + 1] - p[i]) * (t - (float)i);
+}
+/* printing density (above the clear negative) -> scene-referred linear level of each channel. With
+ * colour masking on, the first-order masking matrix MMASK acts on the log10 levels (it is the inverse of
+ * the chain's log-log Jacobian at grey, rows summing to 1): exposure-invariant, neutrals unchanged, never
+ * negative, and well conditioned for saturated colours. */
+CEL_DEVICE CelF3 celc_ns_scene(CEL_GLOBAL const float* s, CelF3 pd) {
+    CelF3 y = cel_f3(celc_ns_at(s, 3, celc_ns_find(s, 0, pd.x)), celc_ns_at(s, 3, celc_ns_find(s, 1, pd.y)),
+                     celc_ns_at(s, 3, celc_ns_find(s, 2, pd.z)));
+    if (s[CEL_CS_MASK_ON] > 0.5f) y = celc_mat3(s, CEL_CS_MMASK, y);
+    return cel_f3(celc_pow10(y.x), celc_pow10(y.y), celc_pow10(y.z));
+}
+/* scene-referred linear level -> printing density (exact inverse of celc_ns_scene) */
+CEL_DEVICE CelF3 celc_ns_density(CEL_GLOBAL const float* s, CelF3 l) {
+    CelF3 y = cel_f3(cel_log10(cel_fmax(l.x, 1e-10f)), cel_log10(cel_fmax(l.y, 1e-10f)), cel_log10(cel_fmax(l.z, 1e-10f)));
+    if (s[CEL_CS_MASK_ON] > 0.5f) y = celc_mat3(s, CEL_CS_MMASKI, y);
+    return cel_f3(celc_ns_at(s, 0, celc_ns_find(s, 3, y.x)), celc_ns_at(s, 1, celc_ns_find(s, 3, y.y)),
+                  celc_ns_at(s, 2, celc_ns_find(s, 3, y.z)));
+}
+/* Log Scan code value <-> printing density (ColorState.h CEL_LOGSCAN_*) */
+CEL_DEVICE float celc_logscan_pd(float v) { return (v * 1023.0f - CEL_LOGSCAN_CV0) * CEL_LOGSCAN_STEP; }
+CEL_DEVICE float celc_logscan_code(float pd) { return (CEL_LOGSCAN_CV0 + pd * (1.0f / CEL_LOGSCAN_STEP)) * (1.0f / 1023.0f); }
+
 CEL_DEVICE CelF3 celc_decode_px(CEL_GLOBAL const float* s, CelF3 e) {
+    if (celc_i(s, CEL_CS_STAGE) == 3) {
+        /* Print Only: the input is a Log Scan; textures then work on the scene-referred level it maps back
+         * to (the same neutral axis the colour pass re-encodes exactly) */
+        CelF3 pd = cel_f3(celc_logscan_pd(celc_sanitize(e.x)), celc_logscan_pd(celc_sanitize(e.y)), celc_logscan_pd(celc_sanitize(e.z)));
+        CelF3 l = celc_ns_scene(s, pd);   /* the scene estimate of Negative -> Scene (masked) */
+        float g0 = s[CEL_CS_GAIN];
+        return cel_f3(celc_sanitize(l.x * g0), celc_sanitize(l.y * g0), celc_sanitize(l.z * g0));
+    }
     int sp = celc_i(s, CEL_CS_INPUT);
     CelF3 l = cel_f3(celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.x))), celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.y))),
                      celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.z))));
@@ -249,6 +311,19 @@ typedef struct { CelF3 X; float xref; } CelcFilm;
  *   Reversal  the camera film is the projected film: both sides act on it (all dust is dark).
  *   Lab Scan  negative-side damage is scanned and inverted (white); print-side damage is applied to
  *             the scanned positive's densities (dark), like dirt on a print of the scan. */
+/* the print: log10 print-layer exposure h through the negative (PL block, before the printer light
+ * offsets), retained silver / neutral density `silver` of the negative -> projected D65 display XYZ */
+CEL_DEVICE CelF3 celc_print_xyz(CEL_GLOBAL const float* s, CelF3 h, float silver, CelF4 dmg, int mono) {
+    h = cel_f3(h.x + s[CEL_CS_OFF] - silver, h.y + s[CEL_CS_OFF + 1] - silver, h.z + s[CEL_CS_OFF + 2] - silver);
+    CelF3 P = celc_lut1_3(s, celc_i(s, CEL_CS_PC_OFF), celc_i(s, CEL_CS_PC_N), s[CEL_CS_PC_U0], s[CEL_CS_PC_U1], h);
+    if (dmg.w > 0.0f) P = celc_dmg_remove(P, celc_dmg_removal(dmg.w, 1, mono));
+    float ps = s[CEL_CS_PB] * (s[CEL_CS_LW] * cel_fmax(P.x - s[CEL_CS_PMIN], 0.0f) +
+                               s[CEL_CS_LW + 1] * cel_fmax(P.y - s[CEL_CS_PMIN + 1], 0.0f) +
+                               s[CEL_CS_LW + 2] * cel_fmax(P.z - s[CEL_CS_PMIN + 2], 0.0f));
+    if (dmg.z > 0.0f) ps += dmg.z;
+    return celc_mat3(s, CEL_CS_MXYZ, celc_project(s, P, ps));
+}
+
 CEL_DEVICE CelcFilm celc_film_xyz_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise, CelF4 dmg) {
     int kind = celc_i(s, CEL_CS_KIND);
     int mono = celc_i(s, CEL_CS_MONO);
@@ -259,14 +334,7 @@ CEL_DEVICE CelcFilm celc_film_xyz_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF
     CelF3 X;
     if (kind == 0) {
         CelF3 h = celc_lut3(s, celc_i(s, CEL_CS_PL_OFF), celc_i(s, CEL_CS_PL_N), s[CEL_CS_PL_MAX], ng.d);
-        h = cel_f3(h.x + s[CEL_CS_OFF] - ng.silver, h.y + s[CEL_CS_OFF + 1] - ng.silver, h.z + s[CEL_CS_OFF + 2] - ng.silver);
-        CelF3 P = celc_lut1_3(s, celc_i(s, CEL_CS_PC_OFF), celc_i(s, CEL_CS_PC_N), s[CEL_CS_PC_U0], s[CEL_CS_PC_U1], h);
-        if (dmg.w > 0.0f) P = celc_dmg_remove(P, celc_dmg_removal(dmg.w, 1, mono));
-        float ps = s[CEL_CS_PB] * (s[CEL_CS_LW] * cel_fmax(P.x - s[CEL_CS_PMIN], 0.0f) +
-                                   s[CEL_CS_LW + 1] * cel_fmax(P.y - s[CEL_CS_PMIN + 1], 0.0f) +
-                                   s[CEL_CS_LW + 2] * cel_fmax(P.z - s[CEL_CS_PMIN + 2], 0.0f));
-        if (dmg.z > 0.0f) ps += dmg.z;
-        X = celc_mat3(s, CEL_CS_MXYZ, celc_project(s, P, ps));
+        X = celc_print_xyz(s, h, ng.silver, dmg, mono);
     } else if (kind == 2) {
         X = celc_mat3(s, CEL_CS_MXYZ, celc_project(s, ng.d, ng.silver));
     } else {
@@ -448,11 +516,58 @@ CEL_DEVICE CelF4 celc_dmg_clean(CelF4 g) {
     return cel_f4(cel_clamp(cel_finite_or(g.x, 0.0f), 0.0f, 6.0f), cel_clamp(cel_finite_or(g.y, 0.0f), 0.0f, 3.0f),
                   cel_clamp(cel_finite_or(g.z, 0.0f), 0.0f, 6.0f), cel_clamp(cel_finite_or(g.w, 0.0f), 0.0f, 3.0f));
 }
+/* ------------------------------------------------------------------------- v1.3 stage exits */
+/* printing density of the developed negative above the clear negative, as the print stock sees it
+ * (Cineon convention): PD = h(D-min) - h(D) + retained silver / negative-side neutral density */
+CEL_DEVICE CelF3 celc_printing_density(CEL_GLOBAL const float* s, CelcNeg ng) {
+    CelF3 h = celc_lut3(s, celc_i(s, CEL_CS_PL_OFF), celc_i(s, CEL_CS_PL_N), s[CEL_CS_PL_MAX], ng.d);
+    return cel_f3(s[CEL_CS_HCLEAR] - h.x + ng.silver, s[CEL_CS_HCLEAR + 1] - h.y + ng.silver, s[CEL_CS_HCLEAR + 2] - h.z + ng.silver);
+}
+/* scene-referred linear Rec.2020 -> Negative -> Scene output encoding */
+CEL_DEVICE CelF3 celc_scene_encode(CEL_GLOBAL const float* s, CelF3 l) {
+    l = celc_mat3(s, CEL_CS_MSCENE, l);
+    int tf = celc_i(s, CEL_CS_SCENE_TF);
+    return cel_f3(celc_encode_transfer(tf, l.x), celc_encode_transfer(tf, l.y), celc_encode_transfer(tf, l.z));
+}
+/* Stage 1 Log Scan, 2 Negative -> Scene: the negative with its grain and negative-side damage (print-side
+ * damage has no film to land on). Stage 3 Print Only: `rgb` is the scene-referred level of a Log Scan
+ * (celc_decode_px), taken back to printing density; grain and negative-side damage act on that density,
+ * then the print, hue hold and display encode run as in the full chain. */
+CEL_DEVICE CelF3 celc_stage_exit(CEL_GLOBAL const float* s, int stage, CelF3 rgb, CelF3 noise, int hasNoise, CelF4 dmg) {
+    if (stage != 3) {
+        CelcNeg ng = celc_negative_dmg(s, rgb, noise, hasNoise, dmg.x, dmg.y);
+        CelF3 pd = celc_printing_density(s, ng);
+        if (stage == 1) return cel_f3(celc_logscan_code(pd.x), celc_logscan_code(pd.y), celc_logscan_code(pd.z));
+        return celc_scene_encode(s, celc_ns_scene(s, pd));
+    }
+    int mono = celc_i(s, CEL_CS_MONO);
+    CelF3 pd = celc_ns_density(s, rgb);
+    if (hasNoise && s[CEL_CS_GRAIN_ON] > 0.5f) {
+        CelF3 nz = noise;
+        if (mono) nz = cel_f3(noise.y, noise.y, noise.y);
+        pd.x += s[CEL_CS_GSIG + 0] * cel_sqrt(cel_fmax(pd.x, 0.0f) + CEL_GRAIN_EPS) * nz.x;
+        pd.y += s[CEL_CS_GSIG + 1] * cel_sqrt(cel_fmax(pd.y, 0.0f) + CEL_GRAIN_EPS) * nz.y;
+        pd.z += s[CEL_CS_GSIG + 2] * cel_sqrt(cel_fmax(pd.z, 0.0f) + CEL_GRAIN_EPS) * nz.z;
+    }
+    if (dmg.y > 0.0f) pd = celc_dmg_remove(pd, celc_dmg_removal(dmg.y, 0, mono));
+    if (dmg.x > 0.0f) pd = cel_f3(pd.x + dmg.x, pd.y + dmg.x, pd.z + dmg.x);
+    CelF3 h = cel_f3(s[CEL_CS_HCLEAR] - pd.x, s[CEL_CS_HCLEAR + 1] - pd.y, s[CEL_CS_HCLEAR + 2] - pd.z);
+    CelF3 X = celc_print_xyz(s, h, 0.0f, dmg, mono);
+    float xref = celc_dot3(s, CEL_CS_LW, celc_exposures(s, rgb));
+    float hk = 1.0f - cel_saturate(3.0f * (dmg.x + dmg.y + dmg.z + dmg.w));
+    return celc_output_k(s, X, xref, rgb, hk);
+}
+
 CEL_DEVICE CelF3 celc_scene_to_output_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise, CelF4 dmg) {
     rgb = cel_f3(celc_sanitize(rgb.x), celc_sanitize(rgb.y), celc_sanitize(rgb.z));
     noise = cel_f3(cel_clamp(cel_finite_or(noise.x, 0.0f), -8.0f, 8.0f), cel_clamp(cel_finite_or(noise.y, 0.0f), -8.0f, 8.0f),
                    cel_clamp(cel_finite_or(noise.z, 0.0f), -8.0f, 8.0f));
     dmg = celc_dmg_clean(dmg);
+    int stage = celc_i(s, CEL_CS_STAGE);
+    if (stage != 0) {
+        CelF3 so = celc_stage_exit(s, stage, rgb, noise, hasNoise, dmg);
+        return cel_f3(cel_finite_or(so.x, 0.0f), cel_finite_or(so.y, 0.0f), cel_finite_or(so.z, 0.0f));
+    }
     CelcFilm f = celc_film_xyz_dmg(s, rgb, noise, hasNoise, dmg);
     float hk = 1.0f - cel_saturate(3.0f * (dmg.x + dmg.y + dmg.z + dmg.w));
     CelF3 o = celc_output_k(s, f.X, f.xref, rgb, hk);
