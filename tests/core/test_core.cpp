@@ -1245,31 +1245,87 @@ static void testAlexa() {
             }
         }
     }
-    {   // ALEXA Colour: greys untouched, exposure-stable (scales with the scene), changes colour, strength blends
+    {   // ALEXA Colour (v1.3: fitted through the film): bands exposure-invariant, plus a per-stop tone term that keeps
+        // grey luminance, leaves 18 % grey alone, tints the neutral axis only gently and smoothly, changes colour and
+        // blends with the strength
         LookParams p = lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24);
         p.input = InputSpace::LinearRec2020;
         Pipeline off, on, half;
         off.prepare(p);
         p.alexaColour = 1.f; on.prepare(p);
         p.alexaColour = 0.5f; half.prepare(p);
-        double worstG = 0, worstE = 0, moved = 0;
-        for (float v : {0.001f, 0.18f, 3.f, 40.f}) {
+        auto lum2020 = [](Float3 v) { return 0.2627 * v.r + 0.6780 * v.g + 0.0593 * v.b; };
+        double grey18 = 0, worstY = 0, tint = 0, jump = 0, moved = 0;
+        {
+            Float3 a = off.decodeToScene({0.18f, 0.18f, 0.18f}), b = on.decodeToScene({0.18f, 0.18f, 0.18f});
+            grey18 = std::max({std::fabs(a.r - b.r), std::fabs(a.g - b.g), std::fabs(a.b - b.b)}) / 0.18;
+        }
+        Float3 prev{};
+        for (int i = 0; i <= 18 * 8; ++i) {   // -8 .. +10 stops in 1/8 stop
+            const float v = 0.18f * std::exp2(-8.f + float(i) / 8.f);
             Float3 a = off.decodeToScene({v, v, v}), b = on.decodeToScene({v, v, v});
-            worstG = std::max(worstG, double(std::max({std::fabs(a.r - b.r), std::fabs(a.g - b.g), std::fabs(a.b - b.b)})) / v);
+            worstY = std::max(worstY, std::fabs(lum2020(b) / lum2020(a) - 1.0));
+            Float3 r{float(b.r / lum2020(b)), float(b.g / lum2020(b)), float(b.b / lum2020(b))};
+            tint = std::max(tint, double(std::max({std::fabs(r.r - 1.f), std::fabs(r.g - 1.f), std::fabs(r.b - 1.f)})));
+            if (i) jump = std::max(jump, double(std::max({std::fabs(r.r - prev.r), std::fabs(r.g - prev.g), std::fabs(r.b - prev.b)})));
+            prev = r;
         }
         for (Float3 c : {Float3{0.30f, 0.10f, 0.05f}, Float3{0.05f, 0.12f, 0.30f}, Float3{0.10f, 0.30f, 0.08f},
                          Float3{0.40f, 0.25f, 0.18f}}) {
-            Float3 a = on.decodeToScene(c), b = on.decodeToScene({c.r * 16.f, c.g * 16.f, c.b * 16.f});
-            worstE = std::max(worstE, double(std::max({std::fabs(b.r / 16.f - a.r), std::fabs(b.g / 16.f - a.g),
-                                                       std::fabs(b.b / 16.f - a.b)})) / lumOf(a));
-            Float3 z = off.decodeToScene(c), h = half.decodeToScene(c);
+            Float3 a = on.decodeToScene(c), z = off.decodeToScene(c), h = half.decodeToScene(c);
+            CHECK(finite3(a), "ALEXA Colour not finite");
             moved = std::max(moved, double(std::fabs(a.r - z.r) + std::fabs(a.b - z.b)) / lumOf(z));
             CHECK(std::fabs(h.g - 0.5f * (a.g + z.g)) < 1e-5f + 1e-3f * z.g, "ALEXA Colour 50 %% is not the blend");
         }
-        std::printf("  ALEXA Colour: grey %.2e, exposure x16 %.2e (relative), colour change %.3f\n", worstG, worstE, moved);
-        CHECK(worstG < 1e-5, "ALEXA Colour moved a grey (%.2e)", worstG);
-        CHECK(worstE < 1e-4, "ALEXA Colour not exposure-stable (%.2e)", worstE);
+        std::printf("  ALEXA Colour: grey 18 %% %.2e, grey luminance %.2e, neutral tint max %.3f (step %.4f / 1/8 stop), "
+                    "colour change %.3f\n", grey18, worstY, tint, jump, moved);
+        CHECK(grey18 < 1e-3, "ALEXA Colour moved 18 %% grey (%.2e)", grey18);
+        CHECK(worstY < 1e-4, "ALEXA Colour changed grey luminance (%.2e)", worstY);
+        CHECK(tint < 0.3, "ALEXA Colour tints the neutral axis too much (%.3f)", tint);
+        CHECK(jump < 0.05, "ALEXA Colour neutral tint not smooth over exposure (%.4f)", jump);
         CHECK(moved > 0.01, "ALEXA Colour changes nothing (%.4f)", moved);
+    }
+    {   // Highlight Latitude (v1.3, F-Log2 C): identity below the shoulder, monotone, clipped -> neutral, hue kept
+        // for a single clipped channel, finite on hostile input, off outside F-Log2 / F-Log2 C
+        LookParams p = lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+        p.input = InputSpace::FLog2C;
+        Pipeline off, on, nodes;
+        off.prepare(p);
+        p.latitudeOn = true; on.prepare(p);
+        p.latitudeDesaturate = 0.f; p.latitudeReconstruct = 0.f; nodes.prepare(p);
+        double below = 0, worstHue = 0, clipSpread = 0; bool mono = true; float prevY = -1.f;
+        for (int i = 0; i <= 1000; ++i) {   // grey ramp over the whole code range
+            const float c = float(i) / 1000.f;
+            Float3 a = off.decodeToScene({c, c, c}), b = on.decodeToScene({c, c, c});
+            const float Y = 0.2627f * b.r + 0.6780f * b.g + 0.0593f * b.b;
+            if (Y < prevY) mono = false;
+            prevY = Y;
+            if (c < 0.70f) below = std::max(below, double(std::max({std::fabs(a.r - b.r), std::fabs(a.g - b.g), std::fabs(a.b - b.b)})));
+        }
+        for (Float3 c : {Float3{0.854f, 0.854f, 0.854f}, Float3{0.854f, 0.854f, 0.80f}, Float3{0.80f, 0.854f, 0.854f},
+                         Float3{0.95f, 0.95f, 0.90f}}) {
+            Float3 b = on.decodeToScene(c);
+            CHECK(finite3(b), "Highlight Latitude not finite");
+            clipSpread = std::max(clipSpread, double(std::max({b.r, b.g, b.b}) / std::min({b.r, b.g, b.b}) - 1.f));
+        }
+        for (Float3 c : {Float3{0.854f, 0.50f, 0.45f}, Float3{0.40f, 0.854f, 0.50f}, Float3{0.45f, 0.42f, 0.90f}}) {
+            Float3 a = off.decodeToScene(c), b = nodes.decodeToScene(c);
+            const double k = double(b.g) / a.g;
+            worstHue = std::max(worstHue, std::max(std::fabs(b.r / (k * a.r) - 1.0), std::fabs(b.b / (k * a.b) - 1.0)));
+        }
+        for (Float3 c : {Float3{NAN, 0.5f, 0.5f}, Float3{INFINITY, 1.f, 1.f}, Float3{-INFINITY, 0.f, 2.f},
+                         Float3{1e6f, 1e6f, -1e6f}, Float3{-0.5f, 0.9f, 0.f}, Float3{1e-30f, 0.f, 1.f}})
+            CHECK(finite3(on.decodeToScene(c)), "Highlight Latitude not finite on hostile input");
+        std::printf("  Highlight Latitude: below shoulder %.1e, monotone %d, clipped spread %.4f, single-channel hue %.1e\n",
+                    below, int(mono), clipSpread, worstHue);
+        CHECK(below == 0.0, "Highlight Latitude changed a value below the shoulder (%.2e)", below);
+        CHECK(mono, "Highlight Latitude grey ramp not monotone");
+        CHECK(clipSpread < 0.02, "Highlight Latitude left a clipped highlight coloured (%.4f)", clipSpread);
+        CHECK(worstHue < 1e-4, "Highlight Latitude moved the hue of a single clipped channel (%.2e)", worstHue);
+        LookParams q = p; q.input = InputSpace::ArriLogC3; q.latitudeOn = true;
+        Pipeline lc, lc0; lc.prepare(q); q.latitudeOn = false; lc0.prepare(q);
+        Float3 u = lc.decodeToScene({0.95f, 0.9f, 0.8f}), v = lc0.decodeToScene({0.95f, 0.9f, 0.8f});
+        CHECK(u.r == v.r && u.g == v.g && u.b == v.b, "Highlight Latitude active outside F-Log2 / F-Log2 C");
     }
 }
 

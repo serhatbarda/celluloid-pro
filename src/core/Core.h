@@ -113,6 +113,15 @@ struct LookParams {
     float dyeSatBalance = 0.f;   // -1 (shadows) .. +1 (highlights): where the saturation change acts most
     // ---- v1.3 ALEXA Rendering (appended, SPEC 13): defaults = off, bit-identical
     float alexaColour = 0.f;     // 0 .. 1: ALEXA Colour strength (scene-linear, before the negative; 0 = off)
+    // ---- v1.3 Highlight Latitude (appended, SPEC 13): off by default, bit-identical. Scene-linear in the camera's
+    // own gamut right after the log decode (before Sensor Match, Exposure, the negative and the ALEXA rendering);
+    // Fujifilm F-Log2 C / F-Log2 input only
+    bool  latitudeOn = false;
+    float latitudeStops = 2.5f;      // 0 .. 4 stops of extra headroom (clip level placed this much higher)
+    float latitudeSoftness = 0.4f;   // 0 .. 1: extension width below the clip, 0.5 .. 3 stops
+    float latitudeReconstruct = 1.f; // 0 .. 1: clip reconstruction (lagging channels of near-white clips -> white)
+    float latitudeDesaturate = 0.3f; // 0 .. 1: desaturation of the stretched top stops toward white
+    float latitudeClip = 0.854f;     // F-Log2 code value of the sensor clip (X-H2S: 0.854 = 10-bit 874)
 };
 
 // v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 5c.1

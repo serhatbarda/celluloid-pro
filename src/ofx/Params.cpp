@@ -172,6 +172,44 @@ std::vector<ParamDef> build() {
           "roll off and shadows build density the way a real over/under-exposed negative does.",
           false);
 
+    // ---------------------------------------------------------------- [Highlight Latitude] (v1.3)
+    b.beginGroup(id::gHighlightLatitude, "Highlight Latitude", true,
+                 "Gives the camera's highlights the latitude of a camera with more headroom. Works on the scene "
+                 "light right after the F-Log2 decode, before Sensor Match, the negative and the ALEXA rendering: "
+                 "it finds where the X-H2S clips, rebuilds clipped colour channels so blown highlights go white "
+                 "instead of cyan, yellow or magenta, and stretches the last stops below the clip so they roll "
+                 "into the film's (or the ALEXA's) shoulder instead of stopping at a wall. Fujifilm F-Log2 C / "
+                 "F-Log2 footage only; everything below the shoulder is untouched.");
+    b.boolean(id::latitudeEnable, "Enable Highlight Latitude", false,
+              "Switches Highlight Latitude on or off without losing its settings. Off = the camera's highlights "
+              "exactly as recorded.",
+              false);
+    b.dbl(id::latitudeStops, "Latitude", 2.5, 0.0, 4.0, 0.05, 2,
+          "Extra headroom in stops: the camera's clip level is placed this much higher, and the stops below it "
+          "are stretched smoothly up to it, so highlights reach the shoulder of the film or the ALEXA rendering "
+          "the way they would on a camera with this many more stops above grey. 0 = no extension (clip "
+          "reconstruction only).",
+          false);
+    b.dbl(id::latitudeSoftness, "Shoulder Softness", 0.4, 0.0, 1.0, 0.01, 2,
+          "How far below the clip the extension starts: 0 = only the last half stop (hardest), 1 = the last "
+          "three stops (softest, longest roll). Everything below that point is unchanged.",
+          false);
+    b.dbl(id::latitudeReconstruct, "Clip Reconstruction", 1.0, 0.0, 1.0, 0.01, 2,
+          "Rebuilds colour channels that clip before the others. Near-white highlights where one or two channels "
+          "have clipped go smoothly to white instead of turning cyan (sky), yellow or magenta (skin, "
+          "practicals); strongly coloured lights where only their own channel clips keep their colour. "
+          "0 = off.",
+          false);
+    b.dbl(id::latitudeDesaturate, "Highlight Desaturation", 0.3, 0.0, 1.0, 0.01, 2,
+          "Desaturates the stretched top stops toward white, the way a negative's colour thins out as it nears "
+          "its shoulder. 0 = keep the colour of the highlights (only the clip reconstruction acts).",
+          false);
+    b.dbl(id::latitudeClip, "Sensor Clip", 0.854, 0.6, 1.0, 0.001, 3,
+          "F-Log2 code value (0..1, full range) at which the camera's channels clip. 0.854 (10-bit 874) is "
+          "where the X-H2S clips in F-Log2 / F-Log2 C, measured on its footage: about 6.3 stops above 18 % "
+          "grey. Lower it if a clip still shows colour casts; raise it for footage that clips higher.",
+          false);
+
     // ---------------------------------------------------------------- [Camera Emulation] (v1.2)
     // v1.3: shown as "Sensor Match" (IDs unchanged); the ALEXA look itself is the ALEXA Rendering group
     b.beginGroup(id::gCameraEmulation, "Sensor Match", true,
@@ -210,8 +248,9 @@ std::vector<ParamDef> build() {
               true);
     b.dbl(id::alexaColour, "ALEXA Colour", 1.0, 0.0, 1.0, 0.01, 2,
           "How much of the ALEXA rendering's colour (its hue shifts and saturation per hue, skin) the scene "
-          "gets before the negative. Applied in scene light at grey brightness, so it leaves greys and exposure "
-          "untouched and the film still does the tone and the print look. 0 = none, 1 = the full ALEXA colour.",
+          "gets before the negative, matched through the film: cherry reds, greens without a blue lean, cohesive "
+          "skin, neutral whites and slightly cool shadows. Applied in scene light, so mid grey and exposure stay "
+          "where they are and the film still does the tone and the print look. 0 = none, 1 = the full ALEXA colour.",
           true);
 
     // ---------------------------------------------------------------- [Tone] (v1.3)

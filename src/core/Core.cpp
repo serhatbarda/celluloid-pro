@@ -127,7 +127,10 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
            a.printContrast == b.printContrast &&   // v1.3 print lab
            sameTone(a, b) &&
-           a.alexaColour == b.alexaColour;         // v1.3 ALEXA Rendering
+           a.alexaColour == b.alexaColour &&       // v1.3 ALEXA Rendering
+           a.latitudeOn == b.latitudeOn && a.latitudeStops == b.latitudeStops &&   // v1.3 Highlight Latitude
+           a.latitudeSoftness == b.latitudeSoftness && a.latitudeReconstruct == b.latitudeReconstruct &&
+           a.latitudeDesaturate == b.latitudeDesaturate && a.latitudeClip == b.latitudeClip;
 }
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
@@ -162,6 +165,18 @@ static LookParams sanitize(LookParams p) {
     if (p.stage != 0) p.process = Process::NegativeToPrint;
     // v1.3 ALEXA Rendering: ALEXA Colour is part of the film chain (the ALEXA Rec.709 stage renders it itself)
     p.alexaColour = p.stage == int(Stage::AlexaRec709) ? 0.f : clampf(p.alexaColour, 0.f, 1.f);
+    // v1.3 Highlight Latitude: Fujifilm F-Log2 family only (the clip is the camera's, in its own encoding)
+    p.latitudeOn = p.latitudeOn && (p.input == InputSpace::FLog2C || p.input == InputSpace::FLog2) && p.stage != int(Stage::PrintOnly);
+    p.latitudeStops = clampf(p.latitudeStops, 0.f, 4.f);
+    p.latitudeSoftness = clampf(p.latitudeSoftness, 0.f, 1.f);
+    p.latitudeReconstruct = clampf(p.latitudeReconstruct, 0.f, 1.f);
+    p.latitudeDesaturate = clampf(p.latitudeDesaturate, 0.f, 1.f);
+    p.latitudeClip = std::isfinite(p.latitudeClip) ? clampf(p.latitudeClip, 0.6f, 1.f) : 0.854f;
+    if (!p.latitudeOn) {   // normalised, so an inactive module never changes the cache key
+        const LookParams d;
+        p.latitudeStops = d.latitudeStops; p.latitudeSoftness = d.latitudeSoftness; p.latitudeReconstruct = d.latitudeReconstruct;
+        p.latitudeDesaturate = d.latitudeDesaturate; p.latitudeClip = d.latitudeClip;
+    }
     // v1.3 print lab
     if (p.projectionWhite < 0 || p.projectionWhite >= int(ProjectionWhite::Count)) p.projectionWhite = 0;
     if (p.printAim < 0 || p.printAim >= int(PrintAim::Count)) p.printAim = 0;
@@ -652,6 +667,8 @@ static void buildAlexa(float* s, const LookParams& p, int oAL) {
     const spec::Mat3 y2020 = spec::npm(spec::Gamut::Rec2020);
     for (int j = 0; j < 3; ++j) a[CEL_AL_Y2020 + j] = float(y2020.m[1][j]);
     putMat(a, CEL_AL_MOUT, outputMatrix(p.output) * spec::npm(spec::Gamut::Rec709));
+    for (int r = 0; r < 3; ++r)   // v1.3 ARRI look II: ALEXA Colour tone table (through the film)
+        for (int k = 0; k < CEL_AL_TN_N; ++k) a[CEL_AL_TN + r * CEL_AL_TN_N + k] = float(kAlexaColourTone[r][k]);
     // Oklab L of the display grey and of scene grey (the bands' lightness pivots)
     const float dg = std::pow(std::max(celc_al_tone(a + CEL_AL_TONE, 0.18f), 0.f), 2.4f);
     a[CEL_AL_LG_R] = celc_al_oklab(a, cel_f3(dg, dg, dg)).x;
@@ -751,6 +768,15 @@ void Pipeline::prepare(const LookParams& pin) {
                 s[CEL_CS_EMU_A + i * 3 + j] = float((i == j ? 1.0 : 0.0) + k * (kEmuFujiArriA[i][j] - (i == j ? 1.0 : 0.0)));
                 s[CEL_CS_EMU_B + i * 3 + j] = float(k * kEmuFujiArriB[i][j]);
             }
+    }
+    // ---- v1.3 Highlight Latitude (header only; in decode before MIN, ColorKernels.h celc_latitude)
+    if (p.latitudeOn) {
+        s[CEL_CS_HL_ON] = 1.f;
+        s[CEL_CS_HL_LC] = celc_decode_transfer(CEL_IN_FLOG2, p.latitudeClip);
+        s[CEL_CS_HL_W] = 0.5f + 2.5f * p.latitudeSoftness;
+        s[CEL_CS_HL_L] = p.latitudeStops;
+        s[CEL_CS_HL_REC] = p.latitudeReconstruct;
+        s[CEL_CS_HL_DES] = p.latitudeDesaturate;
     }
     s[CEL_CS_HOLD_ONSET] = float(kHoldOnset);
     s[CEL_CS_OCT_OFF] = float(oOct);

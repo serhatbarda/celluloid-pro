@@ -219,6 +219,14 @@ constexpr const char* gAlexaRendering = "groupAlexaRendering";
 constexpr const char* alexaDisplayEnable = "alexaDisplayEnable"; // Pipeline Stage ALEXA Rec.709 on / off (A/B)
 constexpr const char* alexaColourEnable = "alexaColourEnable";
 constexpr const char* alexaColour = "alexaColour";
+// ---- v1.3 Highlight Latitude: scene-linear clip reconstruction + highlight extension (before Sensor Match) ----
+constexpr const char* gHighlightLatitude = "groupHighlightLatitude";
+constexpr const char* latitudeEnable = "latitudeEnable";
+constexpr const char* latitudeStops = "latitudeStops";
+constexpr const char* latitudeSoftness = "latitudeSoftness";
+constexpr const char* latitudeReconstruct = "latitudeReconstruct";
+constexpr const char* latitudeDesaturate = "latitudeDesaturate";
+constexpr const char* latitudeClip = "latitudeClip";
 } // namespace id
 
 // v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are

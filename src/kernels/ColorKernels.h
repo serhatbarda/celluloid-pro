@@ -117,6 +117,36 @@ CEL_DEVICE CelF3 celc_emulate(CEL_GLOBAL const float* s, CelF3 l) {
     CelF3 q = celc_mat3(s, CEL_CS_EMU_B, rp);
     return cel_f3(o.x + q.x, o.y + q.y, o.z + q.z);
 }
+/* ---- v1.3 Highlight Latitude (header CEL_CS_HL_*): scene-linear, in the camera's own gamut right after the
+ * log decode, before Sensor Match, Exposure and everything else. With m = the largest channel and
+ * x = log2(m / clip) (the sensor clip, decoded from its F-Log2 code):
+ *   reconstruction  near-white pixels whose largest channel reaches the clip (x > -RECW) while the median
+ *                   channel is close to it (median / m above Q0 .. Q1) have their lagging channels raised
+ *                   toward m: a clip goes white instead of cyan / yellow / magenta; a saturated light where
+ *                   only its own channel clips (median / m < Q0) keeps its colour
+ *   desaturation    within the extension the colour is pulled toward m by DES h(t)
+ *   extension       every channel x 2^(L h(t)), t = (x + W) / W in [0, 1], h = smoothstep: the last W stops
+ *                   below the clip are stretched to W + L stops, C1 at both ends (slope 1 below and at the
+ *                   clip), strictly increasing; values above the clip (saturated colours the camera's matrix
+ *                   took past it) get the full 2^L
+ * Below the extension (x <= -W and x <= -RECW) the pixel is returned unchanged (bit-exact). Mixing with the
+ * neutral at m keeps the dominant hue; the common gain keeps the channel ratios; per pixel, so no halos. */
+CEL_DEVICE float celc_hl_h(float t) { t = cel_clamp(t, 0.0f, 1.0f); return t * t * (3.0f - 2.0f * t); }
+CEL_DEVICE CelF3 celc_latitude(CEL_GLOBAL const float* s, CelF3 l) {
+    float m = celc_max3(l);
+    if (!(m > 0.0f)) return l;
+    float x = cel_log2(m / s[CEL_CS_HL_LC]);
+    float W = s[CEL_CS_HL_W];
+    if (x <= -W && x <= -CEL_HL_RECW) return l;
+    float md = l.x + l.y + l.z - m - celc_min3(l);   /* median channel */
+    float q = celc_hl_h((md / m - CEL_HL_Q0) * (1.0f / (CEL_HL_Q1 - CEL_HL_Q0)));
+    float w = s[CEL_CS_HL_REC] * q * celc_hl_h((x + CEL_HL_RECW) * (1.0f / CEL_HL_RECW));
+    float h = celc_hl_h((x + W) / W);
+    float d = s[CEL_CS_HL_DES] * h;
+    float k = 1.0f - (1.0f - w) * (1.0f - d);
+    float g = cel_exp2(s[CEL_CS_HL_L] * h);
+    return cel_f3((l.x + k * (m - l.x)) * g, (l.y + k * (m - l.y)) * g, (l.z + k * (m - l.z)) * g);
+}
 /* ---- v1.3 ALEXA Rendering (AL block, ColorState.h; fitted by reference/alexa_rendering.py) ----------
  * Our own parametric model of an ARRI-style LogC3 -> Rec.709 rendering (fitted against a reference
  * rendering, nothing of it shipped): a render matrix (rows sum to 1), a tone curve applied per channel on
@@ -197,6 +227,22 @@ CEL_DEVICE CelF3 celc_alexa_render(CEL_GLOBAL const float* s, CelF3 x) {
     CelF3 o = celc_al_oklab_inv(a, celc_al_bands(a + CEL_AL_RB, celc_al_oklab(a, d), a[CEL_AL_LG_R]));
     return cel_f3(celc_al_floor(o.x), celc_al_floor(o.y), celc_al_floor(o.z));
 }
+/* ALEXA Colour tone term (v1.3 ARRI look II, fitted through the default film by reference/alexa_film_fit.py):
+ * per scene stop of the luminance Y, gains on R and B (renormalised to Y: greys stay at their level) that keep
+ * the film's whites neutral and its shadows a touch cool -- faded out with saturation (1 - min/max) so that only
+ * near-neutrals are balanced and coloured skies / skin keep their hue -- and a chroma factor about the neutral of Y */
+CEL_DEVICE CelF3 celc_al_tone_term(CEL_GLOBAL const float* a, float Y, CelF3 o) {
+    float st = cel_log2(Y * (1.0f / 0.18f));
+    float mx = celc_max3(o);
+    float wn = mx > 0.0f ? celc_hl_h(1.0f - (mx - celc_min3(o)) / (mx * CEL_AL_TN_SAT)) : 0.0f;   /* near-neutrals only */
+    float gr = cel_exp2(wn * celc_lut1(a, CEL_AL_TN, CEL_AL_TN_N, 0, CEL_AL_TN_X0, CEL_AL_TN_X1, st));
+    float gb = cel_exp2(wn * celc_lut1(a, CEL_AL_TN, CEL_AL_TN_N, 1, CEL_AL_TN_X0, CEL_AL_TN_X1, st));
+    float kc = celc_lut1(a, CEL_AL_TN, CEL_AL_TN_N, 2, CEL_AL_TN_X0, CEL_AL_TN_X1, st);
+    o = cel_f3(o.x * gr, o.y, o.z * gb);
+    float Yo = celc_dot3(a, CEL_AL_Y2020, o);
+    if (Yo > 1e-12f) o = celc_scale(o, Y / Yo);
+    return cel_f3(Y + kc * (o.x - Y), Y + kc * (o.y - Y), Y + kc * (o.z - Y));
+}
 /* ALEXA Colour: the rendering's colour character without its tone curve, scene-linear Rec.2020 -> Rec.2020.
  * Evaluated at grey luminance (n = x 0.18 / Y) and scaled back, so f(k x) = k f(x) (exposure-stable);
  * neutrals and non-positive luminance pass unchanged. Blended with the strength CEL_CS_AL_COLOUR. */
@@ -221,7 +267,7 @@ CEL_DEVICE CelF3 celc_alexa_colour(CEL_GLOBAL const float* s, CelF3 x) {
     r = cel_fmin(r, cf);
     if (!(r > 0.0f)) return x;
     CelF3 lab = celc_al_bands(a + CEL_AL_CB, l0, a[CEL_AL_LG_C]);
-    CelF3 o = celc_scale(celc_mat3(a, CEL_AL_M709_2020, celc_al_oklab_inv(a, lab)), Y / 0.18f);
+    CelF3 o = celc_al_tone_term(a, Y, celc_scale(celc_mat3(a, CEL_AL_M709_2020, celc_al_oklab_inv(a, lab)), Y / 0.18f));
     float k = s[CEL_CS_AL_COLOUR] * r * r * (3.0f - 2.0f * r);
     return cel_f3(x.x + k * (o.x - x.x), x.y + k * (o.y - x.y), x.z + k * (o.z - x.z));
 }
@@ -315,6 +361,7 @@ CEL_DEVICE CelF3 celc_decode_px(CEL_GLOBAL const float* s, CelF3 e) {
     int sp = celc_i(s, CEL_CS_INPUT);
     CelF3 l = cel_f3(celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.x))), celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.y))),
                      celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.z))));
+    if (s[CEL_CS_HL_ON] > 0.5f) l = celc_latitude(s, l);   /* v1.3 Highlight Latitude (camera gamut, off = 0) */
     l = celc_mat3(s, CEL_CS_MIN, l);
     if (s[CEL_CS_EMU_ON] > 0.5f) l = celc_emulate(s, l);
     if (s[CEL_CS_AL_COLOUR] > 0.0f) l = celc_alexa_colour(s, l);   /* v1.3 ALEXA Colour (off = 0) */

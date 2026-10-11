@@ -295,6 +295,15 @@ std::vector<Case> makeCases(bool all) {
         c.fs.look.process = core::Process::NegativeScan; });
     add("torture, alexa stage", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::AlexaRec709); c.scene = Scene::Torture; });
     add("torture, ALEXA Colour 1", [](Case& c) { fullTexture(c.fs); c.fs.look.alexaColour = 1.f; c.scene = Scene::Torture; });
+    // ---- v1.3 Highlight Latitude (F-Log2 C scene-linear, before Sensor Match and the film)
+    add("latitude: all texture", [](Case& c) { fullTexture(c.fs); c.fs.look.latitudeOn = true; });
+    add("latitude: soft, 4 stops, sensor match + ALEXA Colour", [](Case& c) { fullTexture(c.fs); c.fs.look.latitudeOn = true;
+        c.fs.look.latitudeStops = 4.f; c.fs.look.latitudeSoftness = 1.f; c.fs.look.latitudeDesaturate = 0.8f;
+        c.fs.look.cameraEmulation = 1; c.fs.look.alexaColour = 1.f; });
+    add("latitude: hard, F-Log2, alexa stage", [](Case& c) { c.fs.look.latitudeOn = true; c.fs.look.input = core::InputSpace::FLog2;
+        c.fs.look.latitudeSoftness = 0.f; c.fs.look.latitudeClip = 0.7f; c.fs.look.stage = int(core::Stage::AlexaRec709); });
+    add("torture, latitude", [](Case& c) { fullTexture(c.fs); c.fs.look.latitudeOn = true; c.fs.look.alexaColour = 1.f;
+        c.scene = Scene::Torture; });
     // ---- hostile inputs
     add("torture, stage print only", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::PrintOnly); c.scene = Scene::Torture; });
     add("torture, stage negative -> scene ACEScct", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::NegativeToScene);

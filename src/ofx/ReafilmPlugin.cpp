@@ -197,7 +197,10 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.zoneSpecular == b.zoneSpecular && a.zoneSpecularRange == b.zoneSpecularRange && a.zoneFalloff == b.zoneFalloff &&
            a.filmContrast == b.filmContrast && a.contrastPivot == b.contrastPivot && a.rolloffStart == b.rolloffStart &&
            a.rolloffSoftness == b.rolloffSoftness && a.dyeSaturation == b.dyeSaturation && a.dyeRichness == b.dyeRichness &&
-           a.dyeSatBalance == b.dyeSatBalance && a.alexaColour == b.alexaColour;
+           a.dyeSatBalance == b.dyeSatBalance && a.alexaColour == b.alexaColour &&
+           a.latitudeOn == b.latitudeOn && a.latitudeStops == b.latitudeStops && a.latitudeSoftness == b.latitudeSoftness &&
+           a.latitudeReconstruct == b.latitudeReconstruct && a.latitudeDesaturate == b.latitudeDesaturate &&
+           a.latitudeClip == b.latitudeClip;
 }
 
 std::string versionString() {
@@ -492,6 +495,15 @@ core::LookParams ReafilmEffect::lookAt(double t) const {
     }
     // v1.3 ALEXA Colour (switched off = 0; core ignores it in the ALEXA Rec.709 stage)
     if (flag(id::alexaColourEnable, t)) lp.alexaColour = float(num(id::alexaColour, t));
+    // v1.3 Highlight Latitude (switched off = off; core ignores it for non-F-Log2 input and Print Only)
+    if (flag(id::latitudeEnable, t)) {
+        lp.latitudeOn = true;
+        lp.latitudeStops = float(num(id::latitudeStops, t));
+        lp.latitudeSoftness = float(num(id::latitudeSoftness, t));
+        lp.latitudeReconstruct = float(num(id::latitudeReconstruct, t));
+        lp.latitudeDesaturate = float(num(id::latitudeDesaturate, t));
+        lp.latitudeClip = float(num(id::latitudeClip, t));
+    }
     // v1.3 Tone (switched off = the neutral LookParams values)
     if (flag(id::toneEnable, t)) {
         lp.zoneShadows = float(num(id::zoneShadows, t));
@@ -1003,6 +1015,12 @@ void ReafilmEffect::refreshEnabledness(double t) {
         setEnabled(id::cameraEmulationEnable, colour && fuji);
         setEnabled(id::cameraEmulation, colour && fuji && emuOn);
         setEnabled(id::cameraEmulationStrength, colour && fuji && emuOn);
+        // v1.3 Highlight Latitude: F-Log2 C / F-Log2 only, not in Print Only (its input is a Log Scan)
+        const bool flog2 = in == core::InputSpace::FLog2C || in == core::InputSpace::FLog2;
+        const bool hl = colour && flog2 && stageChoice(t) != StageChoice::PrintOnly;
+        setEnabled(id::latitudeEnable, hl);
+        for (const char* p : {id::latitudeStops, id::latitudeSoftness, id::latitudeReconstruct, id::latitudeDesaturate, id::latitudeClip})
+            setEnabled(p, hl && flag(id::latitudeEnable, t));
     }
     {   // v1.3 Tone: zones / contrast act on the scene (not in Print Only), roll-off on the print, dye
         // saturation on any colour film

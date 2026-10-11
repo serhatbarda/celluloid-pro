@@ -125,6 +125,11 @@ int main() {
         {"dyeRichness", "groupTone", 0, 1, 0.25},
         {"dyeSatBalance", "groupTone", -1, 1, 0},
         {"alexaColour", "groupAlexaRendering", 0, 1, 1},   // v1.3 ALEXA Rendering
+        {"latitudeStops", "groupHighlightLatitude", 0, 4, 2.5},   // v1.3 Highlight Latitude
+        {"latitudeSoftness", "groupHighlightLatitude", 0, 1, 0.4},
+        {"latitudeReconstruct", "groupHighlightLatitude", 0, 1, 1},
+        {"latitudeDesaturate", "groupHighlightLatitude", 0, 1, 0.3},
+        {"latitudeClip", "groupHighlightLatitude", 0.6, 1, 0.854},
     };
     for (const Spec& s : spec) {
         const ParamDef* d = findParam(s.id);
@@ -194,6 +199,9 @@ int main() {
         // v1.3 ALEXA Rendering: the stage's A/B switch (on, only acts in that stage) and ALEXA Colour (off, look)
         {"alexaDisplayEnable", "groupAlexaRendering", true, false, {}},
         {"alexaColourEnable", "groupAlexaRendering", false, true, {"alexaColour"}},
+        // v1.3 Highlight Latitude: new module, OFF by default, a camera setting (not part of looks)
+        {"latitudeEnable", "groupHighlightLatitude", false, false, {"latitudeStops", "latitudeSoftness", "latitudeReconstruct",
+                                                                   "latitudeDesaturate", "latitudeClip"}},
     };
     auto position = [&](const std::string& pid) {
         for (size_t i = 0; i < defs.size(); ++i)

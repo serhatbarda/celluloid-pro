@@ -294,6 +294,17 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Enable Exposure** (`exposureEnable`; default on) — Switches the Exposure trim below on or off without losing its value. Off = the footage reaches the film exactly as it was recorded (0 stops).
 - **Exposure** (`exposure`; -4 … 4; default 0; keyframable) — Camera exposure correction in stops, applied to the scene before it reaches the film. Because it acts before the negative, +/- exposure slides the image along the film's characteristic curve: highlights roll off and shadows build density the way a real over/under-exposed negative does.
 
+### Highlight Latitude
+
+*Gives the camera's highlights the latitude of a camera with more headroom. Works on the scene light right after the F-Log2 decode, before Sensor Match, the negative and the ALEXA rendering: it finds where the X-H2S clips, rebuilds clipped colour channels so blown highlights go white instead of cyan, yellow or magenta, and stretches the last stops below the clip so they roll into the film's (or the ALEXA's) shoulder instead of stopping at a wall. Fujifilm F-Log2 C / F-Log2 footage only; everything below the shoulder is untouched.*
+
+- **Enable Highlight Latitude** (`latitudeEnable`; default off) — Switches Highlight Latitude on or off without losing its settings. Off = the camera's highlights exactly as recorded.
+- **Latitude** (`latitudeStops`; 0 … 4; default 2.5; keyframable) — Extra headroom in stops: the camera's clip level is placed this much higher, and the stops below it are stretched smoothly up to it, so highlights reach the shoulder of the film or the ALEXA rendering the way they would on a camera with this many more stops above grey. 0 = no extension (clip reconstruction only).
+- **Shoulder Softness** (`latitudeSoftness`; 0 … 1; default 0.4; keyframable) — How far below the clip the extension starts: 0 = only the last half stop (hardest), 1 = the last three stops (softest, longest roll). Everything below that point is unchanged.
+- **Clip Reconstruction** (`latitudeReconstruct`; 0 … 1; default 1; keyframable) — Rebuilds colour channels that clip before the others. Near-white highlights where one or two channels have clipped go smoothly to white instead of turning cyan (sky), yellow or magenta (skin, practicals); strongly coloured lights where only their own channel clips keep their colour. 0 = off.
+- **Highlight Desaturation** (`latitudeDesaturate`; 0 … 1; default 0.3; keyframable) — Desaturates the stretched top stops toward white, the way a negative's colour thins out as it nears its shoulder. 0 = keep the colour of the highlights (only the clip reconstruction acts).
+- **Sensor Clip** (`latitudeClip`; 0.6 … 1; default 0.854; keyframable) — F-Log2 code value (0..1, full range) at which the camera's channels clip. 0.854 (10-bit 874) is where the X-H2S clips in F-Log2 / F-Log2 C, measured on its footage: about 6.3 stops above 18 % grey. Lower it if a clip still shows colour casts; raise it for footage that clips higher.
+
 ### Sensor Match
 
 *The subtle, sensor-level part of looking like another camera: what that camera's sensor would have recorded of the same scene, before any look or rendering. It does not add the camera's display look (for the ALEXA look see ALEXA Rendering).*
@@ -309,7 +320,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 - **Enable ALEXA Rec.709** (`alexaDisplayEnable`; default on) — Only matters when Pipeline Stage = ALEXA Rec.709. Off = that node renders the Full Chain instead (quick A/B between the ALEXA rendering and the film look).
 - **Enable ALEXA Colour** (`alexaColourEnable`; default off) — Switches ALEXA Colour on or off without losing its value. Off = the film sees the camera's colour unchanged.
-- **ALEXA Colour** (`alexaColour`; 0 … 1; default 1; keyframable) — How much of the ALEXA rendering's colour (its hue shifts and saturation per hue, skin) the scene gets before the negative. Applied in scene light at grey brightness, so it leaves greys and exposure untouched and the film still does the tone and the print look. 0 = none, 1 = the full ALEXA colour.
+- **ALEXA Colour** (`alexaColour`; 0 … 1; default 1; keyframable) — How much of the ALEXA rendering's colour (its hue shifts and saturation per hue, skin) the scene gets before the negative, matched through the film: cherry reds, greens without a blue lean, cohesive skin, neutral whites and slightly cool shadows. Applied in scene light, so mid grey and exposure stay where they are and the film still does the tone and the print look. 0 = none, 1 = the full ALEXA colour.
 
 ### Tone
 
@@ -866,6 +877,30 @@ and at their defaults the image is exactly the same as without them. Zones and F
 nothing in Print Only (the input there is a scan, not scene light); Film Roll-off needs the print
 (Process = Print); Dye Saturation does not apply to black & white stocks.
 
+### Highlight headroom: Highlight Latitude (v1.3)
+
+The X-H2S clips about 6.3 stops above grey in F-Log2 C (code 0.854). Above that the channels stop one
+after the other, so a bright sky turns flat cyan-grey, a lit wall or a practical goes yellow or
+magenta, and the brightest stops hit the film's shoulder as a wall instead of rolling into it. An
+ALEXA keeps going for about another stop and a half. **Highlight Latitude** (its own group, off by
+default, F-Log2 C / F-Log2 only) closes that gap in scene light, right after the decode and before
+Sensor Match, the negative and the ALEXA rendering:
+
+- **Clip reconstruction**: near-white highlights where one or two channels have clipped go smoothly to
+  white. Strongly coloured lights, where only their own channel clips, keep their hue.
+- **Extension**: the last stops below the clip (Shoulder Softness: half a stop to three stops) are
+  stretched smoothly and monotonically up to **Latitude** stops above it, so they reach the film's or
+  the ALEXA's shoulder the way a camera with more headroom would. Everything below that is untouched,
+  so exposure, skin and mid-tones do not change.
+- **Highlight Desaturation** thins the colour of the stretched stops toward white, as a negative does
+  near its shoulder.
+
+On the owner footage the defaults take a clipped sky from a flat grey-green wall to a soft white, with
+the residual colour in clipped areas (mean C* 1.6 -> 0.7, ARRI 0.7) and the stops above grey it takes
+to reach 98 % of the output (7.75 -> 6 through the default film, ARRI 5.75) close to ARRI's own
+rendering of the same frames. Sensor
+Clip only needs changing for footage that clips elsewhere (lower it if a clip still shows a cast).
+
 ### Looking like an ALEXA (Sensor Match and ALEXA Rendering, v1.3)
 
 A camera's "look" has two parts. Reafilm Pro models each one separately:
@@ -886,9 +921,25 @@ Two recipes:
   output. P3, PQ and HLG get the same rendering re-encoded, and HDR places grey at 15 nits. Switch
   **Enable ALEXA Rec.709** off to compare with the film chain on the same node.
 - **ALEXA colour, film tone**: keep the Full Chain and turn on **Enable ALEXA Colour**. The scene gets
-  the ALEXA rendering's colour before the negative, at grey brightness, so exposure, greys and the
-  film's curve and print stay as they are. **ALEXA Colour** at 0.3-0.6 is a gentle nudge. Very
-  saturated light outside Rec.709, and super-whites above the camera's range, pass unchanged.
+  the ALEXA rendering's colour before the negative, so exposure, mid grey and the film's curve and
+  print stay as they are. Since 1.3 ALEXA Colour is matched *through* the film: with the default
+  stocks it gives cherry reds (a hint of blue rather than orange), greens without a blue lean,
+  skin that holds together across skin tones, whites that stay neutral where the film would drift
+  magenta, and shadows a touch cooler (restrained: a b* of about -0.8 at three stops under). **ALEXA
+  Colour** at 0.3-0.6 is a gentle nudge. Very saturated light outside Rec.709, and super-whites
+  above the camera's range, pass unchanged.
+- **The ARRI look on film** (all three together, F-Log2 C footage): **Enable Highlight Latitude** at
+  its defaults, **Enable ALEXA Colour** at 1, and a subtle **Bloom** (Bloom Amount 0.1-0.2, Bloom
+  Radius 30-60). ARRI highlights are compression plus a faint glow, not a hard roll-off: Highlight
+  Latitude gives the headroom and the clean white clip, Bloom the glow. Keep Halation for film
+  character; the ALEXA itself has none. For the ALEXA look without film, use Highlight Latitude
+  with Pipeline Stage = ALEXA Rec.709 instead.
+
+Through the default film, ALEXA Colour brings the measured hue of a saturated red from 41 to 31
+degrees (ARRI 30), a mid green from 156 to 136 (ARRI 140), the spread of the six skin tones from
+0.46 to 0.40 (ARRI 0.42), and the tint of whites from up to 2.5 a* to 0.6. What the film keeps as its own:
+greens stay less saturated than on the ALEXA (C* 21 vs 29) and very bright reds turn a little
+further toward crimson.
 
 ---
 

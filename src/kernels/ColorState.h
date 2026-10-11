@@ -40,7 +40,7 @@
 #define CEL_CS_MAGIC_VALUE   7341.0f
 #define CEL_CS_LAYOUT_VALUE  7.0f   /* v1.3 Tone: 6 -> 7 (header 256, TN / DN blocks) */
 #define CEL_CS_HEADER        256   /* v1.2: 128 -> 160; v1.3 WP-1: 160 -> 208 (indices 160..207 below);
-                                       v1.3 Tone: 208 -> 256 (indices 224..255 below; 208..223 free) */
+                                       v1.3 Tone: 208 -> 256 (indices 224..255 below; 208..213 Highlight Latitude) */
 
 /* header indices */
 #define CEL_CS_MAGIC        0
@@ -149,11 +149,31 @@
 #define CEL_AL_OK2I         129  /* 129..137 inverse of M2 */
 #define CEL_AL_OK1I         138  /* 138..146 inverse of M1 */
 #define CEL_AL_Y2020        147  /* 147..149 luminance weights of linear Rec.2020 */
-#define CEL_AL_SIZE         150
+#define CEL_AL_TN           150  /* 150..206 v1.3 ALEXA Colour through the film: tone table 3 x CEL_AL_TN_N over
+                                    [CEL_AL_TN_X0, CEL_AL_TN_X1] scene stops re 18 % grey: log2 gain R, log2 gain B
+                                    (luminance kept) and chroma factor (celc_al_tone_term) */
+#define CEL_AL_TN_N         19
+#define CEL_AL_TN_X0        (-8.0f)
+#define CEL_AL_TN_X1        10.0f
+#define CEL_AL_TN_SAT       0.35f /* tone-term R/B gains fade out by this saturation (1 - min/max) */
+#define CEL_AL_SIZE         207
 #define CEL_AL_NB           33   /* band floats: dh0 7, dh1 5, ds0 7, ds1 5, dl0 5, s2 1, skin 3 */
 #define CEL_AL_U_GREY       0.391006832f  /* LogC3 (EI 800) code of 18 % grey (pivot of the tone curve) */
 #define CEL_AL_C0           0.02f      /* chroma fade-in of the bands (Oklab C) */
 #define CEL_AL_FLOOR        1.5e-5f    /* display-linear soft floor (celc_al_floor), below the neutral black 4.3e-5 */
+
+/* ---- v1.3 Highlight Latitude (indices 208..213). 0 / unset = off (bit-identical to the render without it).
+ * Scene-linear in the camera's own gamut, right after the log decode (celc_latitude in ColorKernels.h) */
+#define CEL_CS_HL_ON        208  /* 1 = active (Fujifilm F-Log2 C / F-Log2 input) */
+#define CEL_CS_HL_LC        209  /* linear level of the sensor clip (decoded F-Log2 code) */
+#define CEL_CS_HL_W         210  /* extension width in stops below the clip (0.5 .. 3) */
+#define CEL_CS_HL_L         211  /* latitude: stops the clip level is raised (0 .. 4) */
+#define CEL_CS_HL_REC       212  /* clip reconstruction strength 0 .. 1 */
+#define CEL_CS_HL_DES       213  /* highlight desaturation strength 0 .. 1 */
+/* 214..223 free */
+#define CEL_HL_RECW         0.5f  /* stops below the clip over which a channel counts as clipping (reconstruction onset) */
+#define CEL_HL_Q0           0.35f /* median / max channel ratio: below = saturated light, its hue kept */
+#define CEL_HL_Q1           0.85f /*   above = near-white clip, its lagging channels are rebuilt to white */
 
 /* ---- v1.3 Tone (indices 224..255). 0 / unset = off (bit-identical to the render without it) */
 #define CEL_CS_TONE_ON      224  /* 1 = scene tone (Zones + Filmic Contrast) active, in decode after Exposure */

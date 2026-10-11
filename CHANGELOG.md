@@ -41,6 +41,19 @@ unchanged in a newer one.
   - Mean dE2000 against ARRI's rendering on the owner footage is 0.57, with a 95th percentile of 1.05.
   - The **Sensor Match** group (previously Camera Emulation) has new labels only; its IDs are unchanged.
   - Off or at the defaults, projects render unchanged. Results match across CPU, OpenCL, CUDA and Metal.
+- **Highlight Latitude group** (ARRI look II, default off, F-Log2 C / F-Log2 footage): more highlight
+  headroom in scene light, before Sensor Match, the negative and the ALEXA rendering. Clipped channels
+  are rebuilt so near-white highlights go white instead of cyan, yellow or magenta (coloured lights keep
+  their hue), and the last stops below the X-H2S clip are stretched smoothly and monotonically up to
+  *Latitude* extra stops. Controls: Latitude, Shoulder Softness, Clip Reconstruction, Highlight
+  Desaturation, Sensor Clip (0.854, measured on X-H2S footage). Below the shoulder nothing changes.
+- **ALEXA Colour matched through the film** (ARRI look II): its hue and saturation bands are refitted
+  so that the default film with ALEXA Colour matches ARRI's rendering, plus a per-stop term that keeps
+  the film's whites neutral and its shadows slightly cool. Through the default film: saturated red hue
+  41 -> 31 degrees (ARRI 30), mid green 156 -> 136 (ARRI 140), skin spread 0.46 -> 0.40 (ARRI 0.42),
+  white tint up to 2.5 -> 0.6 a*. ALEXA Colour is still off by default; projects that had it on look
+  different (closer to the ALEXA). The manual's "Looking like an ALEXA" adds an ARRI-look recipe:
+  Highlight Latitude, ALEXA Colour and a subtle Bloom.
 
 ### Fixed
 
