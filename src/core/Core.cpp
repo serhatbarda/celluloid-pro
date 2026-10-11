@@ -20,6 +20,7 @@ namespace cel { namespace core {
 
 namespace {
 #include "CameraEmulation.inc"
+#include "AlexaRendering.inc"
 }
 
 using namespace bake;
@@ -38,7 +39,7 @@ std::vector<std::string> outputSpaceNames() {
             "Rec.2100 PQ (HDR)", "Rec.2100 HLG (HDR)"};
 }
 std::vector<std::string> stageNames() {
-    return {"Full Chain", "Negative -> Log Scan", "Negative -> Scene", "Print Only"};
+    return {"Full Chain", "Negative -> Log Scan", "Negative -> Scene", "Print Only", "ALEXA Rec.709"};
 }
 std::vector<std::string> sceneEncodingNames() {
     return {"ARRI LogC4 / ARRI Wide Gamut 4", "ARRI LogC3 (EI 800) / ARRI Wide Gamut 3", "ACEScct / AP1",
@@ -113,7 +114,8 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover && a.stage == b.stage &&
            a.sceneEncoding == b.sceneEncoding &&
            a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
-           a.printContrast == b.printContrast;   // v1.3 print lab
+           a.printContrast == b.printContrast &&   // v1.3 print lab
+           a.alexaColour == b.alexaColour;         // v1.3 ALEXA Rendering
 }
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
@@ -144,8 +146,10 @@ static LookParams sanitize(LookParams p) {
     // path's tables (printing density is defined by the print stock), so Process is normalised to Print
     if (p.stage < 0 || p.stage >= int(Stage::Count)) p.stage = 0;
     if (p.sceneEncoding < 0 || p.sceneEncoding >= int(SceneEncoding::Count)) p.sceneEncoding = 0;
-    if (st::negative(p.negStock).kind == st::kReversal) p.stage = 0;
+    if (st::negative(p.negStock).kind == st::kReversal && p.stage != int(Stage::AlexaRec709)) p.stage = 0;
     if (p.stage != 0) p.process = Process::NegativeToPrint;
+    // v1.3 ALEXA Rendering: ALEXA Colour is part of the film chain (the ALEXA Rec.709 stage renders it itself)
+    p.alexaColour = p.stage == int(Stage::AlexaRec709) ? 0.f : clampf(p.alexaColour, 0.f, 1.f);
     // v1.3 print lab
     if (p.projectionWhite < 0 || p.projectionWhite >= int(ProjectionWhite::Count)) p.projectionWhite = 0;
     if (p.printAim < 0 || p.printAim >= int(PrintAim::Count)) p.printAim = 0;
@@ -400,6 +404,40 @@ static void buildStageAxis(float* s, const LookParams& p, int oNS, int oPL, int 
     s[CEL_CS_MASK_ON] = mono ? 0.f : 1.f;
 }
 
+// ---- v1.3 ALEXA Rendering (ColorState.h AL block; parameters fitted by reference/alexa_rendering.py) ----------
+static void buildAlexa(float* s, const LookParams& p, int oAL) {
+    float* a = s + oAL;
+    s[CEL_CS_AL_OFF] = float(oAL);
+    s[CEL_CS_AL_RENDER] = p.stage == int(Stage::AlexaRec709) ? 1.f : 0.f;
+    s[CEL_CS_AL_COLOUR] = p.alexaColour;
+    if (p.stage == int(Stage::AlexaRec709)) s[CEL_CS_STAGE] = float(p.stage);
+    spec::Mat3 Mr;
+    for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) Mr.m[i][j] = kAlexaM[i][j];
+    putMat(a, CEL_AL_MR, Mr * spec::rgbToRgb(spec::Gamut::Rec2020, spec::Gamut::AWG3));
+    for (int i = 0; i < 6; ++i) a[CEL_AL_TONE + i] = float(kAlexaTone[i]);
+    for (int i = 0; i < CEL_AL_NB; ++i) { a[CEL_AL_RB + i] = float(kAlexaBands[i]); a[CEL_AL_CB + i] = float(kAlexaColourBands[i]); }
+    static const double ok1[3][3] = {{0.4122214708, 0.5363325363, 0.0514459929}, {0.2119034982, 0.6806995451, 0.1073969566},
+                                     {0.0883024619, 0.2817188376, 0.6299787005}};
+    static const double ok2[3][3] = {{0.2104542553, 0.7936177850, -0.0040720468}, {1.9779984951, -2.4285922050, 0.4505937099},
+                                     {0.0259040371, 0.7827717662, -0.8086757660}};
+    spec::Mat3 O1, O2;
+    for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) { O1.m[i][j] = ok1[i][j]; O2.m[i][j] = ok2[i][j]; }
+    putMat(a, CEL_AL_OK1, O1); putMat(a, CEL_AL_OK2, O2);
+    putMat(a, CEL_AL_OK2I, O2.inverse()); putMat(a, CEL_AL_OK1I, O1.inverse());
+    putMat(a, CEL_AL_M709_2020, spec::rgbToRgb(spec::Gamut::Rec709, spec::Gamut::Rec2020));
+    putMat(a, CEL_AL_M2020_709, spec::rgbToRgb(spec::Gamut::Rec2020, spec::Gamut::Rec709));
+    const spec::Mat3 y2020 = spec::npm(spec::Gamut::Rec2020);
+    for (int j = 0; j < 3; ++j) a[CEL_AL_Y2020 + j] = float(y2020.m[1][j]);
+    putMat(a, CEL_AL_MOUT, outputMatrix(p.output) * spec::npm(spec::Gamut::Rec709));
+    // Oklab L of the display grey and of scene grey (the bands' lightness pivots)
+    const float dg = std::pow(std::max(celc_al_tone(a + CEL_AL_TONE, 0.18f), 0.f), 2.4f);
+    a[CEL_AL_LG_R] = celc_al_oklab(a, cel_f3(dg, dg, dg)).x;
+    a[CEL_AL_LG_C] = celc_al_oklab(a, cel_f3(0.18f, 0.18f, 0.18f)).x;
+    // SDR: display white = 1; HDR (PQ / HLG, display units of cd/m^2 / 100): the rendering's grey at the HDR grey
+    a[CEL_AL_DISP] = p.output == OutputSpace::Rec2100_PQ || p.output == OutputSpace::Rec2100_HLG
+                         ? float(kHdrGreyNits / 100.0 / std::max(double(dg), 1e-6)) : 1.f;
+}
+
 void Pipeline::prepare(const LookParams& pin) {
     const LookParams p = sanitize(pin);
     Cache& C = *m_cache;
@@ -444,13 +482,17 @@ void Pipeline::prepare(const LookParams& pin) {
     const size_t nHA = hold ? size_t(kHoldN) * kHoldN * 4 : 0, nHN = hold ? size_t(3) * kHoldNX : 0;
     const size_t oHA = oPJ + nPJ, oHN = oHA + nHA;
     // v1.3 stage axis (ColorState.h NS block): only when a stage exit is active
-    const bool exitStage = p.stage != int(Stage::Full);
+    const bool exitStage = p.stage != int(Stage::Full) && p.stage != int(Stage::AlexaRec709);
     const size_t nNS = exitStage ? size_t(4) * kStageN : 0;
     const size_t oNS = oHN + nHN;
     // v1.3 monotone black (ColorState.h NT block): with the hue hold's neutral table
     const size_t nNT = hold ? size_t(3) * kHoldNX : 0;
     const size_t oNT = oNS + nNS;
-    const size_t total = oNT + nNT;
+    // v1.3 ALEXA Rendering (ColorState.h AL block): only when the stage or ALEXA Colour uses it
+    const bool alexa = p.stage == int(Stage::AlexaRec709) || p.alexaColour > 0.f;
+    const size_t nAL = alexa ? size_t(CEL_AL_SIZE) : 0;
+    const size_t oAL = oNT + nNT;
+    const size_t total = oAL + nAL;
     const bool sameBlocks = C.valid && C.exp == exp && C.dye == dye && C.proj == proj && m_state.size() == total;
     std::vector<float>& S = m_state;
     if (!sameBlocks) {
@@ -794,6 +836,7 @@ void Pipeline::prepare(const LookParams& pin) {
         bakeBlackMonotone(s, nx, xr0, int(oNT));
     }
     if (exitStage) buildStageAxis(s, p, int(oNS), int(oPL), dye->lut.n, float(dye->lut.maxv));
+    if (alexa) buildAlexa(s, p, int(oAL));
     s[CEL_CS_GAIN] = gain;
 
     C.exp = exp; C.dye = dye; C.proj = proj;

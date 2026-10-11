@@ -93,6 +93,8 @@ struct LookParams {
     int   printAim = 0;          // PrintAim: process aim of the print development
     int   printRender = 0;       // PrintRender: contact print / release print (IP-IN duplication) / telecine
     float printContrast = 0.f;   // -1 .. 1: print development in process-aim units, added to printAim
+    // ---- v1.3 ALEXA Rendering (appended, SPEC 13): defaults = off, bit-identical
+    float alexaColour = 0.f;     // 0 .. 1: ALEXA Colour strength (scene-linear, before the negative; 0 = off)
 };
 
 // v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 5c.1
@@ -123,6 +125,7 @@ enum class Stage : int {
     NegativeLogScan,     // scene -> negative -> Cineon-style printing-density code values (Log Scan)
     NegativeToScene,     // scene -> negative -> re-linearised scene, encoded in SceneEncoding (for an own DRT)
     PrintOnly,           // input = Log Scan code values -> print -> display (OutputSpace)
+    AlexaRec709,         // v1.3: scene -> ALEXA Rec.709 display rendering (no film; textures display-referred)
     Count
 };
 enum class SceneEncoding : int {

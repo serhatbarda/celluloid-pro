@@ -122,7 +122,32 @@
 #define CEL_CS_MMASK        178  /* 178..186 Negative -> Scene: grey-preserving dye-crosstalk correction (linear) */
 #define CEL_CS_MASK_ON      187  /* 1 = apply MMASK */
 #define CEL_CS_MMASKI       188  /* 188..196 inverse of MMASK (Print Only: scene level -> film layer level) */
-/* 197..207 free */
+/* 197..204 free */
+/* ---- v1.3 ALEXA Rendering (indices 205..207; AL block, see celc_alexa_* in ColorKernels.h). Absent = off:
+ * the block is only appended when Pipeline Stage = ALEXA Rec.709 or ALEXA Colour > 0 (bit-identical otherwise) */
+#define CEL_CS_AL_OFF       205  /* offset of the AL block (0 = no block) */
+#define CEL_CS_AL_RENDER    206  /* 1 = stage 4: camera -> ALEXA Rec.709 display rendering (no film) */
+#define CEL_CS_AL_COLOUR    207  /* ALEXA Colour strength 0..1 in decode (scene-linear, before the negative) */
+/* AL block layout (floats from CEL_CS_AL_OFF) */
+#define CEL_AL_MR           0    /* 0..8    scene-linear Rec.2020 -> render RGB (render matrix x Rec.2020 -> AWG3) */
+#define CEL_AL_TONE         9    /* 9..14   tone curve eg, c, es, ps, et, pt (on the LogC3 code) */
+#define CEL_AL_RB           15   /* 15..47  render bands (CEL_AL_NB floats, layout: celc_al_bands) */
+#define CEL_AL_CB           48   /* 48..80  ALEXA Colour bands */
+#define CEL_AL_LG_R         81   /* Oklab L of the rendering's display grey */
+#define CEL_AL_LG_C         82   /* Oklab L of scene grey 0.18 (ALEXA Colour) */
+#define CEL_AL_DISP         83   /* display gain: 1 (SDR) or nits/100 per display unit (HDR: grey at the HDR grey) */
+#define CEL_AL_M709_2020    84   /* 84..92  linear Rec.709 -> Rec.2020 */
+#define CEL_AL_M2020_709    93   /* 93..101 linear Rec.2020 -> Rec.709 */
+#define CEL_AL_MOUT         102  /* 102..110 display-linear Rec.709 -> linear output RGB */
+#define CEL_AL_OK1          111  /* 111..119 Oklab M1 (linear Rec.709 -> LMS) */
+#define CEL_AL_OK2          120  /* 120..128 Oklab M2 (LMS^(1/3) -> Lab) */
+#define CEL_AL_OK2I         129  /* 129..137 inverse of M2 */
+#define CEL_AL_OK1I         138  /* 138..146 inverse of M1 */
+#define CEL_AL_Y2020        147  /* 147..149 luminance weights of linear Rec.2020 */
+#define CEL_AL_SIZE         150
+#define CEL_AL_NB           33   /* band floats: dh0 7, dh1 5, ds0 7, ds1 5, dl0 5, s2 1, skin 3 */
+#define CEL_AL_U_GREY       0.391006832f  /* LogC3 (EI 800) code of 18 % grey (pivot of the tone curve) */
+#define CEL_AL_C0           0.02f      /* chroma fade-in of the bands (Oklab C) */
 
 /* Log Scan code values (Cineon-style printing density): code = (CV0 + PD / STEP) / 1023, PD = printing density
  * above the clear (D-min) negative, 0.002 density per 10-bit code value, D-min at code 95 */

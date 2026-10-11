@@ -116,6 +116,78 @@ CEL_DEVICE CelF3 celc_emulate(CEL_GLOBAL const float* s, CelF3 l) {
     CelF3 q = celc_mat3(s, CEL_CS_EMU_B, rp);
     return cel_f3(o.x + q.x, o.y + q.y, o.z + q.z);
 }
+/* ---- v1.3 ALEXA Rendering (AL block, ColorState.h; fitted by reference/alexa_rendering.py) ----------
+ * Our own parametric model of an ARRI-style LogC3 -> Rec.709 rendering (fitted against a reference
+ * rendering, nothing of it shipped): a render matrix (rows sum to 1), a tone curve applied per channel on
+ * the LogC3 code (contrast around the grey code; toe and shoulder that are C1 at their knees, strictly
+ * increasing, bounded in [0, 1)), then smooth colour bands in Oklab. Per-channel tone gives the highlight /
+ * shadow desaturation and the hue twist of bright saturated colours; the bands add what that leaves out. */
+CEL_DEVICE float celc_al_knee(float r, float p) { return r / cel_pow(1.0f + cel_pow(r, p), 1.0f / p); }
+/* scene-linear (render RGB) -> display code (Gamma 2.4) */
+CEL_DEVICE float celc_al_tone(CEL_GLOBAL const float* t, float x) {
+    float l = t[0] + t[1] * (celc_encode_transfer(CEL_IN_LOGC3, x) - CEL_AL_U_GREY);
+    if (l > t[2]) return t[2] + (1.0f - t[2]) * celc_al_knee((l - t[2]) / (1.0f - t[2]), t[3]);
+    if (l < t[4]) return t[4] * (1.0f - celc_al_knee((t[4] - l) / t[4], t[5]));
+    return l;
+}
+CEL_DEVICE float celc_cbrt(float v) { return celc_spow(v, 0.333333333333333f); }
+CEL_DEVICE CelF3 celc_al_oklab(CEL_GLOBAL const float* a, CelF3 rgb709) {
+    CelF3 m = celc_mat3(a, CEL_AL_OK1, rgb709);
+    return celc_mat3(a, CEL_AL_OK2, cel_f3(celc_cbrt(m.x), celc_cbrt(m.y), celc_cbrt(m.z)));
+}
+CEL_DEVICE CelF3 celc_al_oklab_inv(CEL_GLOBAL const float* a, CelF3 lab) {
+    CelF3 m = celc_mat3(a, CEL_AL_OK2I, lab);
+    return celc_mat3(a, CEL_AL_OK1I, cel_f3(m.x * m.x * m.x, m.y * m.y * m.y, m.z * m.z * m.z));
+}
+/* colour bands on Oklab (L, a, b); b[] = dh0[7] dh1[5] ds0[7] ds1[5] dl0[5] s2 skin(ks, hs, sw):
+ *   hue shift   dh = w (F3(h).dh0 + t F2(h).dh1 - ks sin(h - hs) exp((cos(h - hs) - 1) / sw^2))
+ *   chroma      C' = C exp(w (F3(h).ds0 + t F2(h).ds1 + s2 t^2))
+ *   lightness   L' = L + C F2(h).dl0
+ * Fn = Fourier series to order n of the hue, t = L - lgrey, w = C / (C + C0): neutrals are unchanged and
+ * the map is smooth through them. */
+CEL_DEVICE CelF3 celc_al_bands(CEL_GLOBAL const float* b, CelF3 lab, float lgrey) {
+    float C = cel_sqrt(lab.y * lab.y + lab.z * lab.z);
+    if (!(C > 1e-12f)) return lab;
+    float c1 = lab.y / C, s1 = lab.z / C;
+    float c2 = c1 * c1 - s1 * s1, s2 = s1 * c1 + c1 * s1;
+    float c3 = c2 * c1 - s2 * s1, s3 = s2 * c1 + c2 * s1;
+    float t = lab.x - lgrey;
+    float w = C / (C + CEL_AL_C0);
+    float dh = b[0] + b[1] * c1 + b[2] * s1 + b[3] * c2 + b[4] * s2 + b[5] * c3 + b[6] * s3
+             + t * (b[7] + b[8] * c1 + b[9] * s1 + b[10] * c2 + b[11] * s2);
+    float ch = cel_cos(b[31]), sh = cel_sin(b[31]);
+    float cd = c1 * ch + s1 * sh, sd = s1 * ch - c1 * sh;
+    dh = (dh - b[30] * sd * cel_exp((cd - 1.0f) / (b[32] * b[32]))) * w;
+    float ds = (b[12] + b[13] * c1 + b[14] * s1 + b[15] * c2 + b[16] * s2 + b[17] * c3 + b[18] * s3
+              + t * (b[19] + b[20] * c1 + b[21] * s1 + b[22] * c2 + b[23] * s2) + b[29] * t * t) * w;
+    float dl = C * (b[24] + b[25] * c1 + b[26] * s1 + b[27] * c2 + b[28] * s2);
+    float g = cel_exp(ds), cr = cel_cos(dh), sr = cel_sin(dh);
+    return cel_f3(lab.x + dl, g * (lab.y * cr - lab.z * sr), g * (lab.y * sr + lab.z * cr));
+}
+/* scene-linear Rec.2020 -> display-linear Rec.709 in [0, 1] (ALEXA Rec.709 stage) */
+CEL_DEVICE CelF3 celc_alexa_render(CEL_GLOBAL const float* s, CelF3 x) {
+    CEL_GLOBAL const float* a = s + celc_i(s, CEL_CS_AL_OFF);
+    CelF3 w = celc_mat3(a, CEL_AL_MR, x);
+    CEL_GLOBAL const float* t = a + CEL_AL_TONE;
+    CelF3 e = cel_f3(cel_fmax(celc_al_tone(t, w.x), 0.0f), cel_fmax(celc_al_tone(t, w.y), 0.0f), cel_fmax(celc_al_tone(t, w.z), 0.0f));
+    CelF3 d = cel_f3(cel_pow(e.x, 2.4f), cel_pow(e.y, 2.4f), cel_pow(e.z, 2.4f));
+    CelF3 o = celc_al_oklab_inv(a, celc_al_bands(a + CEL_AL_RB, celc_al_oklab(a, d), a[CEL_AL_LG_R]));
+    return cel_f3(cel_clamp(cel_finite_or(o.x, 0.0f), 0.0f, 1.0f), cel_clamp(cel_finite_or(o.y, 0.0f), 0.0f, 1.0f),
+                  cel_clamp(cel_finite_or(o.z, 0.0f), 0.0f, 1.0f));
+}
+/* ALEXA Colour: the rendering's colour character without its tone curve, scene-linear Rec.2020 -> Rec.2020.
+ * Evaluated at grey luminance (n = x 0.18 / Y) and scaled back, so f(k x) = k f(x) (exposure-stable);
+ * neutrals and non-positive luminance pass unchanged. Blended with the strength CEL_CS_AL_COLOUR. */
+CEL_DEVICE CelF3 celc_alexa_colour(CEL_GLOBAL const float* s, CelF3 x) {
+    CEL_GLOBAL const float* a = s + celc_i(s, CEL_CS_AL_OFF);
+    float Y = celc_dot3(a, CEL_AL_Y2020, x);
+    if (!(Y > 1e-10f)) return x;
+    CelF3 n = celc_scale(x, 0.18f / Y);
+    CelF3 lab = celc_al_bands(a + CEL_AL_CB, celc_al_oklab(a, celc_mat3(a, CEL_AL_M2020_709, n)), a[CEL_AL_LG_C]);
+    CelF3 o = celc_scale(celc_mat3(a, CEL_AL_M709_2020, celc_al_oklab_inv(a, lab)), Y / 0.18f);
+    float k = s[CEL_CS_AL_COLOUR];
+    return cel_f3(x.x + k * (o.x - x.x), x.y + k * (o.y - x.y), x.z + k * (o.z - x.z));
+}
 /* ---- v1.3 stage exits: the neutral stage axis (NS block, ColorState.h) ---------------------------
  * Rows 0..2 = printing density of each print layer for a neutral scene at the knots, row 3 = the
  * scene-referred log10 level the knot maps back to; all rows strictly increasing, so every lookup is
@@ -179,6 +251,7 @@ CEL_DEVICE CelF3 celc_decode_px(CEL_GLOBAL const float* s, CelF3 e) {
                      celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.z))));
     l = celc_mat3(s, CEL_CS_MIN, l);
     if (s[CEL_CS_EMU_ON] > 0.5f) l = celc_emulate(s, l);
+    if (s[CEL_CS_AL_COLOUR] > 0.0f) l = celc_alexa_colour(s, l);   /* v1.3 ALEXA Colour (off = 0) */
     float g = s[CEL_CS_GAIN];
     return cel_f3(celc_sanitize(l.x * g), celc_sanitize(l.y * g), celc_sanitize(l.z * g));
 }
@@ -582,12 +655,89 @@ CEL_DEVICE CelF3 celc_stage_exit(CEL_GLOBAL const float* s, int stage, CelF3 rgb
     return celc_output_k(s, X, xref, rgb, hk);
 }
 
+/* Texture-Only film damage on a display-linear image (no film model available: a display-referred
+ * stand-in with the same signs and colours as celc_film_xyz_dmg). Values above display white (HDR)
+ * are left alone by the density re-mappings, so an SDR-legal input stays legal.
+ *   negative neutral density nd: the print received less light -> display density shrinks,
+ *       L' = L^(e^(-3 nd)) (white specks; ~ print gamma x nd at mid grey)
+ *   negative emulsion removal r: the print received more light in that layer -> L' = L 10^(-2 r)
+ *   print emulsion removal r:    the print's dye is gone -> T' = T^(1 - r)
+ *   print neutral density pd:    L' = L 10^(-pd) */
+CEL_DEVICE float celc_dmg_pow1(float L, float e) { return (L > 0.0f && L < 1.0f) ? cel_exp2(e * cel_log2(L)) : L; }
+CEL_DEVICE CelF3 celc_display_damage(CEL_GLOBAL const float* s, CelF3 lin, CelF4 dmg) {
+    int mono = celc_i(s, CEL_CS_MONO);
+    if (dmg.x > 0.0f) {
+        float e = cel_exp(-3.0f * dmg.x);
+        lin = cel_f3(celc_dmg_pow1(lin.x, e), celc_dmg_pow1(lin.y, e), celc_dmg_pow1(lin.z, e));
+    }
+    if (dmg.y > 0.0f) {
+        CelF3 r = celc_dmg_removal(dmg.y, 0, mono);
+        lin = cel_f3(lin.x * celc_pow10(-2.0f * r.x), lin.y * celc_pow10(-2.0f * r.y), lin.z * celc_pow10(-2.0f * r.z));
+    }
+    if (dmg.w > 0.0f) {
+        CelF3 r = celc_dmg_removal(dmg.w, 1, mono);
+        lin = cel_f3(celc_dmg_pow1(lin.x, 1.0f - r.x), celc_dmg_pow1(lin.y, 1.0f - r.y), celc_dmg_pow1(lin.z, 1.0f - r.z));
+    }
+    if (dmg.z > 0.0f) lin = celc_scale(lin, celc_pow10(-dmg.z));
+    return lin;
+}
+
+/* Texture-Only (and ALEXA Rec.709) display-referred grain on a display-linear image */
+CEL_DEVICE CelF3 celc_display_grain(CEL_GLOBAL const float* s, CelF3 lin, CelF3 noise, int hasNoise) {
+    int out = celc_i(s, CEL_CS_OUTPUT);
+    if (hasNoise && s[CEL_CS_TX_GSIG] > 0.0f) {
+        CelF3 nz = cel_f3(cel_clamp(cel_finite_or(noise.x, 0.0f), -8.0f, 8.0f), cel_clamp(cel_finite_or(noise.y, 0.0f), -8.0f, 8.0f),
+                          cel_clamp(cel_finite_or(noise.z, 0.0f), -8.0f, 8.0f));
+        if (celc_i(s, CEL_CS_MONO)) nz = cel_f3(nz.y, nz.y, nz.y);
+        float Y = celc_dot3(s, CEL_CS_LUM, lin);
+        float l = cel_log10(cel_fmax(Y, 1e-6f)) + 0.95f;
+        /* grain v2 carries its own exposure dependence (and a positive fluctuation = more negative
+         * density = a brighter print, as in Full mode) */
+        float sig = hasNoise == CEL_GRAIN_V2 ? -s[CEL_CS_TX_GSIG] : s[CEL_CS_TX_GSIG] * cel_exp(-0.5f * l * l / (0.7f * 0.7f));
+        if (out <= CEL_OUT_P3DCI_G26) {
+            /* SDR: grain fades out toward display white and never pushes a channel above
+             * max(its value, 1.0), so a legal input stays legal */
+            sig *= 1.0f - cel_smoothstep(0.6f, 1.0f, Y);
+            CelF3 g = cel_f3(lin.x * celc_pow10(-sig * nz.x), lin.y * celc_pow10(-sig * nz.y), lin.z * celc_pow10(-sig * nz.z));
+            lin = cel_f3(cel_fmin(g.x, cel_fmax(lin.x, 1.0f)), cel_fmin(g.y, cel_fmax(lin.y, 1.0f)), cel_fmin(g.z, cel_fmax(lin.z, 1.0f)));
+        } else {
+            lin = cel_f3(lin.x * celc_pow10(-sig * nz.x), lin.y * celc_pow10(-sig * nz.y), lin.z * celc_pow10(-sig * nz.z));
+        }
+    }
+    return lin;
+}
+/* display-linear (SDR: 1 = white; PQ / HLG: cd/m^2 / 100) -> display-encoded output */
+CEL_DEVICE CelF3 celc_display_encode(CEL_GLOBAL const float* s, CelF3 lin) {
+    int out = celc_i(s, CEL_CS_OUTPUT);
+    CelF3 o;
+    if (out == CEL_OUT_PQ) o = cel_f3(celc_pq_enc(lin.x * 100.0f), celc_pq_enc(lin.y * 100.0f), celc_pq_enc(lin.z * 100.0f));
+    else if (out == CEL_OUT_HLG) o = celc_hlg_from_nits(s, celc_scale(lin, 100.0f));
+    else o = celc_encode_sdr(out, lin);
+    return cel_f3(cel_finite_or(o.x, 0.0f), cel_finite_or(o.y, 0.0f), cel_finite_or(o.z, 0.0f));
+}
+/* v1.3 ALEXA Rec.709 stage (4): scene -> ALEXA rendering -> output display; no film, so grain and damage are
+ * the display-referred ones of Texture Only (on the rendered image, before the encode). SDR outputs show the
+ * Rec.709 rendering in their primaries; PQ / HLG place it with grey at the HDR grey (no highlight unroll). */
+CEL_DEVICE CelF3 celc_alexa_stage(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise, CelF4 dmg) {
+    CEL_GLOBAL const float* a = s + celc_i(s, CEL_CS_AL_OFF);
+    CelF3 lin = celc_scale(celc_mat3(a, CEL_AL_MOUT, celc_alexa_render(s, rgb)), a[CEL_AL_DISP]);
+    if (celc_i(s, CEL_CS_HDR) == 0) lin = cel_f3(cel_clamp(lin.x, 0.0f, 1.0f), cel_clamp(lin.y, 0.0f, 1.0f), cel_clamp(lin.z, 0.0f, 1.0f));
+    else lin = cel_f3(cel_fmax(lin.x, 0.0f), cel_fmax(lin.y, 0.0f), cel_fmax(lin.z, 0.0f));
+    lin = celc_display_grain(s, lin, noise, hasNoise);
+    lin = celc_display_damage(s, lin, dmg);
+    return celc_display_encode(s, lin);
+}
+
 CEL_DEVICE CelF3 celc_scene_to_output_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise, CelF4 dmg) {
     rgb = cel_f3(celc_sanitize(rgb.x), celc_sanitize(rgb.y), celc_sanitize(rgb.z));
     noise = cel_f3(cel_clamp(cel_finite_or(noise.x, 0.0f), -8.0f, 8.0f), cel_clamp(cel_finite_or(noise.y, 0.0f), -8.0f, 8.0f),
                    cel_clamp(cel_finite_or(noise.z, 0.0f), -8.0f, 8.0f));
     dmg = celc_dmg_clean(dmg);
     int stage = celc_i(s, CEL_CS_STAGE);
+    if (stage == 4) {   /* v1.3 ALEXA Rec.709 */
+        CelF3 ao = celc_alexa_stage(s, rgb, noise, hasNoise, dmg);
+        return cel_f3(cel_finite_or(ao.x, 0.0f), cel_finite_or(ao.y, 0.0f), cel_finite_or(ao.z, 0.0f));
+    }
     if (stage != 0) {
         CelF3 so = celc_stage_exit(s, stage, rgb, noise, hasNoise, dmg);
         return cel_f3(cel_finite_or(so.x, 0.0f), cel_finite_or(so.y, 0.0f), cel_finite_or(so.z, 0.0f));
@@ -618,61 +768,11 @@ CEL_DEVICE CelF3 celc_display_decode_px(CEL_GLOBAL const float* s, CelF3 v) {
     return cel_f3(celc_spow(v.x, 2.6f), celc_spow(v.y, 2.6f), celc_spow(v.z, 2.6f));
 }
 
-/* Texture-Only film damage on a display-linear image (no film model available: a display-referred
- * stand-in with the same signs and colours as celc_film_xyz_dmg). Values above display white (HDR)
- * are left alone by the density re-mappings, so an SDR-legal input stays legal.
- *   negative neutral density nd: the print received less light -> display density shrinks,
- *       L' = L^(e^(-3 nd)) (white specks; ~ print gamma x nd at mid grey)
- *   negative emulsion removal r: the print received more light in that layer -> L' = L 10^(-2 r)
- *   print emulsion removal r:    the print's dye is gone -> T' = T^(1 - r)
- *   print neutral density pd:    L' = L 10^(-pd) */
-CEL_DEVICE float celc_dmg_pow1(float L, float e) { return (L > 0.0f && L < 1.0f) ? cel_exp2(e * cel_log2(L)) : L; }
-CEL_DEVICE CelF3 celc_display_damage(CEL_GLOBAL const float* s, CelF3 lin, CelF4 dmg) {
-    int mono = celc_i(s, CEL_CS_MONO);
-    if (dmg.x > 0.0f) {
-        float e = cel_exp(-3.0f * dmg.x);
-        lin = cel_f3(celc_dmg_pow1(lin.x, e), celc_dmg_pow1(lin.y, e), celc_dmg_pow1(lin.z, e));
-    }
-    if (dmg.y > 0.0f) {
-        CelF3 r = celc_dmg_removal(dmg.y, 0, mono);
-        lin = cel_f3(lin.x * celc_pow10(-2.0f * r.x), lin.y * celc_pow10(-2.0f * r.y), lin.z * celc_pow10(-2.0f * r.z));
-    }
-    if (dmg.w > 0.0f) {
-        CelF3 r = celc_dmg_removal(dmg.w, 1, mono);
-        lin = cel_f3(celc_dmg_pow1(lin.x, 1.0f - r.x), celc_dmg_pow1(lin.y, 1.0f - r.y), celc_dmg_pow1(lin.z, 1.0f - r.z));
-    }
-    if (dmg.z > 0.0f) lin = celc_scale(lin, celc_pow10(-dmg.z));
-    return lin;
-}
-
 CEL_DEVICE CelF3 celc_display_finish_dmg(CEL_GLOBAL const float* s, CelF3 lin, CelF3 noise, int hasNoise, CelF4 dmg, int hasDmg) {
-    int out = celc_i(s, CEL_CS_OUTPUT);
     lin = cel_f3(celc_sanitize_d(lin.x), celc_sanitize_d(lin.y), celc_sanitize_d(lin.z));
-    if (hasNoise && s[CEL_CS_TX_GSIG] > 0.0f) {
-        CelF3 nz = cel_f3(cel_clamp(cel_finite_or(noise.x, 0.0f), -8.0f, 8.0f), cel_clamp(cel_finite_or(noise.y, 0.0f), -8.0f, 8.0f),
-                          cel_clamp(cel_finite_or(noise.z, 0.0f), -8.0f, 8.0f));
-        if (celc_i(s, CEL_CS_MONO)) nz = cel_f3(nz.y, nz.y, nz.y);
-        float Y = celc_dot3(s, CEL_CS_LUM, lin);
-        float l = cel_log10(cel_fmax(Y, 1e-6f)) + 0.95f;
-        /* grain v2 carries its own exposure dependence (and a positive fluctuation = more negative
-         * density = a brighter print, as in Full mode) */
-        float sig = hasNoise == CEL_GRAIN_V2 ? -s[CEL_CS_TX_GSIG] : s[CEL_CS_TX_GSIG] * cel_exp(-0.5f * l * l / (0.7f * 0.7f));
-        if (out <= CEL_OUT_P3DCI_G26) {
-            /* SDR: grain fades out toward display white and never pushes a channel above
-             * max(its value, 1.0), so a legal input stays legal */
-            sig *= 1.0f - cel_smoothstep(0.6f, 1.0f, Y);
-            CelF3 g = cel_f3(lin.x * celc_pow10(-sig * nz.x), lin.y * celc_pow10(-sig * nz.y), lin.z * celc_pow10(-sig * nz.z));
-            lin = cel_f3(cel_fmin(g.x, cel_fmax(lin.x, 1.0f)), cel_fmin(g.y, cel_fmax(lin.y, 1.0f)), cel_fmin(g.z, cel_fmax(lin.z, 1.0f)));
-        } else {
-            lin = cel_f3(lin.x * celc_pow10(-sig * nz.x), lin.y * celc_pow10(-sig * nz.y), lin.z * celc_pow10(-sig * nz.z));
-        }
-    }
+    lin = celc_display_grain(s, lin, noise, hasNoise);
     if (hasDmg) lin = celc_display_damage(s, lin, celc_dmg_clean(dmg));
-    CelF3 o;
-    if (out == CEL_OUT_PQ) o = cel_f3(celc_pq_enc(lin.x * 100.0f), celc_pq_enc(lin.y * 100.0f), celc_pq_enc(lin.z * 100.0f));
-    else if (out == CEL_OUT_HLG) o = celc_hlg_from_nits(s, celc_scale(lin, 100.0f));
-    else o = celc_encode_sdr(out, lin);
-    return cel_f3(cel_finite_or(o.x, 0.0f), cel_finite_or(o.y, 0.0f), cel_finite_or(o.z, 0.0f));
+    return celc_display_encode(s, lin);
 }
 CEL_DEVICE CelF3 celc_display_finish_px(CEL_GLOBAL const float* s, CelF3 lin, CelF3 noise, int hasNoise) {
     return celc_display_finish_dmg(s, lin, noise, hasNoise, cel_f4(0.0f, 0.0f, 0.0f, 0.0f), 0);
