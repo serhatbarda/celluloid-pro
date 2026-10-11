@@ -3788,8 +3788,8 @@
    ],
    "source": "Kodak E-4050 (2016): characteristic curves, spectral sensitivity; dye curves not published -> VISION3 dye set",
    "calibration": "interlayer + mask fitted to fv_bal_2383 (reference/fit_look.py calibrate), rms 10.62 -> 5.86",
-   "provenanceClass": "datasheet",
-   "provenance": "Data sheet: Kodak E-4050 (2016): characteristic curves, spectral sensitivity; dyes from the VISION3 set (not published). C-41. Fresh stock at the nominal process; fitted to the published curves, not measured from film."
+   "provenanceClass": "partial",
+   "provenance": "Partial data sheet: Kodak E-4050 (2016): characteristic curves, spectral sensitivity; dyes borrowed from the VISION3 set (proxy; not published). C-41. Fresh stock at the nominal process; fitted to the published curves, not measured from film."
   },
   {
    "kind": "reversal",

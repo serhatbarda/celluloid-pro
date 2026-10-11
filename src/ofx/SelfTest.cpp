@@ -76,6 +76,7 @@ int main() {
         {"printExposure", "groupPrint", -12, 12, 0},
         {"printBleach", "groupPrint", 0, 1, 0},
         {"printCrossover", "groupPrint", -1, 1, 0},   // v1.2
+        {"printContrast", "groupPrint", -1, 1, 0},    // v1.3
         {"halationAmount", "groupHalation", 0, 2, 0.5},
         {"halationRadius", "groupHalation", 2, 80, 20},
         {"halationThreshold", "groupHalation", 0, 6, 3.5},

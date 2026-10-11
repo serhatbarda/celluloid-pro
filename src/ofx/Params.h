@@ -178,6 +178,14 @@ constexpr const char* cameraEmulationEnable = "cameraEmulationEnable";
 constexpr const char* cameraEmulation = "cameraEmulation";
 constexpr const char* cameraEmulationStrength = "cameraEmulationStrength";
 constexpr const char* printCrossover = "printCrossover";
+// ---- v1.3 print lab (WP-2): projection, process aim, rendering, stock provenance ---------------
+constexpr const char* printLabEnable = "printLabEnable";        // [Print] module switch of the lab block
+constexpr const char* projectionWhite = "projectionWhite";
+constexpr const char* printAim = "printAim";
+constexpr const char* printContrast = "printContrast";
+constexpr const char* printRender = "printRender";
+constexpr const char* negProvenance = "negProvenance";          // read-only label [Negative]
+constexpr const char* printProvenance = "printProvenance";      // read-only label [Print]
 } // namespace id
 
 // LUT sizes offered by lutSize, in option order.

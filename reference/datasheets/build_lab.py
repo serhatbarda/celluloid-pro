@@ -31,8 +31,8 @@ NEG = {
                                 'spectral dye density. ECN-2. ' + FRESH),
     'Fujifilm Eterna 250D 8563': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
                                   'sensitivity and dyes borrowed from VISION3 250D (proxy). Discontinued; modelled as fresh stock.'),
-    'Kodak Portra 400': ('datasheet', 'Data sheet: Kodak E-4050 (2016): characteristic curves, spectral sensitivity; dyes '
-                         'from the VISION3 set (not published). C-41. ' + FRESH),
+    'Kodak Portra 400': ('partial', 'Partial data sheet: Kodak E-4050 (2016): characteristic curves, spectral sensitivity; dyes '
+                         'borrowed from the VISION3 set (proxy; not published). C-41. ' + FRESH),
     'Kodak Ektachrome E100': ('datasheet', 'Data sheet: Kodak E-4024 (2009, E100G): characteristic curves, spectral '
                               'sensitivity, spectral dye density. E-6. ' + FRESH),
     'Kodachrome 64 Style': ('style', 'Style approximation: no public Kodachrome data; designed from the Ektachrome E100 data '
