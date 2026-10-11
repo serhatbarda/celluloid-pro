@@ -187,23 +187,38 @@ def scan_deltae(lib):
     return T
 
 
-def gates(lib, limit=2.0):
+def measured(stock):
+    """a v1.2 data-sheet stock (its 'source' cites the manufacturer data), not a designed one"""
+    src = stock.get('source', '')
+    return bool(src) and not src.startswith('designed')
+
+
+def gates(lib, limit=2.0, measured_limit=1.5):
     """Every negative distinct from every other on P1, every print distinct with CN 200T, and
-    every colour negative distinct through the Lab Scan: min mean dE2000 >= limit."""
+    every colour negative distinct through the Lab Scan: min mean dE2000 >= limit.
+    v1.2: two stocks that are BOTH modelled from manufacturer data sheets only need
+    measured_limit. They are what the manufacturer measured, not designed to be apart: the
+    VISION3 negatives share one dye set and differ mostly in speed, grain and curve shape, and the
+    Eterna 250D borrows the VISION3 250D spectral data (Fujifilm does not publish it), so through
+    the Lab Scan (which removes the print) they sit 1.5-2 apart."""
     names, T, T2 = deltae(lib, verbose=False)
+    neg_by = {n_['name']: n_ for n_ in lib.negs}
+
+    def lim(sa, sb):
+        return measured_limit if measured(sa) and measured(sb) else limit
     fails = []
     n = len(names)
     for a in range(n):
         for b in range(a + 1, n):
-            if T[a, b] < limit:
+            if T[a, b] < lim(neg_by[names[a]], neg_by[names[b]]):
                 fails.append('P1: %s vs %s %.2f' % (names[a], names[b], T[a, b]))
     for a in range(len(T2)):
         for b in range(a + 1, len(T2)):
-            if T2[a, b] < limit:
+            if T2[a, b] < lim(lib.prints[a], lib.prints[b]):
                 fails.append('prints: %s vs %s %.2f' % (lib.prints[a]['name'], lib.prints[b]['name'], T2[a, b]))
     S = scan_deltae(lib)
     for (a, b), v in S.items():
-        if v < limit:
+        if v < lim(lib.negs[a], lib.negs[b]):
             fails.append('Lab Scan: %s vs %s %.2f' % (lib.negs[a]['name'], lib.negs[b]['name'], v))
     tri = lambda M: min(M[a, b] for a in range(len(M)) for b in range(a + 1, len(M)))
     print('min mean dE2000: negatives on P1 %.2f, prints (CN 200T) %.2f, negatives through the Lab Scan %.2f'

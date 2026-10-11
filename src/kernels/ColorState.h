@@ -29,8 +29,8 @@
 #define CEL_COLOR_STATE_H
 
 #define CEL_CS_MAGIC_VALUE   7341.0f
-#define CEL_CS_LAYOUT_VALUE  4.0f
-#define CEL_CS_HEADER        128
+#define CEL_CS_LAYOUT_VALUE  5.0f
+#define CEL_CS_HEADER        160   /* v1.2: 128 -> 160 (indices 128..159 below) */
 
 /* header indices */
 #define CEL_CS_MAGIC        0
@@ -95,6 +95,11 @@
 #define CEL_CS_HOLD_N0      115  /* 115..117 XYZ (Y = 1) of the film's neutral at 18 % grey, points 0 (info) */
 #define CEL_CS_MSCAN2       118  /* 118..126 scan root-polynomial terms: e += M2 * (sqrt(rg), sqrt(gb), sqrt(rb)) */
 /* 127 reserved */
+/* ---- v1.2 colour (stream A): camera emulation + hue-hold onset (indices 128..147; 148..159 free) */
+#define CEL_CS_EMU_ON       128  /* 1 = camera emulation active (scene-linear, in decode) */
+#define CEL_CS_EMU_A        129  /* 129..137 linear part (already blended with the strength: I + s (A - I)) */
+#define CEL_CS_EMU_B        138  /* 138..146 root-polynomial part x strength: + B (sqrt(rg), sqrt(gb), sqrt(rb)) */
+#define CEL_CS_HOLD_ONSET   147  /* hue hold acts beyond this many stops from grey (celc_hold) */
 
 /* model constants shared by host and kernels (== reference/model.py) */
 #define CEL_LOG10_018      (-0.7447274948966939f)

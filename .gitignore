@@ -5,3 +5,5 @@
 __pycache__/
 .DS_Store
 /tools/licensegen/private-keys/
+# official ARRI LogC3 -> Rec.709 LUT used as a look-dev target (third-party file, kept local, not committed)
+/reference/targets/*.cube

@@ -172,6 +172,12 @@ constexpr const char* filmBlurDuration = "filmBlurDuration";
 constexpr const char* filmBlurBreathing = "filmBlurBreathing";
 constexpr const char* filmBlurChromatic = "filmBlurChromatic";
 constexpr const char* filmBlurSeed = "filmBlurSeed";
+// ---- v1.2 colour: camera emulation (own module) and print crossover ---------------------------
+constexpr const char* gCameraEmulation = "groupCameraEmulation";
+constexpr const char* cameraEmulationEnable = "cameraEmulationEnable";
+constexpr const char* cameraEmulation = "cameraEmulation";
+constexpr const char* cameraEmulationStrength = "cameraEmulationStrength";
+constexpr const char* printCrossover = "printCrossover";
 // ---- v1.2: film resolution (negative MTF + Integrate) ------------------------------------------
 constexpr const char* gFilmResolution = "groupFilmResolution";
 constexpr const char* filmResolutionEnable = "filmResolutionEnable";

@@ -179,6 +179,8 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.neutralize == b.neutralize && a.process == b.process && a.printStock == b.printStock &&
            a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
+           a.cameraEmulation == b.cameraEmulation && a.emulationStrength == b.emulationStrength &&
+           a.printCrossover == b.printCrossover &&
            a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount;
 }
 
@@ -449,6 +451,11 @@ core::LookParams CelluloidEffect::lookAt(double t) const {
         lp.printExposure = float(num(id::printExposure, t));
         lp.printBleach = float(num(id::printBleach, t));
     }   // else: grey-balanced light at 0 points, normal print processing
+    lp.printCrossover = float(num(id::printCrossover, t));   // part of the print stock's rendering (not timing)
+    if (flag(id::cameraEmulationEnable, t)) {
+        lp.cameraEmulation = 1 + std::min(std::max(choice(id::cameraEmulation, t), 0), int(core::CameraEmulation::Count) - 2);
+        lp.emulationStrength = float(num(id::cameraEmulationStrength, t));
+    }
     lp.hdrPeakNits = float(num(id::hdrPeakNits, t));
     lp.hdrUnroll = flag(id::hdrUnrollEnable, t) ? float(num(id::hdrUnroll, t)) : 0.f;
     lp.grainAmount = flag(id::grainEnable, t) ? float(num(id::grainAmount, t)) : 0.f;
@@ -910,6 +917,15 @@ void CelluloidEffect::refreshEnabledness(double t) {
     setEnabled(id::printerB, colour && printOn && !reversal && !mono);
     setEnabled(id::printExposure, colour && printOn && !reversal);
     setEnabled(id::printBleach, colour && printOn && !reversal && !scan);
+    setEnabled(id::printCrossover, colour && !reversal && !scan && !mono);
+    {
+        const core::InputSpace in = core::InputSpace(choice(id::inputSpace, t));
+        const bool fuji = in == core::InputSpace::FLog2C || in == core::InputSpace::FLog2 || in == core::InputSpace::FLog;
+        const bool emuOn = flag(id::cameraEmulationEnable, t);
+        setEnabled(id::cameraEmulationEnable, colour && fuji);
+        setEnabled(id::cameraEmulation, colour && fuji && emuOn);
+        setEnabled(id::cameraEmulationStrength, colour && fuji && emuOn);
+    }
     setEnabled(id::hdrPeakNits, pq);
     setEnabled(id::hdrUnrollEnable, colour && hdr);
     setEnabled(id::hdrUnroll, colour && hdr && unrollOn);

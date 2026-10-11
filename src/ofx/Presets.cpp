@@ -339,6 +339,63 @@ const std::vector<LookPreset>& lookPresets() {
                 {"filmBlurChromatic", "0.5"},
             },
         },
+        // ---- v1.2 (look-dev item C4): the owner's three liked families on the data-sheet stocks
+        {
+            "Studio Modern",
+            "The v1.2 default look as a preset: VISION3 250D on the modern print - dense lower mids, true blacks, soft "
+            "ARRI-like highlight roll-off, calm skies and warm, low-chroma skin. Fine 35 mm grain.",
+            {
+                {"negStock", "Kodak Vision3 250D 5207"},
+                {"process", "Print"},
+                {"printStock", "P6 Modern Print"},
+                {"halationAmount", "0.4"},
+                {"halationThreshold", "3.5"},
+                {"bloomAmount", "0.12"},
+                {"grainEnable", "true"},
+                {"grainFormat", "Super 35"},
+                {"grainAmount", "0.7"},
+                {"grainSoftness", "0.55"},
+                {"acutanceAmount", "0.25"},
+            },
+        },
+        {
+            "Soft Cinema",
+            "ETERNA-style softness: low-contrast daylight negative on the matching Eterna-CP print - gentle "
+            "contrast, restrained colour, open shadows and a quiet, slightly cool palette.",
+            {
+                {"negStock", "Fujifilm Eterna 250D 8563"},
+                {"process", "Print"},
+                {"printStock", "Fujifilm Eterna-CP 3513DI"},
+                {"halationAmount", "0.3"},
+                {"halationThreshold", "3.6"},
+                {"bloomAmount", "0.2"},
+                {"bloomRadius", "60"},
+                {"grainEnable", "true"},
+                {"grainFormat", "Super 35"},
+                {"grainAmount", "0.6"},
+                {"grainSoftness", "0.65"},
+                {"acutanceAmount", "0.15"},
+            },
+        },
+        {
+            "Warm Print",
+            "Classic release-print warmth: VISION3 250D printed on 2383 with Print Crossover - golden highlights, "
+            "cool teal-leaning shadows, rich contrast. The character of a photochemical 2383 chain.",
+            {
+                {"negStock", "Kodak Vision3 250D 5207"},
+                {"process", "Print"},
+                {"printStock", "Kodak Vision 2383"},
+                {"printCrossover", "0.5"},
+                {"halationAmount", "0.55"},
+                {"halationThreshold", "3.4"},
+                {"bloomAmount", "0.18"},
+                {"grainEnable", "true"},
+                {"grainFormat", "Super 35"},
+                {"grainAmount", "0.9"},
+                {"grainSoftness", "0.5"},
+                {"acutanceAmount", "0.3"},
+            },
+        },
     };
     return table;
 }

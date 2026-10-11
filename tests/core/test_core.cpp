@@ -212,7 +212,12 @@ static void testMonotonic() {
                     for (int k = 1; k <= 2000; ++k) {
                         float st = -10.f + 20.f * k / 2000.f;
                         Float3 v = outGrey(P, 0.18f * std::pow(2.f, st));
-                        bool ok = v.r >= prev.r - 2e-6f && v.g >= prev.g - 2e-6f && v.b >= prev.b - 2e-6f;
+                        // 5e-6 is a third of one 16-bit code value (1.5e-5). The v1.2 stocks with
+                        // high print D-max (2393) or the HDR rescale of Lab Scan / Eterna leave a
+                        // flat floor in the last stops before black where the encoded value
+                        // wanders by ~2e-6 (float noise of the XYZ -> RGB matrix and PQ / HLG).
+                        const float tol = 5e-6f;
+                        bool ok = v.r >= prev.r - tol && v.g >= prev.g - tol && v.b >= prev.b - tol;
                         if (!ok) {
                             ++bad;
                             CHECK(ok, "non-monotonic neg %d print %d proc %d out %d at %.2f stops: %.6f %.6f %.6f -> %.6f %.6f %.6f",
@@ -881,7 +886,9 @@ static void testBehaviour() {
     // name lists
     CHECK(inputSpaceNames().size() == size_t(InputSpace::Count), "input names");
     CHECK(outputSpaceNames().size() == size_t(OutputSpace::Count), "output names");
-    CHECK(negativeStocks().size() == 11 && printStockNames().size() == 5, "stock counts");
+    CHECK(negativeStocks().size() == 19 && printStockNames().size() == 9, "stock counts");
+    // v1.2 appended the data-sheet stocks; the shipped-default look is 250D 5207 + P6
+    CHECK(negativeStocks()[12].name == "Kodak Vision3 250D 5207" && printStockNames()[8] == "P6 Modern Print", "v1.2 stocks appended");
     CHECK(negativeStocks()[1].name == "CN 200T Studio Tungsten" && printStockNames()[0] == "P1 Standard Projection", "defaults");
 }
 

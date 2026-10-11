@@ -665,6 +665,9 @@ class Params:
         self.hdrPeak = 1000.0
         self.hdrUnroll = 1.0
         self.grain = 0.0
+        self.cameraEmulation = 0          # v1.2: 0 off, 1 Fujifilm X-Trans -> ARRI ALEXA
+        self.emulationStrength = 1.0
+        self.printCrossover = 0.0
         for k, v in kw.items():
             if not hasattr(self, k):
                 raise KeyError(k)
@@ -678,6 +681,33 @@ def flush(a):
 
 def smooth_floor(e, d):
     return 0.5 * (e + np.sqrt(e * e + d * d))
+
+
+# v1.2 (== src/core/Bake.h / Core.cpp)
+HOLD_ONSET = 1.0
+PRINT_XOVER_GAMMA, PRINT_XOVER_DM = 0.08, 1.0
+
+
+def print_crossover(pc, c):
+    """== Core.cpp printCrossover: D' = Dm + (D - Dm)(1 + c a_j k), a = (+1, 0, -1), clamped per layer"""
+    a = np.array([1.0, 0.0, -1.0])
+    out = pc.copy()
+    for j in range(3):
+        g = 1.0 + float(c) * a[j] * PRINT_XOVER_GAMMA
+        out[j] = np.clip(f32(PRINT_XOVER_DM + (pc[j].astype(np.float64) - PRINT_XOVER_DM) * g), pc[j][0], pc[j][-1])
+    return f32(out)
+
+
+def emulation_matrices(p):
+    """== Core.cpp camera emulation state: (on, A, B) with the strength blended in"""
+    import json as _json
+    fuji = p.input in ('FLog2C', 'FLog2', 'FLog')
+    on = p.cameraEmulation == 1 and fuji and p.emulationStrength > 0
+    if not on:
+        return False, np.eye(3), np.zeros((3, 3))
+    e = _json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'cameras', 'emulation.json')))
+    k = float(np.float32(p.emulationStrength))
+    return True, f32(np.eye(3) + k * (np.array(e['A']) - np.eye(3))), f32(k * np.array(e['B']))
 
 
 class Pipeline:
@@ -701,6 +731,7 @@ class Pipeline:
         # input
         self.Min = f32(input_matrix(p.input))
         self.gain = 2.0 ** p.exposure
+        self.emu_on, self.emuA, self.emuB = emulation_matrices(p)
         # exposure LUT
         self.LK = f32(log_exposure_table(bake_exposure_lut(lib, neg), lib.up_a.reshape(lib.N_OCT, lib.N_OCT) > 0))
         # negative / reversal curves
@@ -722,6 +753,8 @@ class Pipeline:
             self.plut = f32(lut)
             self.plut_max = dmax
             self.pcurve = f32(build_print_curves(prt))
+            if p.printCrossover != 0 and not self.mono:
+                self.pcurve = print_crossover(self.pcurve, float(np.float32(p.printCrossover)))
             self.pmin = self.pcurve[:, 0].copy()
             eps = print_dyes(prt)
             base = base_density(prt['base'])
@@ -834,7 +867,8 @@ class Pipeline:
         st = np.log2(np.maximum(Ys, 1e-10) / 0.18)
         # g: hold strength without the anchor validity weight (the chroma hold below uses it: the
         # weight falls along a saturation ramp toward the gamut edge and would fold the chroma)
-        g = self.hold * (1.0 - np.exp(-HOLD_K * st * st))
+        so = np.maximum(np.abs(st) - HOLD_ONSET, 0.0)        # v1.2: no hold within +-onset stops of grey
+        g = self.hold * (1.0 - np.exp(-HOLD_K * so * so))
         g = np.where(Ys > 1e-10, g, 0.0)
         n = np.stack([lut1d(self.hold_n[c], HOLD_X0, HOLD_X1, xref) for c in range(3)], 1)
         W = np.array(HOLD_W)
@@ -941,7 +975,13 @@ class Pipeline:
         with np.errstate(over='ignore', invalid='ignore'):
             lin = decode_transfer(self.p.input, enc)
             lin = flush(np.where(np.isnan(lin), 0.0, np.clip(lin, -65504.0, 65504.0)))   # == kernel (float32 overflow)
-            out = (lin @ self.Min.T) * self.gain
+            out = lin @ self.Min.T
+            if self.emu_on:
+                r = np.maximum(out[:, 0] * out[:, 1], 0.0)
+                gb = np.maximum(out[:, 1] * out[:, 2], 0.0)
+                rb = np.maximum(out[:, 0] * out[:, 2], 0.0)
+                out = out @ self.emuA.T + np.sqrt(np.stack([r, gb, rb], 1)) @ self.emuB.T
+            out = out * self.gain
         return flush(np.clip(np.where(np.isfinite(out), out, 0.0), -65504.0, 65504.0))
 
     def exposures(self, rgb):

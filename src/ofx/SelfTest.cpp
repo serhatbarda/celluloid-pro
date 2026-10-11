@@ -65,6 +65,7 @@ int main() {
     // ---- SPEC §7 table: group, range, default ----
     const Spec spec[] = {
         {"exposure", "groupInput", -4, 4, 0},
+        {"cameraEmulationStrength", "groupCameraEmulation", 0, 1, 1},   // v1.2
         {"pushPull", "groupNegative", -2, 3, 0},
         {"interlayer", "groupNegative", 0, 2, 1},
         {"negBleach", "groupNegative", 0, 1, 0},
@@ -74,6 +75,7 @@ int main() {
         {"printerB", "groupPrint", -12, 12, 0},
         {"printExposure", "groupPrint", -12, 12, 0},
         {"printBleach", "groupPrint", 0, 1, 0},
+        {"printCrossover", "groupPrint", -1, 1, 0},   // v1.2
         {"halationAmount", "groupHalation", 0, 2, 0.5},
         {"halationRadius", "groupHalation", 2, 80, 20},
         {"halationThreshold", "groupHalation", 0, 6, 0},   // v1.2: 0 = physical (threshold-free)
@@ -133,9 +135,10 @@ int main() {
     check(defLabel("mode") == "Full", "mode default must be Full");
     check(findParam("inputSpace") && findParam("inputSpace")->def == double(int(core::InputSpace::FLog2C)),
           "inputSpace default must be F-Log2 C");
-    check(defLabel("negStock") == "CN 200T Studio Tungsten", "negStock default must be CN 200T (got " + defLabel("negStock") + ")");
+    check(defLabel("negStock") == "Kodak Vision3 250D 5207", "negStock default must be Vision3 250D 5207 (got " + defLabel("negStock") + ")");
     check(defLabel("process") == "Print", "process default must be Print");
-    check(defLabel("printStock") == "P1 Standard Projection", "printStock default must be P1 (got " + defLabel("printStock") + ")");
+    check(defLabel("printStock") == "P6 Modern Print", "printStock default must be P6 Modern Print (got " + defLabel("printStock") + ")");
+    check(defLabel("cameraEmulation") == "Fujifilm X-H2S -> ARRI ALEXA / AMIRA", "cameraEmulation default must be X-H2S -> ALEXA");
     check(defLabel("grainFormat") == "Super 35", "grainFormat default must be Super 35");
     check(defLabel("lutSize") == "33", "lutSize default must be 33");
     check(hasBool("grainEnable", true), "grainEnable default true");
@@ -171,6 +174,8 @@ int main() {
         {"hairEnable", "groupFilmDamage", true, true, {"hairAmount"}},
         {"filmBlurEnable", "groupFilmBlur", false, true, {"filmBlurRadius", "filmBlurFrequency", "filmBlurDuration", "filmBlurBreathing",
                                                          "filmBlurChromatic", "filmBlurSeed"}},
+        // v1.2 camera emulation: ON by default (part of the v1.2 default look), not part of looks
+        {"cameraEmulationEnable", "groupCameraEmulation", true, false, {"cameraEmulation", "cameraEmulationStrength"}},
     };
     auto position = [&](const std::string& pid) {
         for (size_t i = 0; i < defs.size(); ++i)
@@ -204,11 +209,12 @@ int main() {
     check(count("negStock") == int(core::negativeStocks().size()), "negStock options != negativeStocks()");
     check(count("printStock") == int(core::printStockNames().size()), "printStock options != printStockNames()");
     check(count("lookPreset") == int(lookPresets().size()) + 1, "lookPreset options != presets + Custom");
-    check(count("negStock") == 11, "SPEC §4.6: 11 negative stocks");
-    check(count("printStock") == 5, "SPEC §4.6: 5 print stocks");
+    check(count("negStock") == 19, "SPEC §4.6: 19 negative stocks (v1.2: 11 designed + 8 data-sheet)");
+    check(count("printStock") == 9, "SPEC §4.6: 9 print stocks (v1.2: 6 designed + 3 data-sheet)");
+    check(count("cameraEmulation") == int(core::CameraEmulation::Count) - 1, "cameraEmulation options != CameraEmulation::Count - 1");
 
     // every group of SPEC §7 exists
-    for (const char* g : {"groupLook", "groupInput", "groupNegative", "groupPrint", "groupHalation", "groupBloom",
+    for (const char* g : {"groupLook", "groupInput", "groupCameraEmulation", "groupNegative", "groupPrint", "groupHalation", "groupBloom",
                           "groupGrain", "groupLensGate", "groupFilmDamage", "groupFilmBlur", "groupOutput", "groupLutExport",
                           "groupLicense", "groupAbout"})
         check(groupsSeen.count(g) == 1, std::string("missing group ") + g);

@@ -18,6 +18,10 @@
 
 namespace cel { namespace core {
 
+namespace {
+#include "CameraEmulation.inc"
+}
+
 using namespace bake;
 namespace st = stocks;
 
@@ -77,7 +81,7 @@ static constexpr size_t kHoldCacheEntries = 8;
 static bool sameFilm(const LookParams& a, const LookParams& b) {
     return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
            a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.process == b.process &&
-           a.printStock == b.printStock && a.printBleach == b.printBleach;
+           a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover;
 }
 
 static bool sameParams(const LookParams& a, const LookParams& b) {
@@ -86,7 +90,8 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.neutralize == b.neutralize && a.process == b.process && a.printStock == b.printStock &&
            a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
-           a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount;
+           a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount && a.cameraEmulation == b.cameraEmulation &&
+           a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover;
 }
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
@@ -110,6 +115,9 @@ static LookParams sanitize(LookParams p) {
     p.hdrPeakNits = std::isfinite(p.hdrPeakNits) ? clampf(p.hdrPeakNits, 300.f, 4000.f) : 1000.f;
     p.hdrUnroll = std::isfinite(p.hdrUnroll) ? clampf(p.hdrUnroll, 0.f, 1.f) : 1.f;
     p.grainAmount = clampf(p.grainAmount, 0.f, 3.f);
+    if (p.cameraEmulation < 0 || p.cameraEmulation >= int(CameraEmulation::Count)) p.cameraEmulation = 0;
+    p.emulationStrength = clampf(p.emulationStrength, 0.f, 1.f);
+    p.printCrossover = std::isfinite(p.printCrossover) ? clampf(p.printCrossover, -1.f, 1.f) : 0.f;
     return p;
 }
 
@@ -172,6 +180,26 @@ struct Grey {
 };
 }
 
+// Print Crossover (v1.2, SPEC 4.4): the classic print crossover - slightly different contrast of the print's
+// layers around the middle of the scale (the trait of the owner's 2383 references: warm highlights, cool
+// shadows). Each layer's density table is scaled about the mid density Dm:
+//   D'(u) = Dm + (D(u) - Dm) (1 + c a_j kPrintXoverGamma),  a = (+1, 0, -1) for the R- (cyan), G-, B- (yellow) layer,
+// clamped to the layer's own fog .. D-max. c > 0: less cyan / more yellow below Dm (scene highlights, warm),
+// more cyan / less yellow above it (shadows, cool). Every layer stays monotonic; the grey balance solved
+// afterwards keeps 18 % grey neutral. c = 0 leaves the table untouched (bit-identical).
+// == reference/model.py print_crossover
+static void printCrossover(float* pc, float c, bool mono) {
+    if (mono) return;
+    static const double a[3] = {1.0, 0.0, -1.0};
+    for (int j = 0; j < 3; ++j) {
+        float* t = pc + size_t(j) * kNCurve;
+        const float lo = t[0], hi = t[kNCurve - 1];
+        const double g = 1.0 + double(c) * a[j] * kPrintXoverGamma;
+        for (int i = 0; i < kNCurve; ++i)
+            t[i] = std::min(std::max(float(kPrintXoverDm + (double(t[i]) - kPrintXoverDm) * g), lo), hi);
+    }
+}
+
 void Pipeline::prepare(const LookParams& pin) {
     const LookParams p = sanitize(pin);
     Cache& C = *m_cache;
@@ -231,6 +259,19 @@ void Pipeline::prepare(const LookParams& pin) {
     s[CEL_CS_HDR] = p.output == OutputSpace::Rec2100_PQ ? 1.f : (p.output == OutputSpace::Rec2100_HLG ? 2.f : 0.f);
     s[CEL_CS_GAIN] = float(std::exp2(double(p.exposure)));
     putMat(s, CEL_CS_MIN, spec::rgbToRgb(inputGamut(p.input), spec::Gamut::Rec2020));
+    // ---- camera emulation (v1.2): only for footage of the source camera family (Fujifilm log inputs)
+    {
+        const bool fuji = p.input == InputSpace::FLog2C || p.input == InputSpace::FLog2 || p.input == InputSpace::FLog;
+        const bool on = p.cameraEmulation == int(CameraEmulation::FujiXTransToAlexa) && fuji && p.emulationStrength > 0.f;
+        s[CEL_CS_EMU_ON] = on ? 1.f : 0.f;
+        const double k = on ? double(p.emulationStrength) : 0.0;
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j) {
+                s[CEL_CS_EMU_A + i * 3 + j] = float((i == j ? 1.0 : 0.0) + k * (kEmuFujiArriA[i][j] - (i == j ? 1.0 : 0.0)));
+                s[CEL_CS_EMU_B + i * 3 + j] = float(k * kEmuFujiArriB[i][j]);
+            }
+    }
+    s[CEL_CS_HOLD_ONSET] = float(kHoldOnset);
     s[CEL_CS_OCT_OFF] = float(oOct);
     s[CEL_CS_OCT_N] = float(exp->oct.n);
 
@@ -291,6 +332,7 @@ void Pipeline::prepare(const LookParams& pin) {
     if (kind == 0) {
         const std::vector<float>& pc = proj->pcurve;
         std::memcpy(&s[oPC], pc.data(), nPC * sizeof(float));
+        if (p.printCrossover != 0.f) printCrossover(&s[oPC], p.printCrossover, mono);
         s[CEL_CS_PC_OFF] = float(oPC); s[CEL_CS_PC_N] = float(kNCurve);
         s[CEL_CS_PC_U0] = float(kPrtU0); s[CEL_CS_PC_U1] = float(kPrtU1);
         for (int j = 0; j < 3; ++j) s[CEL_CS_PMIN + j] = pc[size_t(j) * kNCurve];

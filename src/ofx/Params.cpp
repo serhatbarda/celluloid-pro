@@ -140,6 +140,25 @@ std::vector<ParamDef> build() {
           "roll off and shadows build density the way a real over/under-exposed negative does.",
           false);
 
+    // ---------------------------------------------------------------- [Camera Emulation] (v1.2)
+    b.beginGroup(id::gCameraEmulation, "Camera Emulation", true,
+                 "Makes the footage look as if it had been shot on another camera, before it reaches the film.");
+    b.boolean(id::cameraEmulationEnable, "Enable Camera Emulation", true,
+              "Switches the camera emulation on or off without losing its settings. Off = the camera's own colour "
+              "as decoded from its log encoding. It only acts on footage of the source camera (Fujifilm F-Log2 C / "
+              "F-Log2 / F-Log input); other cameras pass through unchanged.",
+              false);
+    b.choice(id::cameraEmulation, "Emulation", {"Fujifilm X-H2S -> ARRI ALEXA / AMIRA"}, 0,
+             "Fujifilm X-H2S -> ARRI ALEXA / AMIRA: renders the colours the ALEXA's ALEV III sensor would have "
+             "recorded of the same scene. Fitted from measured spectral responsivities (ARRI ALEXA; Fujifilm X-Trans "
+             "X-T4 as the X-H2S proxy) over about 950 natural and test reflectances under daylight, tungsten, LED and "
+             "fluorescent light: a smooth, exposure-independent correction in scene-linear light that leaves greys "
+             "untouched. It changes skin, foliage, skies and saturated light the way the two sensors differ; colours "
+             "two sensors see identically stay identical (sensor metamerism a 3-channel correction cannot undo).",
+             false);
+    b.dbl(id::cameraEmulationStrength, "Strength", 1.0, 0.0, 1.0, 0.01, 2,
+          "Blend between the camera's own colour (0) and the full emulation (1).", false);
+
     // ---------------------------------------------------------------- [Negative]
     const std::vector<core::NegativeStockInfo> negs = core::negativeStocks();
     std::vector<std::string> negNames;
@@ -149,7 +168,8 @@ std::vector<ParamDef> build() {
         negNames.push_back(n.name);
         if (!n.description.empty()) negHint += "\n\n" + n.name + ": " + n.description;
     }
-    int negDefault = indexOf(negNames, "CN 200T Studio Tungsten");
+    // v1.2: the default look (ARRI-organic, Referent-dense) starts from the real VISION3 250D negative
+    int negDefault = indexOf(negNames, "Kodak Vision3 250D 5207");
     b.beginGroup(id::gNegative, "Negative", true, "Camera film stock and its development.");
     b.choice(id::negStock, "Film Stock", negNames, negDefault < 0 ? 0 : negDefault, negHint.c_str(), true);
     b.boolean(id::developmentEnable, "Enable Development", true,
@@ -180,7 +200,7 @@ std::vector<ParamDef> build() {
 
     // ---------------------------------------------------------------- [Print]
     const std::vector<std::string> prints = core::printStockNames();
-    int printDefault = indexOf(prints, "P1 Standard Projection");
+    int printDefault = indexOf(prints, "P6 Modern Print");
     b.beginGroup(id::gPrint, "Print", true, "How the negative becomes a positive image.");
     b.choice(id::process, "Process", {"Print", "Lab Scan"}, 0,
              "Print: the negative is printed onto print stock and projected - the classic cinema look with dense "
@@ -217,6 +237,13 @@ std::vector<ParamDef> build() {
     b.dbl(id::printBleach, "Print Bleach Bypass", 0.0, 0.0, 1.0, 0.01, 2,
           "Bleach bypass on the print: retained silver deepens the blacks and shadows, raises contrast and "
           "desaturates - the classic gritty, metallic release-print look. 0 = normal processing.",
+          true);
+
+    b.dbl(id::printCrossover, "Print Crossover", 0.0, -1.0, 1.0, 0.01, 2,
+          "Warm highlights and cool shadows the way many release prints render them (the classic 2383 chain): "
+          "positive values add yellow and remove cyan in the bright end of the print and do the opposite in the "
+          "shadows, growing from the middle of the scale outward, while middle grey stays neutral. Negative values "
+          "reverse it (cool highlights, warm shadows). 0 = the print stock exactly as designed. Print process only.",
           true);
 
     // ---------------------------------------------------------------- [Halation]

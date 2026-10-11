@@ -265,11 +265,16 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Home Movie Super 8* — Reversal film in the Super 8 gauge: bold colour, big soft grain, warm halation, nervous gate weave and heavy vignetting.
   - *Worn Release Print* — A well-run 35 mm release print, timed warm: high-speed negative on the standard print with a few dark specks, the odd white negative speck, a persistent print scratch now and then, gentle gate weave and a rare moment of soft focus.
   - *Found Footage 16* — A forgotten 16 mm reel: daylight negative on the faded print, its cyan dye gone warm-magenta, coarse grain, nervous weave, lots of dust and lint, flickering scratches, hairs in the gate and focus that drifts in and out.
+  - *Studio Modern* — The v1.2 default look as a preset: VISION3 250D on the modern print - dense lower mids, true blacks, soft ARRI-like highlight roll-off, calm skies and warm, low-chroma skin. Fine 35 mm grain.
+  - *Soft Cinema* — ETERNA-style softness: low-contrast daylight negative on the matching Eterna-CP print - gentle contrast, restrained colour, open shadows and a quiet, slightly cool palette.
+  - *Warm Print* — Classic release-print warmth: VISION3 250D printed on 2383 with Print Crossover - golden highlights, cool teal-leaning shadows, rich contrast. The character of a photochemical 2383 chain.
 - **Preset Status** (`lookPresetStatus`; read-only; shows “Custom” until a preset is chosen) — Which look preset the current settings come from. "(modified)" means you have changed at least one look setting since applying it.
 - **Mode** (`mode`; default: Full)
   - *Full* — complete film emulation (colour + halation, bloom, grain, lens and gate effects).
   - *Color Only* — the colour pipeline alone - exactly what an exported LUT contains.
   - *Texture Only* — for footage that is ALREADY graded/display-referred in the selected Output space; adds only the photographic texture (halation, bloom, grain, acutance, weave, vignette) and leaves the colour untouched. Use it after your own grade or after another film look.
+- **Gauge** (`grainFormat`; default: Super 35) — Film gauge the image was 'shot' on. It sets the whole texture ladder at once, like changing the camera: grain size and strength (Super 8 very coarse, 16 mm clearly visible, Super 35 the cinema standard, 65 mm very fine; 35 mm Stills between Super 35 and 65 mm), the film's own sharpness (Film Resolution), and the size of the halation ring and of the acutance edge effect.
+  - Options: Super 8 · 16 mm · Super 35 · 65 mm · 35 mm Stills
 
 ### Input
 
@@ -280,11 +285,20 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Enable Exposure** (`exposureEnable`; default on) — Switches the Exposure trim below on or off without losing its value. Off = the footage reaches the film exactly as it was recorded (0 stops).
 - **Exposure** (`exposure`; -4 … 4; default 0; keyframable) — Camera exposure correction in stops, applied to the scene before it reaches the film. Because it acts before the negative, +/- exposure slides the image along the film's characteristic curve: highlights roll off and shadows build density the way a real over/under-exposed negative does.
 
+### Camera Emulation
+
+*Makes the footage look as if it had been shot on another camera, before it reaches the film.*
+
+- **Enable Camera Emulation** (`cameraEmulationEnable`; default on) — Switches the camera emulation on or off without losing its settings. Off = the camera's own colour as decoded from its log encoding. It only acts on footage of the source camera (Fujifilm F-Log2 C / F-Log2 / F-Log input); other cameras pass through unchanged.
+- **Emulation** (`cameraEmulation`; default: Fujifilm X-H2S -> ARRI ALEXA / AMIRA) — Fujifilm X-H2S -> ARRI ALEXA / AMIRA: renders the colours the ALEXA's ALEV III sensor would have recorded of the same scene. Fitted from measured spectral responsivities (ARRI ALEXA; Fujifilm X-Trans X-T4 as the X-H2S proxy) over about 950 natural and test reflectances under daylight, tungsten, LED and fluorescent light: a smooth, exposure-independent correction in scene-linear light that leaves greys untouched. It changes skin, foliage, skies and saturated light the way the two sensors differ; colours two sensors see identically stay identical (sensor metamerism a 3-channel correction cannot undo).
+  - Options: Fujifilm X-H2S -> ARRI ALEXA / AMIRA
+- **Strength** (`cameraEmulationStrength`; 0 … 1; default 1; keyframable) — Blend between the camera's own colour (0) and the full emulation (1).
+
 ### Negative
 
 *Camera film stock and its development.*
 
-- **Film Stock** (`negStock`; default: CN 200T Studio Tungsten) — The camera negative (or reversal / black & white stock). It defines spectral sensitivity, tone curve, colour crosstalk, grain character and halation behaviour.
+- **Film Stock** (`negStock`; default: Kodak Vision3 250D 5207) — The camera negative (or reversal / black & white stock). It defines spectral sensitivity, tone curve, colour crosstalk, grain character and halation behaviour.
   - *CN 50D Fine Daylight* — Fine-grain daylight negative: clean, crisp and richly saturated with a neutral-cool balance.
   - *CN 200T Studio Tungsten* — Balanced tungsten studio negative: natural skin, dense mids, gently warm highlights. The reference stock.
   - *CN 250D Soft Daylight* — Low-contrast daylight negative: soft pastel colour, wide latitude, open shadows.
@@ -296,6 +310,14 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *RV 100 Slide* — Daylight colour reversal (slide) film: brilliant saturation, high contrast, deep blacks, short latitude.
   - *BW 400 Panchromatic* — Classic panchromatic black & white negative: rich mid-tones, visible grain, natural tonal response to colour.
   - *BW 100 Fine* — Fine-grain black & white negative: crisp, higher contrast, slightly blue-leaning (darker reds) panchromatic response.
+  - *Kodak Vision3 50D 5203* — VISION3 50D: the finest-grain daylight negative, clean and saturated with long highlight latitude.
+  - *Kodak Vision3 250D 5207* — VISION3 250D: medium-speed daylight negative, natural colour and soft, open highlights.
+  - *Kodak Vision3 200T 5213* — VISION3 200T: tungsten negative with fine grain, rich mid-tones and clean shadows.
+  - *Kodak Vision3 500T 5219* — VISION3 500T: the high-speed tungsten workhorse: low shadow grain, warm under tungsten, big latitude.
+  - *Fujifilm Eterna 250D 8563* — ETERNA 250D: soft-contrast daylight negative with restrained, calm colour (Fujifilm curves; spectral proxies).
+  - *Kodak Portra 400* — PORTRA 400: portrait colour negative: warm, low-chroma skin, very wide latitude.
+  - *Kodak Ektachrome E100* — EKTACHROME E100: daylight reversal: clean neutral greys, crisp, saturated colour, short latitude.
+  - *Kodachrome 64 Style* — Kodachrome-style reversal (designed, no data sheet): dense, contrasty, warm reds, deep blue skies.
 - **Enable Development** (`developmentEnable`; default on) — Switches the development controls below (Push / Pull, Color Density, Neg Bleach Bypass, Neutralize) on or off without losing their values. Off = the stock's standard development: no push or pull, nominal colour density, normal bleach, the stock's own curves. The film stock itself always stays active - it is the look.
 - **Push / Pull** (`pushPull`; -2 … 3; default 0; keyframable) — Development in stops. Push (+) raises contrast and effective speed, lifts fog and makes the grain coarser (about x1.25 per stop); pull (-) gives a softer, lower-contrast, finer-grained negative. Unlike Exposure this changes the curve shape, not the position on it.
 - **Color Density** (`interlayer`; 0 … 2; default 1; keyframable) — Interlayer (DIR) effect: how strongly the dye layers inhibit each other. 1 = the stock's nominal colour density; higher values give denser, more separated colours, 0 a flatter, purer-channel rendering. Neutrals stay neutral at any setting.
@@ -310,23 +332,24 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Print* — the negative is printed onto print stock and projected - the classic cinema look with dense blacks and rich colour.
   - *Lab Scan* — the negative is scanned and inverted by a lab scanner - a flatter, more neutral rendering that keeps the negative's character without print-stock contrast.
   - Reversal (slide) stocks are direct positives and ignore this setting.
-- **Print Stock** (`printStock`; default: P1 Standard Projection) — The print film the negative is printed on (Process = Print). It sets print contrast, black density, highlight roll-off and the colour of the projected image.
-  - Options: P1 Standard Projection · P2 Low Contrast · P3 Rich Contrast · P4 Faded Archive · P5 Silver Retention
+- **Print Stock** (`printStock`; default: P6 Modern Print) — The print film the negative is printed on (Process = Print). It sets print contrast, black density, highlight roll-off and the colour of the projected image.
+  - Options: P1 Standard Projection · P2 Low Contrast · P3 Rich Contrast · P4 Faded Archive · P5 Silver Retention · Kodak Vision 2383 · Kodak Vision Premier 2393 · Fujifilm Eterna-CP 3513DI · P6 Modern Print
 - **Enable Print Timing** (`printEnable`; default on) — Switches the lab timing controls below (Printer Red / Green / Blue, Print Density, Print Bleach Bypass) on or off without losing their values. Off = the automatically grey-balanced light at 0 points and normal print processing. Process and Print Stock always stay active - they are the look.
 - **Printer Red** (`printerR`; -12 … 12; default 0; keyframable) — Red printer light. More red light (+) adds cyan to the print: the image gets LESS red / more cyan. Fewer points (-) warm it towards red. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Printer Green** (`printerG`; -12 … 12; default 0; keyframable) — Green printer light. More green light (+) adds magenta to the print: the image gets LESS green / more magenta. Fewer points (-) push it towards green. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Printer Blue** (`printerB`; -12 … 12; default 0; keyframable) — Blue printer light. More blue light (+) adds yellow to the print: the image gets LESS blue / more yellow. Fewer points (-) cool it towards blue. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Print Density** (`printExposure`; -12 … 12; default 0; keyframable) — Overall printer light in points on all three layers. Positive values make the print BRIGHTER (less print density), negative values darker and denser. This is the lab's way to brighten or darken a print: highlights and blacks respond like real print film, not like a gain.
 - **Print Bleach Bypass** (`printBleach`; 0 … 1; default 0; keyframable) — Bleach bypass on the print: retained silver deepens the blacks and shadows, raises contrast and desaturates - the classic gritty, metallic release-print look. 0 = normal processing.
+- **Print Crossover** (`printCrossover`; -1 … 1; default 0; keyframable) — Warm highlights and cool shadows the way many release prints render them (the classic 2383 chain): positive values add yellow and remove cyan in the bright end of the print and do the opposite in the shadows, growing from the middle of the scale outward, while middle grey stays neutral. Negative values reverse it (cool highlights, warm shadows). 0 = the print stock exactly as designed. Print process only.
 
 ### Halation
 
 *Red-orange glow around bright light sources.*
 
 - **Enable Halation** (`halationEnable`; default on) — Switches halation on or off without losing its settings. Off skips the halation passes entirely (no render cost).
-- **Halation Amount** (`halationAmount`; 0 … 2; default 0.5; keyframable) — Strength of halation: light that passes through the emulsion, reflects off the film base and re-exposes the red layer, creating a warm glow that hugs bright edges and practicals. Scaled by the stock (no-backing stocks glow much more). 0 = off.
-- **Halation Radius** (`halationRadius`; 2 … 80; default 20; keyframable) — Spread of the glow in pixels at 1920 px image width (automatically scaled for other resolutions and proxy render scales).
-- **Halation Threshold** (`halationThreshold`; 0 … 6; default 3.5; keyframable) — How bright a highlight must be before it halates, in stops above middle grey. The glow eases in over about a stop and a half above it, so broad bright areas (an overcast sky) barely halate while light sources and speculars glow fully. Lower values let more of the image glow.
+- **Halation Amount** (`halationAmount`; 0 … 2; default 0.5; keyframable) — Strength of halation: light that passes through the emulsion, reflects off the film base and re-exposes the red (and a little of the green) layer, creating a warm ring that hugs bright edges and practicals. It is added to the film's exposure, so the film curve shapes it like the image. Scaled by the stock (no-backing stocks glow much more). 0 = off.
+- **Halation Radius** (`halationRadius`; 2 … 80; default 20; keyframable) — Size of the halation ring in pixels at 1920 px image width for Super 35 (automatically scaled for other resolutions, proxy render scales and the Gauge: smaller gauges enlarge the ring).
+- **Halation Threshold** (`halationThreshold`; 0 … 6; default 0; keyframable) — 0 (default) = physical halation: a fixed share of ALL the light reflects off the film base, so every bright edge gets a thin warm ring in proportion to its brightness, and flat areas (an overcast sky) stay clean because the ring only shows where light spills beyond an edge. Above 0 = an artistic gate: only highlights brighter than this many stops above middle grey halate (the v1.1 behaviour; the glow eases in over about a stop and a half).
 - **Halation Hue** (`halationHue`; -1 … 1; default 0; keyframable) — Colour of the glow: -1 deep red, 0 the classic red-orange, +1 orange-yellow.
 
 ### Bloom
@@ -341,22 +364,27 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 *Film grain, generated in the film's density domain.*
 
-- **Enable Grain** (`grainEnable`; default on) — Adds film grain. Grain is added to the dye densities of the negative, so it behaves like real grain: strongest in the mid-tones and shadows of the negative, varying per colour layer. Off skips the grain passes entirely and keeps the grain settings.
-- **Grain Format** (`grainFormat`; default: Super 35) — Film gauge the image was 'shot' on. Smaller formats enlarge the grain more: Super 8 is very coarse, 16 mm clearly visible, Super 35 the cinema standard, 65 mm very fine; 35 mm Stills (36x24 full frame) is finer than Super 35.
-  - Options: Super 8 · 16 mm · Super 35 · 65 mm · 35 mm Stills
-- **Grain Amount** (`grainAmount`; 0 … 3; default 1; keyframable) — Grain strength. 1 = the stock's nominal granularity for the chosen format and development; push processing increases it automatically.
+- **Enable Grain** (`grainEnable`; default on) — Adds film grain: dye clouds of a fast (coarse) and a slow (fine) emulsion in every colour layer, developed from each layer's own exposure (granularity measured from published film data). Coarse, sparse grain lives in the shadows and lower mid-tones, finer grain in the highlights, and the film curves shape it - it sits inside the image instead of on top of it. Off skips the grain passes entirely and keeps the grain settings.
+- **Grain Amount** (`grainAmount`; 0 … 3; default 1; keyframable) — Grain strength. 1 = the stock's nominal granularity for the chosen Gauge and development; push processing increases it automatically.
 - **Grain Size** (`grainSize`; 0.5 … 3; default 1; keyframable) — Grain size relative to the stock and format (1 = nominal). Resolution independent: it looks the same at HD, UHD and in proxy renders.
-- **Grain Softness** (`grainSoftness`; 0 … 1; default 0.5; keyframable) — 0 = crisp, sharply defined grains (like a sharp scan), 1 = soft clumps (like an optical print or a softer scan).
+- **Grain Softness** (`grainSoftness`; 0 … 1; default 0.5; keyframable) — 0 = crisp, sharply defined dye clouds (like a sharp scan), 1 = soft clumps with soft edges (like an optical print or a softer scan). Integrate (Film Resolution) softens grain and image together.
 - **Animated Grain** (`grainAnimated`; default on) — On: a new grain pattern every frame, like real film. Off: a frozen pattern (useful for stills or for matching a static texture).
 - **Grain Seed** (`grainSeed`; 0 … 9999; default 0; keyframable) — Changes the random grain pattern. Give different shots or layers different seeds so their grain never lines up.
+
+### Film Resolution
+
+*The film's own sharpness, so grain and picture share one resolution.*
+
+- **Enable Film Resolution** (`filmResolutionEnable`; default on) — Gives the image the modulation transfer of the camera negative for the chosen Gauge (measured from published film data: the red layer softest, blue sharpest). Digital micro-contrast is finer than any film grain; without this the grain looks laid on top of a too-sharp picture. Off skips the passes (Integrate still applies).
+- **Integrate** (`integrate`; 0 … 1; default 0.5; keyframable) — The print and scan resolution that picture AND grain share: higher values soften both together, so the grain is part of the image instead of an overlay (the colourist's 'defocus under the grain', done physically). 0 = off.
 
 ### Lens & Gate
 
 *Sharpness, gate weave and vignetting.*
 
 - **Enable Acutance** (`acutanceEnable`; default on) — Switches acutance (Acutance, Acutance Radius) on or off without losing its settings. Off = the image's own sharpness; the passes are skipped.
-- **Acutance** (`acutanceAmount`; -1 … 2; default 0.3; keyframable) — Edge contrast from development adjacency effects: crisp, film-like apparent sharpness without the halos of digital sharpening. Negative values soften the image.
-- **Acutance Radius** (`acutanceRadius`; 0.5 … 10; default 2; keyframable) — Size of the adjacency effect in pixels at 1920 px width. Small = fine micro-contrast, larger = broader edge enhancement.
+- **Acutance** (`acutanceAmount`; -1 … 2; default 0.35; keyframable) — Edge contrast from development adjacency effects: crisp, film-like apparent sharpness without the halos of digital sharpening. Negative values soften the image.
+- **Acutance Radius** (`acutanceRadius`; 0.5 … 10; default 2; keyframable) — Size of the adjacency effect in pixels at 1920 px width for Super 35 (scaled with the Gauge: the effect is a fixed distance on the film). Small = fine micro-contrast, larger = broader edge enhancement.
 - **Enable Gate Weave** (`weaveEnable`; default on) — Switches gate weave (Gate Weave, Weave Speed) on or off without losing its settings. Off = a rock steady frame; the pass is skipped.
 - **Gate Weave** (`weaveAmount`; 0 … 2; default 0; keyframable) — Subtle frame-to-frame movement of the film in the camera/projector gate, mostly vertical. 1 = typical 35 mm projection; keep it low for a believable result. 0 = off.
 - **Weave Speed** (`weaveSpeed`; 0.25 … 4; default 1; keyframable) — How quickly the gate weave wanders (1 = natural; lower is a slow drift, higher a nervous jitter).
@@ -538,9 +566,10 @@ Values are starting points; trust your monitor.
    Drama** (CN 500T pushed half a stop on P3) for deeper blacks.
 2. Expose for the faces and the practicals, not for the black sky: night footage often needs
    **Exposure** +0.3 to +0.7 so the shadows sit on the toe of the curve instead of below it.
-3. Halation: if every lit window glows, raise **Halation Threshold** toward 4–4.5 stops; if neon
-   does not glow enough, raise **Halation Amount** rather than lowering the threshold, so skin
-   edges stay clean. **Halation Hue** −0.2 gives a deeper red ring.
+3. Halation: the default physical halation (Threshold 0) gives every lit window and neon tube a thin
+   warm ring in proportion to its brightness; if it is too much, lower **Halation Amount**. Only if you
+   want practicals to glow and nothing else, set **Halation Threshold** to 3.5–4.5 stops (the v1.1
+   gate). **Halation Hue** −0.2 gives a deeper red ring.
 4. Time the print cool with **Printer Blue** −0.5 to −1.5; keep sodium light orange by not
    over-correcting.
 5. Grain: night stocks are coarse by design; **Grain Softness** 0.55–0.7 keeps it organic in dark
@@ -556,8 +585,9 @@ Values are starting points; trust your monitor.
    saturation.
 4. Grain **Amount** 0.6–0.8, **Size** 1.0, **Softness** 0.6; **Acutance** 0.2 so pores do not
    sharpen.
-5. Halation **Threshold** 3.5 (default) or higher: a bright window behind the subject should not
-   bleed red onto the hair line.
+5. Halation: the physical default leaves flat bright areas clean; if a bright window behind the
+   subject still rims the hair line too strongly, lower **Halation Amount** or set **Halation
+   Threshold** to about 3.5 stops.
 
 ### Music video
 
@@ -577,7 +607,7 @@ Values are starting points; trust your monitor.
 
 1. Preset **Archive 1978** (CN Vintage 85 on P4 Faded Archive) for faded colour film, or **Home
    Movie Super 8** for amateur reversal footage, or **Monochrome Noir** for black & white.
-2. **Grain Format** 16 mm or Super 8, **Grain Softness** 0.7–0.8, **Acutance** 0–0.1 (old lenses
+2. **Gauge** 16 mm or Super 8 (Look group), **Grain Softness** 0.7–0.8, **Acutance** 0–0.1 (old lenses
    and prints are soft).
 3. **Gate Weave** 0.4–0.8 at **Weave Speed** 0.8, **Vignette** 0.3–0.5.
 4. On Archive 1978, fade further with **Printer Red** −1 (warmer) and **Print Density** −1 for
@@ -781,7 +811,7 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
 | Image looks right in the node but wrong in the viewer / render | A colour-managed project converts the plug-in's display image again. Add the conversion back to the timeline space after the node, or use YRGB (section 3). |
 | Too dark or too bright | **Exposure** for the scene, **Print Density** for the print. Avoid fixing exposure with a gain after the node. |
 | Colour cast on every stock | Balance before the node, then fine-tune with printer lights in half points. |
-| Bright edges glow red everywhere | Raise **Halation Threshold** (stops over mid grey) or lower **Halation Amount**; CN 800T No-Backing glows by design. |
+| Bright edges glow red everywhere | Lower **Halation Amount**, or set **Halation Threshold** above 0 (stops over mid grey: only highlights above it halate); CN 800T No-Backing glows by design. |
 | Grain looks too strong or too fine in the viewer | Judge grain at 100 % zoom; the viewer scales it. Grain is resolution independent and matches the final render. |
 | Grain looks identical on two layered clips | Give each instance a different **Grain Seed**. |
 | Grain is frozen | **Animated Grain** is off. |
