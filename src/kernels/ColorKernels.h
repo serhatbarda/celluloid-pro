@@ -553,7 +553,14 @@ CEL_DEVICE CelF3 celc_stage_exit(CEL_GLOBAL const float* s, int stage, CelF3 rgb
     }
     int mono = celc_i(s, CEL_CS_MONO);
     CelF3 pd = celc_ns_density(s, rgb);
-    if (hasNoise && s[CEL_CS_GRAIN_ON] > 0.5f) {
+    if (hasNoise == CEL_GRAIN_V2 && s[CEL_CS_GRAIN_ON] > 0.5f) {
+        /* grain v2: the dye-cloud fluctuation at the scan's layer exposures, added in density like the
+         * negative path (celc_negative_dmg; the model carries its own exposure dependence, mono is
+         * already folded in by celg_eval) */
+        pd.x += s[CEL_CS_GSIG + 0] * noise.x;
+        pd.y += s[CEL_CS_GSIG + 1] * noise.y;
+        pd.z += s[CEL_CS_GSIG + 2] * noise.z;
+    } else if (hasNoise && s[CEL_CS_GRAIN_ON] > 0.5f) {
         CelF3 nz = noise;
         if (mono) nz = cel_f3(noise.y, noise.y, noise.y);
         pd.x += s[CEL_CS_GSIG + 0] * cel_sqrt(cel_fmax(pd.x, 0.0f) + CEL_GRAIN_EPS) * nz.x;
