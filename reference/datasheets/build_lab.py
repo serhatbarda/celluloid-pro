@@ -42,6 +42,16 @@ NEG = {
                                    'characteristic curves, spectral dye density. E-6. ' + FRESH),
     'Kodak Double-X 5222': ('datasheet', 'Data sheet: Kodak DOUBLE-X 5222 technical data: characteristic curve (D-96, 6 1/2 min) '
                             'and spectral sensitivity, traced from the raster figures. ' + FRESH),
+    # v1.3, owner decision 2026-10-11 (close data-sheet stocks are allowed for variety)
+    'Kodak Vision2 Expression 500T 5229': ('datasheet', 'Data sheet: Kodak H-1-5229 (2007): spectral sensitivity, '
+                                           'characteristic curves, spectral dye density. ECN-2. Discontinued; modelled as fresh stock.'),
+    'Fujifilm Eterna Vivid 160 8543': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
+                                       'sensitivity and dyes borrowed from VISION3 200T (proxy). Discontinued; modelled as fresh stock.'),
+    'Fujifilm Eterna 500 8573': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
+                                 'sensitivity and dyes borrowed from VISION3 500T (proxy). Discontinued; modelled as fresh stock.'),
+    'Fujifilm Reala 500D 8592': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
+                                 'sensitivity and dyes borrowed from VISION3 250D (proxy); the fourth (cyan-sensitive) layer is not '
+                                 'modelled. Discontinued; modelled as fresh stock.'),
     'Kodachrome 64 Style': ('style', 'Style approximation: no public Kodachrome data; designed from the Ektachrome E100 data '
                             '(higher contrast, deeper D-max, shorter cyan dye). Not measured from Kodachrome.'),
 }
@@ -50,8 +60,14 @@ PRT = {
                           'dye density. ECP-2 nominal; lab aim, projection and rendering are set in this group. ' + FRESH),
     'Kodak Vision Premier 2393': ('partial', 'Data sheet: Kodak H-1-2393 (1998): spectral sensitivity, characteristic curves; '
                                   'dyes from 2383 (not published for 2393). ECP-2 nominal.'),
-    'Fujifilm Eterna-CP 3513DI': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
+    'Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)': ('partial', 'Partial data sheet: Fujifilm KB-0707E; v1.2 legacy curve '
+                                                      '(read from the 3521XD figure with a 10 % short exposure axis, kept so saved '
+                                                      'projects render unchanged); spectral data borrowed from Kodak 2383 (proxy). '
+                                                      'ECP-2 nominal.'),
+    'Fujifilm Eterna-CP 3521XD': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
                                   'data borrowed from Kodak 2383 (proxy). ECP-2 nominal.'),
+    'Fujifilm Eterna-CP 3513DI': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only, corrected in '
+                                  'v1.3); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal.'),
     'P6 Modern Print': ('designed', 'Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the '
                         'default-look target).'),
 }

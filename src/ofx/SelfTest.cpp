@@ -227,8 +227,8 @@ int main() {
     check(count("negStock") == int(core::negativeStocks().size()), "negStock options != negativeStocks()");
     check(count("printStock") == int(core::printStockNames().size()), "printStock options != printStockNames()");
     check(count("lookPreset") == int(lookPresets().size()) + 1, "lookPreset options != presets + Custom");
-    check(count("negStock") == 22, "SPEC §4.6: 22 negative stocks (v1.3: 11 designed + 11 data-sheet / style)");
-    check(count("printStock") == 9, "SPEC §4.6: 9 print stocks (6 designed + 3 data-sheet)");
+    check(count("negStock") == 26, "SPEC §4.6: 26 negative stocks (v1.3: 11 designed + 15 data-sheet / style)");
+    check(count("printStock") == 11, "SPEC §4.6: 11 print stocks (6 designed + 5 data-sheet)");
     check(count("cameraEmulation") == int(core::CameraEmulation::Count) - 1, "cameraEmulation options != CameraEmulation::Count - 1");
     check(count("pipelineStage") == int(StageChoice::Count), "pipelineStage options != StageChoice::Count");
 

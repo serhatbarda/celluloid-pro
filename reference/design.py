@@ -193,36 +193,46 @@ def measured(stock):
     return bool(src) and not src.startswith('designed')
 
 
-def gates(lib, limit=2.0, measured_limit=1.5):
+def gates(lib, limit=2.0, measured_limit=0.7):
     """Every negative distinct from every other on P1, every print distinct with CN 200T, and
     every colour negative distinct through the Lab Scan: min mean dE2000 >= limit.
     v1.2: two stocks that are BOTH modelled from manufacturer data sheets only need
     measured_limit. They are what the manufacturer measured, not designed to be apart: the
     VISION3 negatives share one dye set and differ mostly in speed, grain and curve shape, and the
     Eterna 250D borrows the VISION3 250D spectral data (Fujifilm does not publish it), so through
-    the Lab Scan (which removes the print) they sit 1.5-2 apart."""
+    the Lab Scan (which removes the print) they sit 1.5-2 apart.
+    v1.3, owner decision 2026-10-11 ("I like variety and it's okay that they are close to each other"):
+    measured_limit 1.5 -> 0.7. Close data-sheet stocks are kept on purpose (VISION2 next to VISION3, the
+    Fujifilm negatives on VISION3 spectral proxies, 3521XD / the corrected 3513DI next to the legacy 3513DI
+    and 2383). 0.7 is a floor so two of them are never effectively duplicates; every data-sheet pair below
+    `limit` is listed as info. Any pair with a designed stock still needs `limit`."""
     names, T, T2 = deltae(lib, verbose=False)
     neg_by = {n_['name']: n_ for n_ in lib.negs}
 
     def lim(sa, sb):
         return measured_limit if measured(sa) and measured(sb) else limit
-    fails = []
+    fails, close = [], []
+
+    def test(what, sa, sb, v):
+        if v < lim(sa, sb):
+            fails.append('%s: %s vs %s %.2f' % (what, sa['name'], sb['name'], v))
+        elif v < limit:
+            close.append('%s: %s vs %s %.2f' % (what, sa['name'], sb['name'], v))
     n = len(names)
     for a in range(n):
         for b in range(a + 1, n):
-            if T[a, b] < lim(neg_by[names[a]], neg_by[names[b]]):
-                fails.append('P1: %s vs %s %.2f' % (names[a], names[b], T[a, b]))
+            test('P1', neg_by[names[a]], neg_by[names[b]], T[a, b])
     for a in range(len(T2)):
         for b in range(a + 1, len(T2)):
-            if T2[a, b] < lim(lib.prints[a], lib.prints[b]):
-                fails.append('prints: %s vs %s %.2f' % (lib.prints[a]['name'], lib.prints[b]['name'], T2[a, b]))
+            test('prints', lib.prints[a], lib.prints[b], T2[a, b])
     S = scan_deltae(lib)
     for (a, b), v in S.items():
-        if v < lim(lib.negs[a], lib.negs[b]):
-            fails.append('Lab Scan: %s vs %s %.2f' % (lib.negs[a]['name'], lib.negs[b]['name'], v))
+        test('Lab Scan', lib.negs[a], lib.negs[b], v)
     tri = lambda M: min(M[a, b] for a in range(len(M)) for b in range(a + 1, len(M)))
     print('min mean dE2000: negatives on P1 %.2f, prints (CN 200T) %.2f, negatives through the Lab Scan %.2f'
           % (tri(T), tri(T2), min(S.values())))
+    for c in close:
+        print('  info (data-sheet pair, floor %.1f)' % measured_limit, c)
     for f in fails:
         print('  FAIL', f)
     return fails

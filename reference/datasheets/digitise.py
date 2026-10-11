@@ -69,6 +69,30 @@ VEC = {
         ('076_fujifilm_motion_picture_film_manual.pdf', 29, 'ETERNA-CP 3513DI characteristic curves (status A)',
          (281.0, 164.0, 421.2, 274.9), dict(x=(0, 4.5), y=(0, 5)), dict(B=9, G=10, R=11), 'hd'),
     ],
+    # v1.3: 'fuji_3513' above is the v1.2 legacy curve: page index 29 is the ETERNA-CP 3521XD figure, read with 4.5
+    # instead of 5.0 log H across the frame (10 grid columns of 0.5 log H). It stays as it is (print 7, saved projects).
+    # The corrected 3513DI (page index 27, D 0 .. 4) and 3521XD are appended as their own prints.
+    'fuji_3513v13': [
+        ('076_fujifilm_motion_picture_film_manual.pdf', 27, 'ETERNA-CP 3513DI characteristic curves (status A; 10 x 0.5 log H)',
+         (279.5, 164.1, 419.6, 274.9), dict(x=(0, 5), y=(0, 4)), dict(B=9, G=10, R=11), 'hd'),
+    ],
+    'fuji_3521': [
+        ('076_fujifilm_motion_picture_film_manual.pdf', 29, 'ETERNA-CP 3521XD characteristic curves (status A; 10 x 0.5 log H)',
+         (281.0, 164.0, 421.2, 274.9), dict(x=(0, 5), y=(0, 5)), dict(B=9, G=10, R=11), 'hd'),
+    ],
+    # v1.3 Fujifilm negatives (KB-0707E): characteristic curves only, frames from the grid lines
+    'fuji_8543': [
+        ('076_fujifilm_motion_picture_film_manual.pdf', 7, 'ETERNA Vivid 160 8543 characteristic curves (camera stops, status M)',
+         (277.5, 83.7, 426.5, 208.5), dict(x=(-6, 6), y=(0, 3)), dict(B=2, G=3, R=4), 'hd'),
+    ],
+    'fuji_8573': [
+        ('076_fujifilm_motion_picture_film_manual.pdf', 13, 'ETERNA 500 8573 characteristic curves (camera stops, status M)',
+         (277.5, 83.7, 426.5, 208.5), dict(x=(-6, 6), y=(0, 3)), dict(B=4, G=5, R=6), 'hd'),
+    ],
+    'fuji_8592': [
+        ('076_fujifilm_motion_picture_film_manual.pdf', 19, 'REALA 500D 8592 characteristic curves (relative log H, 0.5 per grid column)',
+         (284.3, 83.7, 438.8, 208.5), dict(x=(0, 4.0), y=(0, 3)), dict(B=2, G=3, R=4), 'hd'),
+    ],
     # v1.3 Kodak sheets with full data
     'kodak_5294': [
         ('EKTACHROME-100D-sell-sheet-EN.pdf', 1, 'Sensitometric Curves (camera stops; frame -10 .. 6.64 from the tick spacing)',
@@ -85,6 +109,14 @@ VEC = {
          dict(x=(248.7, 748.7), y=(-0.01, 4.04)), dict(Y=55, M=56, C=57), 'sens'),
         ('5218.pdf', 2, 'Spectral-Dye-Density Curves (axes from the labels)', (240.2, 642.4, 358.8, 739.5),
          dict(x=(300, 801.7), y=(-0.188, 1.806)), dict(a=65, b=66, c=68, neutral=63, dmin=64), 'dye'),
+    ],
+    'kodak_5229': [
+        ('5229.pdf', 2, 'Sensitometric Curves (camera stops)', (224.5, 68.6, 350.2, 141.3), dict(x=(-10, 6), y=(0, 3)),
+         dict(B=16, G=17, R=18), 'hd'),
+        ('5229.pdf', 2, 'Spectral-Sensitivity Curves (x from the labels)', (227.9, 484.8, 343.6, 572.4),
+         dict(x=(248.1, 748.6), y=(0, 4)), dict(Y=42, M=43, C=44), 'sens'),
+        ('5229.pdf', 2, 'Spectral-Dye-Density Curves (x from the labels)', (228.4, 628.5, 344.0, 728.6),
+         dict(x=(297.4, 793.1), y=(-0.2, 1.8)), dict(a=list(range(48, 90)), b=91, c=90, neutral=93, dmin=95), 'dye'),
     ],
     # v1.3: VISION Color Intermediate 2242 (H-1-5242t, 2008): sensitometric curves (Status M, ECN-2), used for the
     # release-print duplication chain (negative -> master positive -> duplicate negative -> print)

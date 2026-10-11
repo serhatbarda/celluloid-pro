@@ -364,7 +364,7 @@ const std::vector<LookPreset>& lookPresets() {
             {
                 {"negStock", "Fujifilm Eterna 250D 8563"},
                 {"process", "Print"},
-                {"printStock", "Fujifilm Eterna-CP 3513DI"},
+                {"printStock", "Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)"},
                 {"halationAmount", "0.3"},
                 {"bloomAmount", "0.2"},
                 {"bloomRadius", "60"},
