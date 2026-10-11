@@ -196,7 +196,7 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.zoneSpecular == b.zoneSpecular && a.zoneSpecularRange == b.zoneSpecularRange && a.zoneFalloff == b.zoneFalloff &&
            a.filmContrast == b.filmContrast && a.contrastPivot == b.contrastPivot && a.rolloffStart == b.rolloffStart &&
            a.rolloffSoftness == b.rolloffSoftness && a.dyeSaturation == b.dyeSaturation && a.dyeRichness == b.dyeRichness &&
-           a.dyeSatBalance == b.dyeSatBalance;
+           a.dyeSatBalance == b.dyeSatBalance && a.alexaColour == b.alexaColour;
 }
 
 std::string versionString() {
@@ -489,6 +489,8 @@ core::LookParams CelluloidEffect::lookAt(double t) const {
         lp.cameraEmulation = 1 + std::min(std::max(choice(id::cameraEmulation, t), 0), int(core::CameraEmulation::Count) - 2);
         lp.emulationStrength = float(num(id::cameraEmulationStrength, t));
     }
+    // v1.3 ALEXA Colour (switched off = 0; core ignores it in the ALEXA Rec.709 stage)
+    if (flag(id::alexaColourEnable, t)) lp.alexaColour = float(num(id::alexaColour, t));
     // v1.3 Tone (switched off = the neutral LookParams values)
     if (flag(id::toneEnable, t)) {
         lp.zoneShadows = float(num(id::zoneShadows, t));
@@ -519,7 +521,8 @@ core::LookParams CelluloidEffect::lookAt(double t) const {
     {
         const StageChoice sc = stageChoice(t);
         lp.stage = sc == StageChoice::NegativeClean ? int(core::Stage::NegativeToScene)
-                 : int(sc) < int(core::Stage::Count) ? int(sc) : 0;
+                 : sc == StageChoice::AlexaRec709 ? (flag(id::alexaDisplayEnable, t) ? int(core::Stage::AlexaRec709) : 0)
+                 : int(sc) <= int(StageChoice::PrintOnly) ? int(sc) : 0;
         if (core::Mode(choice(id::mode, t)) == core::Mode::TextureOnly) lp.stage = 0;
         lp.sceneEncoding = clampIdx(choice(id::sceneEncoding, t), int(core::SceneEncoding::Count));
     }
@@ -1042,6 +1045,22 @@ void CelluloidEffect::refreshEnabledness(double t) {
         if (printOnly) {
             setEnabled(id::printStock, true);
             for (const char* p : {id::inputSpace, id::cameraEmulationEnable, id::cameraEmulation, id::cameraEmulationStrength})
+                setEnabled(p, false);
+        }
+        // v1.3 ALEXA Rendering: the stage renders the camera without film (only the scene-side controls,
+        // the output and the textures apply); ALEXA Colour is part of the film chain
+        const bool alexaStage = colour && sc == StageChoice::AlexaRec709 && flag(id::alexaDisplayEnable, t);
+        const bool acOn = flag(id::alexaColourEnable, t);
+        setEnabled(id::alexaDisplayEnable, colour && sc == StageChoice::AlexaRec709);
+        setEnabled(id::alexaColourEnable, colour && !alexaStage && sc != StageChoice::PrintOnly);
+        setEnabled(id::alexaColour, colour && !alexaStage && sc != StageChoice::PrintOnly && acOn);
+        if (alexaStage) {
+            for (const char* p : {id::negStock, id::developmentEnable, id::pushPull, id::interlayer, id::negBleach,
+                                  id::neutralize, id::process, id::printStock, id::printEnable, id::printerR, id::printerG,
+                                  id::printerB, id::printExposure, id::printBleach, id::printCrossover, id::printLabEnable,
+                                  id::projectionWhite, id::printAim, id::printContrast, id::printRender, id::rolloffEnable,
+                                  id::rolloffStart, id::rolloffSoftness, id::dyeSatEnable, id::dyeSaturation, id::dyeRichness,
+                                  id::dyeSatBalance, id::hdrUnrollEnable, id::hdrUnroll})
                 setEnabled(p, false);
         }
     }

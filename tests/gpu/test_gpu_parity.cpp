@@ -283,6 +283,18 @@ std::vector<Case> makeCases(bool all) {
         c.scene = Scene::Display; c.fs.look.rolloffSoftness = 0.6f; c.fs.look.dyeSaturation = 1.4f; });
     add("tone: torture, everything", [](Case& c) { fullTexture(c.fs); c.scene = Scene::Torture; c.fs.look.zoneHighlights = -4.f;
         c.fs.look.zoneShadows = 4.f; c.fs.look.filmContrast = 2.f; c.fs.look.rolloffSoftness = 1.f; c.fs.look.dyeSaturation = 2.f; });
+    // ---- v1.3 ALEXA Rendering: the ALEXA Rec.709 stage (textures display-referred) and ALEXA Colour
+    add("alexa: stage Rec.709, all texture + damage", [](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h);
+        c.fs.look.stage = int(core::Stage::AlexaRec709); });
+    add("alexa: stage PQ, color only", [](Case& c) { c.fs.mode = core::Mode::ColorOnly; c.fs.look.output = OS::Rec2100_PQ;
+        c.fs.look.stage = int(core::Stage::AlexaRec709); });
+    add("alexa: stage HLG + zones, all texture", [](Case& c) { fullTexture(c.fs); c.fs.look.output = OS::Rec2100_HLG;
+        c.fs.look.zoneHighlights = -1.f; c.fs.look.stage = int(core::Stage::AlexaRec709); });
+    add("alexa: ALEXA Colour 1, all texture", [](Case& c) { fullTexture(c.fs); c.fs.look.alexaColour = 1.f; });
+    add("alexa: ALEXA Colour 0.5, lab scan, P3", [](Case& c) { c.fs.look.alexaColour = 0.5f; c.fs.look.output = OS::P3D65_G26;
+        c.fs.look.process = core::Process::NegativeScan; });
+    add("torture, alexa stage", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::AlexaRec709); c.scene = Scene::Torture; });
+    add("torture, ALEXA Colour 1", [](Case& c) { fullTexture(c.fs); c.fs.look.alexaColour = 1.f; c.scene = Scene::Torture; });
     // ---- hostile inputs
     add("torture, stage print only", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::PrintOnly); c.scene = Scene::Torture; });
     add("torture, stage negative -> scene ACEScct", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::NegativeToScene);
@@ -486,8 +498,7 @@ int main(int argc, char** argv) {
             CHECK(okP, "%s: perturbed reference failed: %s", c.name.c_str(), err.c_str());
             const DiffStats dp = compare(cpuOut, pertOut);
             if (c.tol <= 0) worstModel = std::max(worstModel, dp.maxAbs);
-            std::printf("    %-8s gpu-math model vs cpu %s\n", "model", describe(dp).c_str());
-            CHECK(dp.nanMismatch == 0 && (c.relTol ? dp.maxRel : dp.maxAbs) <= ctol, "%s: worst-case GPU math model exceeds the tolerance: %s",
+            std::printf("    %-8s gpu-math model vs cpu %s\n", "model", describe(dp).c_str());            CHECK(dp.nanMismatch == 0 && (c.relTol ? dp.maxRel : dp.maxAbs) <= ctol, "%s: worst-case GPU math model exceeds the tolerance: %s",
                   c.name.c_str(), describe(dp).c_str());
         }
         if (c.kind == PlanKind::Frame) {   // frame plans never emit NaN/Inf, whatever the input

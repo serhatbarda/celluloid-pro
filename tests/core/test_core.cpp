@@ -1193,6 +1193,81 @@ static void testTone(bool quick) {
     }
 }
 
+// v1.3 ALEXA Rendering: the ALEXA Rec.709 stage and ALEXA Colour (SPEC 13, model in reference/alexa_rendering.py)
+static void testAlexa() {
+    std::printf("[ALEXA Rendering: ALEXA Rec.709 stage, ALEXA Colour]\n");
+    auto lumOf = [](Float3 v) { return 0.2126 * v.r + 0.7152 * v.g + 0.0722 * v.b; };
+    {   // off = bit-identical state (no AL block, header slots zero)
+        LookParams a = lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24), b = a;
+        b.alexaColour = 0.f;
+        Pipeline A, B;
+        A.prepare(a); B.prepare(b);
+        CHECK(A.state() == B.state() && A.state()[CEL_CS_AL_OFF] == 0.f, "ALEXA off must not change the state");
+    }
+    // the stage on every output: neutral ramp monotone and neutral, finite on hostile input, SDR inside [0, 1]
+    for (int o = 0; o < int(OutputSpace::Count); ++o) {
+        for (int neg : {1, 17}) {   // a negative and a reversal stock (both render the ALEXA stage)
+            LookParams p = lpFor(neg, 0, Process::NegativeToPrint, OutputSpace(o));
+            p.input = InputSpace::LinearRec2020;
+            p.stage = int(Stage::AlexaRec709);
+            p.alexaColour = 1.f;   // ignored in the stage
+            Pipeline P;
+            P.prepare(p);
+            CHECK(P.state()[CEL_CS_STAGE] == 4.f && P.state()[CEL_CS_AL_COLOUR] == 0.f, "ALEXA stage state (output %d)", o);
+            double prev = -1, worstN = 0;
+            for (int k = 0; k <= 320; ++k) {
+                const float v = 0.18f * std::exp2(-12.f + k / 16.f);
+                Float3 y = P.processColor({v, v, v});
+                const double l = lumOf(y);
+                CHECK(l >= prev - 1e-6, "ALEXA stage grey ramp not monotone at %.5f (output %d)", v, o);
+                prev = std::max(prev, l);
+                worstN = std::max(worstN, double(std::max(std::fabs(y.r - y.g), std::fabs(y.b - y.g))));
+            }
+            // (DCI-P3 encodes the D65 neutral with the DCI white: unequal code values by design)
+            CHECK(o == int(OutputSpace::P3DCI_G26) || worstN < 2e-3, "ALEXA stage greys not neutral (%.5f, output %d)", worstN, o);
+            const bool sdr = o != int(OutputSpace::Rec2100_PQ) && o != int(OutputSpace::Rec2100_HLG);
+            for (Float3 c : {Float3{NAN, 0.2f, 0.1f}, Float3{INFINITY, -INFINITY, 1e30f}, Float3{-1.f, 0.5f, 3.f},
+                             Float3{1e6f, 0.f, 0.f}, Float3{0.f, 0.f, 50.f}, Float3{-1e-20f, 0.f, 1e-30f}}) {
+                Float3 y = P.processColor(c);
+                CHECK(finite3(y), "ALEXA stage not finite (output %d)", o);
+                if (sdr) CHECK(y.r >= 0.f && y.r <= 1.f && y.g >= 0.f && y.g <= 1.f && y.b >= 0.f && y.b <= 1.f,
+                               "ALEXA stage outside [0, 1] on SDR (output %d)", o);
+            }
+            if (o == int(OutputSpace::Rec709_G24) && neg == 1) {   // ARRI's LUT: grey 0.18 -> 0.398 (Gamma 2.4 code)
+                const Float3 g = P.processColor({0.18f, 0.18f, 0.18f});
+                std::printf("  ALEXA Rec.709 grey 18 %% -> %.4f (ARRI LUT 0.398)\n", g.g);
+                CHECK(std::fabs(g.g - 0.398f) < 0.01f, "ALEXA Rec.709 grey %.4f, ARRI 0.398", g.g);
+            }
+        }
+    }
+    {   // ALEXA Colour: greys untouched, exposure-stable (scales with the scene), changes colour, strength blends
+        LookParams p = lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+        p.input = InputSpace::LinearRec2020;
+        Pipeline off, on, half;
+        off.prepare(p);
+        p.alexaColour = 1.f; on.prepare(p);
+        p.alexaColour = 0.5f; half.prepare(p);
+        double worstG = 0, worstE = 0, moved = 0;
+        for (float v : {0.001f, 0.18f, 3.f, 40.f}) {
+            Float3 a = off.decodeToScene({v, v, v}), b = on.decodeToScene({v, v, v});
+            worstG = std::max(worstG, double(std::max({std::fabs(a.r - b.r), std::fabs(a.g - b.g), std::fabs(a.b - b.b)})) / v);
+        }
+        for (Float3 c : {Float3{0.30f, 0.10f, 0.05f}, Float3{0.05f, 0.12f, 0.30f}, Float3{0.10f, 0.30f, 0.08f},
+                         Float3{0.40f, 0.25f, 0.18f}}) {
+            Float3 a = on.decodeToScene(c), b = on.decodeToScene({c.r * 16.f, c.g * 16.f, c.b * 16.f});
+            worstE = std::max(worstE, double(std::max({std::fabs(b.r / 16.f - a.r), std::fabs(b.g / 16.f - a.g),
+                                                       std::fabs(b.b / 16.f - a.b)})) / lumOf(a));
+            Float3 z = off.decodeToScene(c), h = half.decodeToScene(c);
+            moved = std::max(moved, double(std::fabs(a.r - z.r) + std::fabs(a.b - z.b)) / lumOf(z));
+            CHECK(std::fabs(h.g - 0.5f * (a.g + z.g)) < 1e-5f + 1e-3f * z.g, "ALEXA Colour 50 %% is not the blend");
+        }
+        std::printf("  ALEXA Colour: grey %.2e, exposure x16 %.2e (relative), colour change %.3f\n", worstG, worstE, moved);
+        CHECK(worstG < 1e-5, "ALEXA Colour moved a grey (%.2e)", worstG);
+        CHECK(worstE < 1e-4, "ALEXA Colour not exposure-stable (%.2e)", worstE);
+        CHECK(moved > 0.01, "ALEXA Colour changes nothing (%.4f)", moved);
+    }
+}
+
 int main(int argc, char** argv) {
     std::string golden = CEL_REFERENCE_DIR "/golden/core_golden.txt";
     std::string tmp = "/tmp";
@@ -1218,6 +1293,7 @@ int main(int argc, char** argv) {
     testStages();
     testPrintLab();
     testTone(quick);
+    testAlexa();
     testGolden(golden);
     testCube(tmp);
     testCubeAccuracy(tmp);

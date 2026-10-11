@@ -214,12 +214,17 @@ constexpr const char* dyeSatEnable = "dyeSatEnable";
 constexpr const char* dyeSaturation = "dyeSaturation";
 constexpr const char* dyeRichness = "dyeRichness";
 constexpr const char* dyeSatBalance = "dyeSatBalance";
+// ---- v1.3 ALEXA Rendering: fitted ALEXA Rec.709 display rendering + ALEXA Colour in the film chain ----
+constexpr const char* gAlexaRendering = "groupAlexaRendering";
+constexpr const char* alexaDisplayEnable = "alexaDisplayEnable"; // Pipeline Stage ALEXA Rec.709 on / off (A/B)
+constexpr const char* alexaColourEnable = "alexaColourEnable";
+constexpr const char* alexaColour = "alexaColour";
 } // namespace id
 
 // v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are
 // shortcuts: Texture Only = Mode Texture Only, Negative Only (clean) = Negative -> Scene with every texture
-// module off (as Mode Color Only).
-enum class StageChoice : int { Full = 0, NegativeLogScan, NegativeToScene, PrintOnly, TextureOnly, NegativeClean, Count };
+// module off (as Mode Color Only). ALEXA Rec.709 (appended in v1.3 ALEXA Rendering) = core::Stage::AlexaRec709.
+enum class StageChoice : int { Full = 0, NegativeLogScan, NegativeToScene, PrintOnly, TextureOnly, NegativeClean, AlexaRec709, Count };
 
 // LUT sizes offered by lutSize, in option order.
 constexpr int kLutSizes[3] = {17, 33, 65};

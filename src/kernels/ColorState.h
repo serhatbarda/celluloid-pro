@@ -153,6 +153,7 @@
 #define CEL_AL_NB           33   /* band floats: dh0 7, dh1 5, ds0 7, ds1 5, dl0 5, s2 1, skin 3 */
 #define CEL_AL_U_GREY       0.391006832f  /* LogC3 (EI 800) code of 18 % grey (pivot of the tone curve) */
 #define CEL_AL_C0           0.02f      /* chroma fade-in of the bands (Oklab C) */
+#define CEL_AL_FLOOR        1.5e-5f    /* display-linear soft floor (celc_al_floor), below the neutral black 4.3e-5 */
 
 /* ---- v1.3 Tone (indices 224..255). 0 / unset = off (bit-identical to the render without it) */
 #define CEL_CS_TONE_ON      224  /* 1 = scene tone (Zones + Filmic Contrast) active, in decode after Exposure */

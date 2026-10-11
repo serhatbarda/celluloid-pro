@@ -124,14 +124,28 @@ CEL_DEVICE CelF3 celc_emulate(CEL_GLOBAL const float* s, CelF3 l) {
  * increasing, bounded in [0, 1)), then smooth colour bands in Oklab. Per-channel tone gives the highlight /
  * shadow desaturation and the hue twist of bright saturated colours; the bands add what that leaves out. */
 CEL_DEVICE float celc_al_knee(float r, float p) { return r / cel_pow(1.0f + cel_pow(r, p), 1.0f / p); }
+/* 1 - knee(r, p) without cancellation (the deep toe): for r >= 1, with q = r^-p <= 1,
+ * 1 - (1 + q)^(-1/p) = -expm1(-log1p(q) / p) (Kahan's log1p / expm1, accurate with any ulp-bounded log / exp) */
+CEL_DEVICE float celc_al_knee_c(float r, float p) {
+    if (!(r >= 1.0f)) return 1.0f - celc_al_knee(r, p);
+    float q = cel_pow(r, -p), u = 1.0f + q;
+    float l1p = u == 1.0f ? q : cel_log(u) * (q / (u - 1.0f));
+    float y = -l1p / p, e = cel_exp(y);
+    return e == 1.0f ? -y : -(e - 1.0f) * (y / cel_log(e));
+}
 /* scene-linear (render RGB) -> display code (Gamma 2.4) */
 CEL_DEVICE float celc_al_tone(CEL_GLOBAL const float* t, float x) {
     float l = t[0] + t[1] * (celc_encode_transfer(CEL_IN_LOGC3, x) - CEL_AL_U_GREY);
     if (l > t[2]) return t[2] + (1.0f - t[2]) * celc_al_knee((l - t[2]) / (1.0f - t[2]), t[3]);
-    if (l < t[4]) return t[4] * (1.0f - celc_al_knee((t[4] - l) / t[4], t[5]));
+    if (l < t[4]) return t[4] * celc_al_knee_c((t[4] - l) / t[4], t[5]);
     return l;
 }
-CEL_DEVICE float celc_cbrt(float v) { return celc_spow(v, 0.333333333333333f); }
+/* cube root, one Newton step after pow: ~1 ulp on any device (pow may be 16 ulp off; the Oklab inverse cubes
+ * it and its matrix cancels, so the error would reach the dark end of saturated colours) */
+CEL_DEVICE float celc_cbrt(float v) {
+    float y = celc_spow(v, 0.333333333333333f);
+    return y == 0.0f ? y : y - (y * y * y - v) / (3.0f * y * y);
+}
 CEL_DEVICE CelF3 celc_al_oklab(CEL_GLOBAL const float* a, CelF3 rgb709) {
     CelF3 m = celc_mat3(a, CEL_AL_OK1, rgb709);
     return celc_mat3(a, CEL_AL_OK2, cel_f3(celc_cbrt(m.x), celc_cbrt(m.y), celc_cbrt(m.z)));
@@ -165,7 +179,15 @@ CEL_DEVICE CelF3 celc_al_bands(CEL_GLOBAL const float* b, CelF3 lab, float lgrey
     float g = cel_exp(ds), cr = cel_cos(dh), sr = cel_sin(dh);
     return cel_f3(lab.x + dl, g * (lab.y * cr - lab.z * sr), g * (lab.y * sr + lab.z * cr));
 }
-/* scene-linear Rec.2020 -> display-linear Rec.709 in [0, 1] (ALEXA Rec.709 stage) */
+/* display-linear channel -> (0, 1]: C1 soft floor k exp(v / k - 1) below k = CEL_AL_FLOOR (under the neutral
+ * black of the rendering, so greys are unchanged): a channel the colour bands take to 0 or below stays a
+ * small positive value instead of a clipped one, and the display encoding's infinite slope at 0 cannot
+ * magnify the last-ulp differences between devices */
+CEL_DEVICE float celc_al_floor(float v) {
+    v = cel_fmin(cel_finite_or(v, 0.0f), 1.0f);
+    return v < CEL_AL_FLOOR ? CEL_AL_FLOOR * cel_exp(cel_fmax(v / CEL_AL_FLOOR, -80.0f) - 1.0f) : v;
+}
+/* scene-linear Rec.2020 -> display-linear Rec.709 in (0, 1] (ALEXA Rec.709 stage) */
 CEL_DEVICE CelF3 celc_alexa_render(CEL_GLOBAL const float* s, CelF3 x) {
     CEL_GLOBAL const float* a = s + celc_i(s, CEL_CS_AL_OFF);
     CelF3 w = celc_mat3(a, CEL_AL_MR, x);
@@ -173,8 +195,7 @@ CEL_DEVICE CelF3 celc_alexa_render(CEL_GLOBAL const float* s, CelF3 x) {
     CelF3 e = cel_f3(cel_fmax(celc_al_tone(t, w.x), 0.0f), cel_fmax(celc_al_tone(t, w.y), 0.0f), cel_fmax(celc_al_tone(t, w.z), 0.0f));
     CelF3 d = cel_f3(cel_pow(e.x, 2.4f), cel_pow(e.y, 2.4f), cel_pow(e.z, 2.4f));
     CelF3 o = celc_al_oklab_inv(a, celc_al_bands(a + CEL_AL_RB, celc_al_oklab(a, d), a[CEL_AL_LG_R]));
-    return cel_f3(cel_clamp(cel_finite_or(o.x, 0.0f), 0.0f, 1.0f), cel_clamp(cel_finite_or(o.y, 0.0f), 0.0f, 1.0f),
-                  cel_clamp(cel_finite_or(o.z, 0.0f), 0.0f, 1.0f));
+    return cel_f3(celc_al_floor(o.x), celc_al_floor(o.y), celc_al_floor(o.z));
 }
 /* ALEXA Colour: the rendering's colour character without its tone curve, scene-linear Rec.2020 -> Rec.2020.
  * Evaluated at grey luminance (n = x 0.18 / Y) and scaled back, so f(k x) = k f(x) (exposure-stable);
@@ -183,10 +204,25 @@ CEL_DEVICE CelF3 celc_alexa_colour(CEL_GLOBAL const float* s, CelF3 x) {
     CEL_GLOBAL const float* a = s + celc_i(s, CEL_CS_AL_OFF);
     float Y = celc_dot3(a, CEL_AL_Y2020, x);
     if (!(Y > 1e-10f)) return x;
-    CelF3 n = celc_scale(x, 0.18f / Y);
-    CelF3 lab = celc_al_bands(a + CEL_AL_CB, celc_al_oklab(a, celc_mat3(a, CEL_AL_M2020_709, n)), a[CEL_AL_LG_C]);
+    /* the colour model is fitted inside the Rec.709 gamut: it acts fully there and fades out smoothly for
+     * colours beyond it (saturated lights, noise), down to unchanged at a Rec.709 channel of -0.25 x the
+     * largest, where the grey normalisation and the bands would extrapolate without bound */
+    CelF3 v = celc_mat3(a, CEL_AL_M2020_709, x);
+    float mx = cel_fmax(cel_fabs(v.x), cel_fmax(cel_fabs(v.y), cel_fabs(v.z)));
+    float r = cel_fmin(cel_clamp(1.0f + cel_fmin(v.x, cel_fmin(v.y, v.z)) / (0.25f * mx), 0.0f, 1.0f),
+                       cel_clamp((Y - 0.03f * mx) / (0.03f * mx), 0.0f, 1.0f));   /* (Rec.709: Y >= 0.072 max) */
+    /* and above the camera's range (LogC3 clips near 55 x linear): fade out between Y 64 and 128, so
+     * super-whites and hostile values pass unchanged instead of carrying rounding at their magnitude */
+    r = cel_fmin(r, cel_clamp((128.0f - Y) / 64.0f, 0.0f, 1.0f));
+    if (!(r > 0.0f)) return x;
+    CelF3 l0 = celc_al_oklab(a, celc_scale(v, 0.18f / Y));
+    /* and beyond the fitted chroma (Oklab C <= ~0.45 at grey inside Rec.709): fade between C 0.5 and 0.8 */
+    float cf = cel_clamp((0.8f - cel_sqrt(l0.y * l0.y + l0.z * l0.z)) / 0.3f, 0.0f, 1.0f);
+    r = cel_fmin(r, cf);
+    if (!(r > 0.0f)) return x;
+    CelF3 lab = celc_al_bands(a + CEL_AL_CB, l0, a[CEL_AL_LG_C]);
     CelF3 o = celc_scale(celc_mat3(a, CEL_AL_M709_2020, celc_al_oklab_inv(a, lab)), Y / 0.18f);
-    float k = s[CEL_CS_AL_COLOUR];
+    float k = s[CEL_CS_AL_COLOUR] * r * r * (3.0f - 2.0f * r);
     return cel_f3(x.x + k * (o.x - x.x), x.y + k * (o.y - x.y), x.z + k * (o.z - x.z));
 }
 /* ---- v1.3 stage exits: the neutral stage axis (NS block, ColorState.h) ---------------------------

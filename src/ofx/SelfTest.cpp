@@ -124,6 +124,7 @@ int main() {
         {"dyeSaturation", "groupTone", 0, 2, 1},
         {"dyeRichness", "groupTone", 0, 1, 0.25},
         {"dyeSatBalance", "groupTone", -1, 1, 0},
+        {"alexaColour", "groupAlexaRendering", 0, 1, 1},   // v1.3 ALEXA Rendering
     };
     for (const Spec& s : spec) {
         const ParamDef* d = findParam(s.id);
@@ -190,6 +191,9 @@ int main() {
                                                          "filmBlurChromatic", "filmBlurSeed"}},
         // v1.2 camera emulation: ON by default (part of the v1.2 default look), not part of looks
         {"cameraEmulationEnable", "groupCameraEmulation", true, false, {"cameraEmulation", "cameraEmulationStrength"}},
+        // v1.3 ALEXA Rendering: the stage's A/B switch (on, only acts in that stage) and ALEXA Colour (off, look)
+        {"alexaDisplayEnable", "groupAlexaRendering", true, false, {}},
+        {"alexaColourEnable", "groupAlexaRendering", false, true, {"alexaColour"}},
     };
     auto position = [&](const std::string& pid) {
         for (size_t i = 0; i < defs.size(); ++i)
@@ -226,6 +230,7 @@ int main() {
     check(count("negStock") == 22, "SPEC §4.6: 22 negative stocks (v1.3: 11 designed + 11 data-sheet / style)");
     check(count("printStock") == 9, "SPEC §4.6: 9 print stocks (6 designed + 3 data-sheet)");
     check(count("cameraEmulation") == int(core::CameraEmulation::Count) - 1, "cameraEmulation options != CameraEmulation::Count - 1");
+    check(count("pipelineStage") == int(StageChoice::Count), "pipelineStage options != StageChoice::Count");
 
     // every group of SPEC §7 exists
     for (const char* g : {"groupLook", "groupInput", "groupCameraEmulation", "groupNegative", "groupPrint", "groupHalation", "groupBloom",

@@ -113,9 +113,11 @@ std::vector<ParamDef> build() {
              "the colour untouched. Use it after your own grade or after another film look.",
              false);
     {   // v1.3 WP-1: modular pipeline
-        std::vector<std::string> stages = core::stageNames();
+        const std::vector<std::string> core = core::stageNames();   // Full .. Print Only, then ALEXA Rec.709
+        std::vector<std::string> stages(core.begin(), core.begin() + int(core::Stage::AlexaRec709));
         stages.push_back("Texture Only");
         stages.push_back("Negative Only (clean)");
+        stages.push_back(core[size_t(core::Stage::AlexaRec709)]);   // appended in v1.3 (StageChoice::AlexaRec709)
         b.choice(id::pipelineStage, "Pipeline Stage", stages, 0,
                  "Where the film chain stops (or starts), so one node can do one job and you can build the chain "
                  "from several nodes or finish with your own display transform (OpenDRT, 2499 DRT, ARRI REVEAL, "
@@ -128,11 +130,15 @@ std::vector<ParamDef> build() {
                  "colour, curve shape, halation and grain kept, print and display left out), encoded in Scene "
                  "Encoding (Output group). Put your own DRT after the node.\n"
                  "Print Only: the input is a Log Scan from this plug-in (or any Cineon printing-density scan); "
-                 "prints it on the Print Stock and renders the display. Camera Log and Camera Emulation are not "
+                 "prints it on the Print Stock and renders the display. Camera Log and Sensor Match are not "
                  "used.\n"
                  "Texture Only: same as Mode = Texture Only.\n"
                  "Negative Only (clean): Negative -> Scene without any texture (no halation, bloom, grain, "
                  "acutance, weave, vignette, damage) - the node that only flips the negative stock.\n"
+                 "ALEXA Rec.709: no film - the camera rendered the way the ALEXA's classic LogC3 -> Rec.709 look "
+                 "renders it (our own fitted model, see ALEXA Rendering). Textures (grain, halation, bloom, "
+                 "damage...) still apply. Rec.709 Gamma 2.4 is the reference display; other outputs get the same "
+                 "rendering re-encoded (HDR: the SDR rendering placed with grey at 15 nits).\n"
                  "Grain, halation and damage always act in the film domain of the stage: in the negative for the "
                  "negative exits, on the scanned negative's density for Print Only. Reversal (slide) stocks have "
                  "no negative stage and always render the full chain.",
@@ -167,14 +173,17 @@ std::vector<ParamDef> build() {
           false);
 
     // ---------------------------------------------------------------- [Camera Emulation] (v1.2)
-    b.beginGroup(id::gCameraEmulation, "Camera Emulation", true,
-                 "Makes the footage look as if it had been shot on another camera, before it reaches the film.");
-    b.boolean(id::cameraEmulationEnable, "Enable Camera Emulation", true,
-              "Switches the camera emulation on or off without losing its settings. Off = the camera's own colour "
+    // v1.3: shown as "Sensor Match" (IDs unchanged); the ALEXA look itself is the ALEXA Rendering group
+    b.beginGroup(id::gCameraEmulation, "Sensor Match", true,
+                 "The subtle, sensor-level part of looking like another camera: what that camera's sensor would "
+                 "have recorded of the same scene, before any look or rendering. It does not add the camera's "
+                 "display look (for the ALEXA look see ALEXA Rendering).");
+    b.boolean(id::cameraEmulationEnable, "Enable Sensor Match", true,
+              "Switches the sensor match on or off without losing its settings. Off = the camera's own colour "
               "as decoded from its log encoding. It only acts on footage of the source camera (Fujifilm F-Log2 C / "
               "F-Log2 / F-Log input); other cameras pass through unchanged.",
               false);
-    b.choice(id::cameraEmulation, "Emulation", {"Fujifilm X-H2S -> ARRI ALEXA / AMIRA"}, 0,
+    b.choice(id::cameraEmulation, "Sensor", {"Fujifilm X-H2S -> ARRI ALEXA / AMIRA"}, 0,
              "Fujifilm X-H2S -> ARRI ALEXA / AMIRA: renders the colours the ALEXA's ALEV III sensor would have "
              "recorded of the same scene. Fitted from measured spectral responsivities (ARRI ALEXA; Fujifilm X-Trans "
              "X-T4 as the X-H2S proxy) over about 950 natural and test reflectances under daylight, tungsten, LED and "
@@ -183,7 +192,27 @@ std::vector<ParamDef> build() {
              "two sensors see identically stay identical (sensor metamerism a 3-channel correction cannot undo).",
              false);
     b.dbl(id::cameraEmulationStrength, "Strength", 1.0, 0.0, 1.0, 0.01, 2,
-          "Blend between the camera's own colour (0) and the full emulation (1).", false);
+          "Blend between the camera's own colour (0) and the full sensor match (1).", false);
+
+    // ---------------------------------------------------------------- [ALEXA Rendering] (v1.3)
+    b.beginGroup(id::gAlexaRendering, "ALEXA Rendering", true,
+                 "Our own parametric model of the ALEXA's classic LogC3 -> Rec.709 rendering (tone curve, "
+                 "hue- and brightness-dependent saturation and hue, skin), fitted to ARRI's published look. Two "
+                 "uses: Pipeline Stage = ALEXA Rec.709 renders the camera that way instead of a film print; ALEXA "
+                 "Colour brings only its colour into the film chain.");
+    b.boolean(id::alexaDisplayEnable, "Enable ALEXA Rec.709", true,
+              "Only matters when Pipeline Stage = ALEXA Rec.709. Off = that node renders the Full Chain instead "
+              "(quick A/B between the ALEXA rendering and the film look).",
+              false);
+    b.boolean(id::alexaColourEnable, "Enable ALEXA Colour", false,
+              "Switches ALEXA Colour on or off without losing its value. Off = the film sees the camera's colour "
+              "unchanged.",
+              true);
+    b.dbl(id::alexaColour, "ALEXA Colour", 1.0, 0.0, 1.0, 0.01, 2,
+          "How much of the ALEXA rendering's colour (its hue shifts and saturation per hue, skin) the scene "
+          "gets before the negative. Applied in scene light at grey brightness, so it leaves greys and exposure "
+          "untouched and the film still does the tone and the print look. 0 = none, 1 = the full ALEXA colour.",
+          true);
 
     // ---------------------------------------------------------------- [Tone] (v1.3)
     b.beginGroup(id::gTone, "Tone", true,
