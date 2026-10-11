@@ -34,7 +34,7 @@ RefBackend makeProductionRef() {
     });
 }
 
-enum class PlanKind { Frame, TextureScene, TextureDisplay, TextureDisplayHdr, GrainOnly, DamageOnly };
+enum class PlanKind { Frame, TextureScene, TextureDisplay, TextureDisplayHdr, GrainOnly, DamageOnly, SinglePass };
 enum class Scene { Natural, Torture, Display };
 
 struct Case {
@@ -42,6 +42,7 @@ struct Case {
     engine::FrameSettings fs;
     int w, h;
     PlanKind kind = PlanKind::Frame;
+    engine::KernelId single = engine::KernelId(0);   // PlanKind::SinglePass: SRC -> kernel -> DST
     Scene scene = Scene::Natural;
 };
 
@@ -204,6 +205,10 @@ std::vector<Case> makeCases(bool all) {
     add("torture, film damage + blur", [](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h); c.scene = Scene::Torture; });
     add("damage plan", [](Case& c) { filmDamage(c.fs, c.w, c.h, false); c.kind = PlanKind::DamageOnly; });
     add("damage plan, nothing to draw", [](Case& c) { c.kind = PlanKind::DamageOnly; });
+    // v1.2: kernels the production plans now run fused (kept for the append-only kernel list and
+    // as the reference of the fused variants) - exercised as single-pass plans
+    add("single pass tx_acut_luma", [](Case& c) { c.kind = PlanKind::SinglePass; c.single = engine::KID_tx_acut_luma; });
+    add("single pass tx_hb_prefilter", [](Case& c) { c.kind = PlanKind::SinglePass; c.single = engine::KID_tx_hb_prefilter; });
     // ---- input spaces (Color Only and Full)
     for (int i = 0; i < int(core::InputSpace::Count); ++i)
         add("input " + core::inputSpaceNames()[size_t(i)], [i](Case& c) {
@@ -277,6 +282,17 @@ engine::Plan planFor(const Case& c, const core::Pipeline& pipe) {
         case PlanKind::TextureDisplayHdr: return tex::buildTexturePlan(c.w, c.h, c.fs.tex, true, true);
         case PlanKind::GrainOnly: return tex::buildGrainPlan(c.w, c.h, c.fs.tex);
         case PlanKind::DamageOnly: return tex::buildDamagePlan(c.w, c.h, c.fs.tex);
+        case PlanKind::SinglePass: {
+            engine::Plan p;
+            p.buffers = {{c.w, c.h}, {c.w, c.h}};
+            engine::PassDesc d{};
+            d.kernel = c.single; d.out = engine::BUF_DST; d.in[0] = engine::BUF_SRC;
+            if (c.single == engine::KID_tx_acut_luma) d.args.f[0] = 1e-3f;
+            else { d.args.f[0] = 0.f; d.args.f[1] = 0.f; d.args.f[2] = 92.f; d.args.f[3] = 8.f;
+                   d.args.f[4] = 0.85f; d.args.f[5] = 0.15f; d.args.f[6] = 0.f; }
+            p.passes.push_back(d);
+            return p;
+        }
         case PlanKind::Frame: break;
     }
     return engine::buildPlan(c.w, c.h, c.fs, pipe);

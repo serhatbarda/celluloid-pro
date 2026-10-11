@@ -44,9 +44,10 @@ inline Img textured(const Img& src, const cel::tex::TextureParams& tp, bool dr =
     runPlan(cel::tex::buildTexturePlan(src.w, src.h, tp, dr, hdr), s, d);
     return d;
 }
-inline Img grainField(int w, int h, const cel::tex::TextureParams& tp) {
+// grain v2 density fluctuation (units: grain sigma) at a layer exposure of `stops` around 18 % grey
+inline Img grainField(int w, int h, const cel::tex::TextureParams& tp, float stops = 0.f) {
     Img s(w, h), d(w, h);
-    runPlan(cel::tex::buildGrainPlan(w, h, tp), s, d);
+    runPlan(cel::tex::buildGrainPlan(w, h, tp, stops), s, d);
     return d;
 }
 

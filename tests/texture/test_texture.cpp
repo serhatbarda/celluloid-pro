@@ -116,6 +116,9 @@ Img testScene(int W, int H) {
 // ------------------------------------------------------------------------------------------------
 void testGrainStatistics() {
     section("grain: normalisation, layer correlation, distribution");
+    // v1.2 grain v2: the field is the density fluctuation of the dye clouds in units of the grain
+    // sigma; at 18 % grey its std is kGrainGain (the model is normalised there), see grainModelStd
+    const double gv = cel::tex::kGrainGain * cel::tex::kGrainGain;
     const int W = g_quick ? 1536 : 3072, H = g_quick ? 1536 : 3072;   // big canvas at pixelScale 1
     const float softs[3] = {0.f, 0.5f, 1.f};
     for (GrainFormat f : kFormats)
@@ -131,7 +134,7 @@ void testGrainStatistics() {
                         cel::tex::grainFormatName(f), s, mean[0], mean[1], mean[2], var[0], var[1], var[2], corr[0], corr[1], corr[2]);
             for (int c = 0; c < 3; ++c) {
                 CHECK(std::fabs(mean[c]) < 0.02, "%s soft %.1f mean[%d] = %f", cel::tex::grainFormatName(f), s, c, mean[c]);
-                CHECK(std::fabs(var[c] - 1.0) < 0.02, "%s soft %.1f var[%d] = %f", cel::tex::grainFormatName(f), s, c, var[c]);
+                CHECK(std::fabs(var[c] / gv - 1.0) < 0.02, "%s soft %.1f var[%d] = %f", cel::tex::grainFormatName(f), s, c, var[c]);
                 CHECK(std::fabs(corr[c] - 0.95) < 0.05, "%s soft %.1f corr[%d] = %f", cel::tex::grainFormatName(f), s, c, corr[c]);
             }
         }
@@ -142,18 +145,48 @@ void testGrainStatistics() {
         Img g = grainField(1024, 1024, tp);
         Moments m = moments(g);
         CHECK(m.corr[0] > 0.9999 && m.corr[1] > 0.9999, "mono correlation %f %f", m.corr[0], m.corr[1]);
-        CHECK(std::fabs(m.var[1] - 1.0) < 0.03, "mono var %f", m.var[1]);
+        CHECK(std::fabs(m.var[1] / gv - 1.0) < 0.03, "mono var %f", m.var[1]);
     }
-    // non-Gaussian (clumpy) distribution: positive excess kurtosis, mild positive skew at softness 0
+    // non-Gaussian (clumpy) distribution that follows the development: sparse clouds in the shadows
+    // (positive skew: few dense clumps on clear base), the fast emulsion near saturation at grey
+    // (holes: skew slightly negative), heavy tails
     {
-        Img g = grainField(2048, 2048, grainParams(GrainFormat::Super35, 0.f, 5));
-        double m2 = 0, m3 = 0, m4 = 0; size_t n = size_t(g.w) * g.h;
-        for (size_t i = 0; i < n; ++i) { double v = g.px[i * 4 + 1]; m2 += v * v; m3 += v * v * v; m4 += v * v * v * v; }
-        m2 /= n; m3 /= n; m4 /= n;
-        double skew = m3 / std::pow(m2, 1.5), kurt = m4 / (m2 * m2);
-        std::printf("  distribution (S35, soft 0): skew %.3f kurtosis %.3f\n", skew, kurt);
-        CHECK(kurt > 3.5 && kurt < 7.0, "kurtosis %f", kurt);
-        CHECK(skew > 0.2 && skew < 1.2, "skew %f", skew);
+        auto dist = [&](float stops, double& skew, double& kurt, double& sd) {
+            Img g = grainField(2048, 2048, grainParams(GrainFormat::Super35, 0.f, 5), stops);
+            double m1 = 0, m2 = 0, m3 = 0, m4 = 0; size_t n = size_t(g.w) * g.h;
+            for (size_t i = 0; i < n; ++i) m1 += g.px[i * 4 + 1];
+            m1 /= n;
+            for (size_t i = 0; i < n; ++i) { double v = g.px[i * 4 + 1] - m1; m2 += v * v; m3 += v * v * v; m4 += v * v * v * v; }
+            m2 /= n; m3 /= n; m4 /= n;
+            skew = m3 / std::pow(m2, 1.5); kurt = m4 / (m2 * m2); sd = std::sqrt(m2);
+        };
+        double sk0, ku0, sd0, skS, kuS, sdS;
+        dist(0.f, sk0, ku0, sd0);
+        dist(-3.f, skS, kuS, sdS);
+        std::printf("  distribution (S35, soft 0): grey skew %.3f kurtosis %.3f; -3 stops skew %.3f kurtosis %.3f\n", sk0, ku0, skS, kuS);
+        CHECK(ku0 > 3.2 && ku0 < 7.0, "kurtosis %f", ku0);
+        CHECK(sk0 > -0.4 && sk0 < 0.4, "grey skew %f", sk0);
+        CHECK(skS > sk0 + 0.1 && skS > 0.0, "shadow grain must be skewed towards dense clumps: %f (grey %f)", skS, sk0);
+    }
+    // exposure coupling (Kodak VISION3 granularity shape): the field std follows the analytic model,
+    // lower in deep shadows and highlights than in the mid-tones
+    {
+        const float st[6] = {-5.f, -3.f, -1.f, 0.f, 2.f, 4.f};
+        double sd[6];
+        const TextureParams tp = grainParams(GrainFormat::Super35, 0.5f, 6);
+        const double w = 0.45 + 0.40 * 0.5;
+        std::printf("  std by exposure (stops: measured / model):");
+        for (int i = 0; i < 6; ++i) {
+            Moments m = moments(grainField(1536, 1536, tp, st[i]));
+            sd[i] = std::sqrt(m.var[1]);
+            const double model = cel::tex::grainModelStd(st[i] * 1.0, w);
+            std::printf(" %+.0f: %.3f/%.3f", st[i], sd[i], model);
+            CHECK(std::fabs(sd[i] / model - 1.0) < 0.05, "grain std at %+.0f stops %f vs model %f", st[i], sd[i], model);
+            CHECK(std::fabs(m.mean[1]) < 0.03, "grain mean at %+.0f stops %f", st[i], m.mean[1]);
+        }
+        std::printf("\n");
+        const double mid = std::max(sd[2], sd[3]);   // the peak sits about a stop under grey
+        CHECK(sd[0] < 0.5 * mid && sd[5] < 0.75 * mid, "grain must be strongest in the mid-tones");
     }
     // blue layer coarsest
     {
@@ -210,19 +243,22 @@ void testGrainResolution() {
     section("grain: resolution independence (autocorrelation width ~ pixelScale)");
     const GrainFormat fs[3] = {GrainFormat::Super8, GrainFormat::Mm16, GrainFormat::Super35};
     for (GrainFormat f : fs) {
-        Img g1 = grainField(1024, 1024, grainParams(f, 0.5f, 3, 1.f));
-        Img g2 = grainField(2048, 2048, grainParams(f, 0.5f, 3, 2.f));
+        // v1.2: the grain is finer than v1.1 (fine emulsion octave below a pixel at pixelScale 1, where
+        // the pixel grid limits the measured width), so the ratio is taken between pixelScale 2 and 4
+        Img g1 = grainField(1024, 1024, grainParams(f, 0.5f, 3, 2.f));
+        Img g2 = grainField(2048, 2048, grainParams(f, 0.5f, 3, 4.f));
         double h1 = halfWidth(g1, 1), h2 = halfWidth(g2, 1);
         double hb1 = halfWidth(g1, 2), hb2 = halfWidth(g2, 2);
-        std::printf("  %-12s half-width ps1 %.3f ps2 %.3f ratio %.3f (blue %.3f)\n", cel::tex::grainFormatName(f), h1, h2, h2 / h1, hb2 / hb1);
+        std::printf("  %-12s half-width ps2 %.3f ps4 %.3f ratio %.3f (blue %.3f)\n", cel::tex::grainFormatName(f), h1, h2, h2 / h1, hb2 / hb1);
         // at pixelScale 1 the finest formats are close to the pixel; allow a little more there
         double tol = f == GrainFormat::Super35 ? 0.12 : 0.06;
         CHECK(std::fabs(h2 / h1 - 2.0) < 2.0 * tol, "%s ratio %f", cel::tex::grainFormatName(f), h2 / h1);
         CHECK(std::fabs(hb2 / hb1 - 2.0) < 2.0 * tol, "%s blue ratio %f", cel::tex::grainFormatName(f), hb2 / hb1);
     }
-    // per-pixel variance stays 1 at any scale
+    // per-pixel variance is the same at any scale
     Moments m = moments(grainField(1500, 1500, grainParams(GrainFormat::Mm16, 0.5f, 3, 3.3f)));
-    CHECK(std::fabs(m.var[1] - 1.0) < 0.04, "variance at pixelScale 3.3: %f", m.var[1]);
+    const double gv = cel::tex::kGrainGain * cel::tex::kGrainGain;
+    CHECK(std::fabs(m.var[1] / gv - 1.0) < 0.04, "variance at pixelScale 3.3: %f", m.var[1]);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -636,26 +672,34 @@ void testPlans() {
     std::printf("%s", p.debugString().c_str());
     CHECK(planValid(p, &why), "Full plan invalid: %s", why.c_str());
     CHECK(seq.front() == "decode" && seq.back() == "watermark", "Full: decode first, watermark last");
-    for (const char* k : {"tx_weave", "tx_acut_luma", "tx_acut_apply", "tx_hb_prefilter", "tx_hb_composite", "tx_grain_gen", "tx_grain_finish", "color"})
+    for (const char* k : {"tx_weave", "tx_blur4", "tx_acut_apply", "tx_hb_prefilter_down", "tx_hb_composite", "color"})
         CHECK(has(seq, k), "Full plan lacks %s", k);
+    // v1.2 fusions: acutance luma inside the first blur, glow source inside the first pyramid level,
+    // grain finish inside the colour pass (grain white noise is fused into the first grain blur only
+    // for short kernels, see Plan.cpp kGrainFuseMaxRadius)
+    for (const char* k : {"tx_acut_luma", "tx_hb_prefilter", "tx_grain_finish"})
+        CHECK(!has(seq, k), "Full plan must not run the unfused %s", k);
     CHECK(!has(seq, "tx_vignette"), "vignette must be fused into the composite");
     {
         auto it = std::find(seq.begin(), seq.end(), "color");
         const auto& cp = p.passes[size_t(it - seq.begin())];
-        CHECK(cp.in[1] >= 2 && cp.args.i[0] == 1 && cp.in[2] == eng::BUF_SRC && cp.out >= 2, "color pass wiring");
+        // grain v2: in1 = coarse grid, in2 = fine grid (alpha comes from in0: no SRC read)
+        CHECK(cp.in[1] >= 2 && cp.in[2] >= 2 && cp.args.i[0] == 2 && cp.out >= 2, "color pass wiring");
         // order: weave < acutance < glow < color
         auto pos = [&](const char* k) { return std::find(seq.begin(), seq.end(), k) - seq.begin(); };
-        CHECK(pos("tx_weave") < pos("tx_acut_luma") && pos("tx_acut_apply") < pos("tx_hb_prefilter") && pos("tx_hb_composite") < pos("color"), "texture pass order");
+        CHECK(pos("tx_weave") < pos("tx_acut_apply") && pos("tx_acut_apply") < pos("tx_hb_prefilter_down") && pos("tx_hb_composite") < pos("color"), "texture pass order");
     }
     size_t memFull = 0;
     for (size_t i = 2; i < p.buffers.size(); ++i) memFull += size_t(p.buffers[i].w) * p.buffers[i].h * 16;
     std::printf("  Full plan: %zu passes, %zu buffers, %.1f MiB internal at 1080p\n", p.passes.size(), p.buffers.size(), memFull / 1048576.0);
-    CHECK(memFull < size_t(7) * 1920 * 1080 * 16, "buffer reuse keeps memory bounded (%zu)", memFull);
+    // v1.2: + one full-res grid for the second (fine) emulsion octave of the grain (7.2 frames)
+    CHECK(memFull < size_t(15) * 1920 * 1080 * 16 / 2, "buffer reuse keeps memory bounded (%zu)", memFull);
     // grain off when amount is 0, no watermark
     fs.look.grainAmount = 0.f; fs.watermark = false;
     p = eng::buildPlan(1920, 1080, fs, pipe);
     seq = kernelSeq(p);
-    CHECK(!has(seq, "tx_grain_gen") && seq.back() == "color" && p.passes.back().args.i[0] == 0 && p.passes.back().in[1] == -1, "grain amount 0 -> no grain");
+    CHECK(!has(seq, "tx_grain_gen") && seq.back() == "color" && p.passes.back().args.i[0] == 0 && p.passes.back().in[1] == -1
+          && p.passes.back().in[2] == -1, "grain amount 0 -> no grain");
     // vignette alone -> stand-alone pass
     fs.tex = TextureParams{}; fs.tex.vignette = 0.3f;
     seq = kernelSeq(eng::buildPlan(1920, 1080, fs, pipe));
@@ -688,6 +732,157 @@ void testPlans() {
     // texture-only test plans
     p = cel::tex::buildTexturePlan(100, 50, TextureParams{}, false);
     CHECK(kernelSeq(p) == std::vector<std::string>{"tx_copy"} && planValid(p, &why), "empty texture plan = copy");
+}
+
+// ------------------------------------------------------------------------------------------------
+// v1.2 texture: physical halation, film resolution, gauge ladder, pass fusions
+void testV12Texture() {
+    section("v1.2: physical halation, film resolution, gauge, fusions");
+    namespace tx = cel::tex;
+    // ---- physical (threshold-free) halation: threshold <= 0
+    {
+        const int W = 480, H = 270;
+        auto spot = [&](float v, int r) {
+            Img im(W, H, 0.01f, 0.01f, 0.01f);
+            for (int y = 135 - r; y < 135 + r; ++y) for (int x = 240 - r; x < 240 + r; ++x) { float* p = im.at(x, y); p[0] = p[1] = p[2] = v; }
+            return im;
+        };
+        auto added = [&](const Img& in, const Img& out, int c) {
+            double s = 0;
+            for (size_t i = 0; i < in.px.size(); i += 4) s += out.px[i + size_t(c)] - in.px[i + size_t(c)];
+            return s;
+        };
+        TextureParams tp; tp.pixelScale = 0.25f; tp.halationAmount = 0.5f; tp.halationThreshold = 0.f;
+        // uniform fields (any level) are untouched: halation only redistributes light around contrasts
+        for (float v : {0.02f, 0.18f, 3.f}) {
+            Img flat(W, H, v, v, v);
+            Img o = textured(flat, tp);
+            double dev = 0;
+            for (size_t i = 0; i < o.px.size(); i += 4) dev = std::max(dev, double(std::fabs(o.px[i] - v)) / v);
+            CHECK(dev < 1e-4, "physical halation shifts a uniform field %.2f by %g", v, dev);
+        }
+        // threshold-free and linear in the light (below the +9 stop compressor)
+        Img a1 = spot(0.5f, 12), a2 = spot(1.01f, 12);
+        double e1 = added(a1, textured(a1, tp), 0), e2 = added(a2, textured(a2, tp), 0);
+        std::printf("  physical halation: added red for a 0.5 / 1.0 spot %.4f / %.4f (ratio %.4f)\n", e1, e2, e2 / e1);
+        CHECK(e1 > 0.0, "physical halation must not have a threshold (%g)", e1);
+        CHECK(std::fabs(e2 / e1 - 2.0) < 0.06, "physical halation must be linear in the light: %f", e2 / e1);
+        // the added light is warm: R >> G, no blue (hue 0), never magenta
+        Img s = spot(20.f, 3), so = textured(s, tp);
+        double eg = added(s, so, 1) / added(s, so, 0), eb = added(s, so, 2) / added(s, so, 0);
+        std::printf("  physical halation added G/R %.3f B/R %.3f\n", eg, eb);
+        CHECK(std::fabs(eg - 0.25) < 0.01 && std::fabs(eb) < 1e-6, "physical halation tint G/R %f B/R %f", eg, eb);
+        // annular: around a point-like source the added light peaks away from it (a ring of about
+        // the halation radius: light reflected at the base comes back at a distance)
+        {
+            TextureParams tr = tp; tr.pixelScale = 1.f;
+            const double R = 20.0;   // px at pixelScale 1 (Super 35: gauge scale 1)
+            Img pt = spot(500.f, 1), po = textured(pt, tr);
+            int peak = 0; double best = -1;
+            for (int d = 1; d < 80; ++d) {
+                double v = po.at(240 + d, 135)[0] - 0.01;
+                if (v > best) { best = v; peak = d; }
+            }
+            std::printf("  physical halation ring: peak %d px from a point source (radius %.0f px)\n", peak, R);
+            CHECK(peak >= int(0.3 * R) && peak <= int(1.2 * R), "halation ring peak at %d px", peak);
+        }
+        // radius grows with smaller gauges (fixed distance on the film)
+        CHECK(tx::gaugeRadiusScale(GrainFormat::Mm16) > 1.3 && tx::gaugeRadiusScale(GrainFormat::Mm16) < 1.5
+              && std::fabs(tx::gaugeRadiusScale(GrainFormat::Super35) - 1.0) < 1e-12
+              && tx::gaugeRadiusScale(GrainFormat::Mm65) < 0.75 && tx::gaugeRadiusScale(GrainFormat::Super8) > 2.0, "gauge radius scale");
+    }
+    // ---- film resolution: negative MTF (per channel, gauge dependent) + Integrate
+    {
+        const int W = 512, H = 256;
+        Img chk(W, H);
+        for (int y = 0; y < H; ++y) for (int x = 0; x < W; ++x) {
+            float v = ((x / 2 + y / 2) & 1) ? 0.4f : 0.1f;
+            float* p = chk.at(x, y); p[0] = p[1] = p[2] = v; p[3] = 0.25f + 0.5f * float(x % 3);
+        }
+        auto contrast = [&](const Img& o, int c) {
+            double lo = 1e9, hi = -1e9;
+            for (int y = 100; y < 140; ++y) for (int x = 200; x < 300; ++x) { lo = std::min(lo, double(o.at(x, y)[c])); hi = std::max(hi, double(o.at(x, y)[c])); }
+            return hi - lo;
+        };
+        TextureParams off; off.pixelScale = 1.f;
+        TextureParams neg = off; neg.filmResolution = true;
+        TextureParams integ = neg; integ.integrate = 1.f;
+        TextureParams s16 = neg; s16.grainFormat = GrainFormat::Mm16;
+        Img o0 = textured(chk, off), o1 = textured(chk, neg), o2 = textured(chk, integ), o3 = textured(chk, s16);
+        double c0 = contrast(o0, 1), c1 = contrast(o1, 1), c2 = contrast(o2, 1), c3 = contrast(o3, 1);
+        double r1 = contrast(o1, 0), b1 = contrast(o1, 2);
+        std::printf("  2px checker contrast: off %.4f, negative MTF %.4f (R %.4f B %.4f), + integrate 1 %.4f, 16 mm %.4f\n", c0, c1, r1, b1, c2, c3);
+        CHECK(std::fabs(c0 - 0.3) < 1e-6, "film resolution off must be identity (%f)", c0);
+        CHECK(c1 < c0 && c2 < c1 && c3 < c1, "film resolution ordering: %f %f %f %f", c0, c1, c2, c3);
+        CHECK(r1 < c1 && c1 < b1, "red layer (deepest) softest, blue sharpest: %f %f %f", r1, c1, b1);
+        bool alphaKept = true;
+        for (size_t i = 3; i < o2.px.size(); i += 4) alphaKept = alphaKept && o2.px[i] == chk.px[i];
+        CHECK(alphaKept, "film resolution must keep alpha exactly");
+        // flat stays flat
+        Img flat(W, H, 0.18f, 0.18f, 0.18f);
+        Img fo = textured(flat, integ);
+        double dev = 0;
+        for (size_t i = 0; i < fo.px.size(); i += 4) dev = std::max(dev, double(std::fabs(fo.px[i + 1] - 0.18f)));
+        CHECK(dev < 1e-6, "film resolution changes a flat field by %g", dev);
+        // Integrate also softens the grain (but less than the image)
+        TextureParams g0 = grainParams(GrainFormat::Super35, 0.5f, 3), g1 = g0;
+        g0.filmResolution = g1.filmResolution = true; g1.integrate = 1.f;
+        double a0 = autocorr(grainField(768, 768, g0), 1, 1), a1 = autocorr(grainField(768, 768, g1), 1, 1);
+        Moments m0 = moments(grainField(768, 768, g0)), m1 = moments(grainField(768, 768, g1));
+        std::printf("  grain lag-1 autocorrelation integrate 0 %.3f, 1 %.3f; var %.3f -> %.3f\n", a0, a1, m0.var[1], m1.var[1]);
+        CHECK(a1 > a0 + 0.02 && m1.var[1] < m0.var[1], "integrate must soften the grain");
+    }
+    // ---- gauge ladder (owner power grades): grain amplitude 16 : 35 : 65 = 1.7 : 1 : 0.67, size 1.25 : 1 : 0.5
+    {
+        const double a16 = tx::grainFormatAmplitude(GrainFormat::Mm16) / tx::grainFormatAmplitude(GrainFormat::Super35);
+        const double a65 = tx::grainFormatAmplitude(GrainFormat::Mm65) / tx::grainFormatAmplitude(GrainFormat::Super35);
+        const double s16 = tx::grainFormatSigma(GrainFormat::Mm16) / tx::grainFormatSigma(GrainFormat::Super35);
+        const double s65 = tx::grainFormatSigma(GrainFormat::Mm65) / tx::grainFormatSigma(GrainFormat::Super35);
+        std::printf("  gauge ladder: amplitude 16/35 %.3f 65/35 %.3f, size 16/35 %.3f 65/35 %.3f\n", a16, a65, s16, s65);
+        CHECK(std::fabs(a16 - 1.7) < 0.01 && std::fabs(a65 - 0.67) < 0.01, "gauge amplitude ladder %f %f", a16, a65);
+        CHECK(std::fabs(s16 - 1.25) < 0.01 && std::fabs(s65 - 0.5) < 0.01, "gauge size ladder %f %f", s16, s65);
+        CHECK(tx::grainFormatAmplitude(GrainFormat::Super8) > tx::grainFormatAmplitude(GrainFormat::Mm16)
+              && tx::grainFormatSigma(GrainFormat::Super8) > tx::grainFormatSigma(GrainFormat::Mm16), "Super 8 above 16 mm");
+    }
+    // ---- fusions are exact: tx_hb_prefilter_down == tx_hb_prefilter -> tx_pyr_down
+    {
+        const int W = 97, H = 61;
+        Img src = testScene(W, H);
+        auto plan = [&](bool fused) {
+            eng::Plan p;
+            p.buffers = {{W, H}, {(W + 1) / 2, (H + 1) / 2}};
+            eng::PassDesc d{};
+            d.args.f[0] = 0.f; d.args.f[1] = 0.f; d.args.f[2] = 92.f; d.args.f[3] = 8.f;
+            d.args.f[4] = 0.85f; d.args.f[5] = 0.15f; d.args.f[6] = 0.f;
+            d.in[0] = eng::BUF_SRC;
+            if (fused) {
+                d.kernel = eng::KID_tx_hb_prefilter_down; d.out = eng::BUF_DST;
+                p.passes.push_back(d);
+            } else {
+                p.buffers.push_back({W, H});
+                d.kernel = eng::KID_tx_hb_prefilter; d.out = 2;
+                p.passes.push_back(d);
+                eng::PassDesc q{};
+                q.kernel = eng::KID_tx_pyr_down; q.out = eng::BUF_DST; q.in[0] = 2;
+                p.passes.push_back(q);
+            }
+            for (auto& ps : p.passes) {   // sizes (as the plan builder fills them)
+                const auto& ob = p.buffers[size_t(ps.out)];
+                ps.args.outW = ob.w; ps.args.outH = ob.h; ps.args.outStride = ob.w * 4;
+                const auto& ib = p.buffers[size_t(ps.in[0])];
+                ps.args.inW[0] = ib.w; ps.args.inH[0] = ib.h; ps.args.inStride[0] = ib.w * 4;
+            }
+            return p;
+        };
+        Img da((W + 1) / 2, (H + 1) / 2), db((W + 1) / 2, (H + 1) / 2);
+        Img s1 = src, s2 = src;
+        runPlan(plan(true), s1, da);
+        runPlan(plan(false), s2, db);
+        double worst = 0;
+        for (size_t i = 0; i < da.px.size(); ++i) worst = std::max(worst, double(std::fabs(da.px[i] - db.px[i])) / std::max(1.0, double(std::fabs(db.px[i]))));
+        std::printf("  tx_hb_prefilter_down vs prefilter -> pyr_down: max rel diff %.3g\n", worst);
+        CHECK(worst < 1e-5, "fused glow prefilter differs: %g", worst);
+    }
 }
 
 void testPool() {
@@ -1125,6 +1320,7 @@ int main(int argc, char** argv) {
     testRobustness();
     testFilmDamage();
     testFilmBlur();
+    testV12Texture();
     testPool();
     if (timing) testTimings();
     std::printf("\n%d checks, %d failures (%.1f s)\n", g_checks, g_fail, (nowMs() - t0) / 1000.0);

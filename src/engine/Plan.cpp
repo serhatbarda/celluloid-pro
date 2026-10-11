@@ -383,18 +383,31 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
 }
 
 // one emulsion's band-limited sensitivity field: white noise generated inside the horizontal blur
-int addGrainOctave(Builder& B, const tex::GrainOctave& o, int h) {
+// Grain white noise is generated inside the horizontal blur (tx_blur4 i[3]) only for short kernels:
+// each output texel hashes 2R + 1 noise texels, so for wide kernels a tx_grain_gen pass (one hash set
+// per texel, one extra write + read) is cheaper on both the CPU and Apple-class GPUs.
+constexpr int kGrainFuseMaxRadius = 2;
+
+// gw / gh: the grid buffer size (>= o.gw x o.gh; the extra right / bottom texels are never read)
+int addGrainOctave(Builder& B, const tex::GrainOctave& o, int h, int gw, int gh) {
     int b;
-    if (maxRadius(o.g) == 0) {
-        b = B.buffer(o.gw, o.gh);
+    const int R = maxRadius(o.g);
+    if (R == 0) {
+        b = B.buffer(gw, gh);
         B.pass(KID_tx_grain_gen, b, {}).args.i[0] = bitsToInt(o.seed);
     } else {
-        int t = B.buffer(o.gw, o.gh);
-        PassDesc& ph = B.pass(KID_tx_blur4, t, {});
-        setBlurWeights(ph, o.g, 0, false);
-        ph.args.i[3] = 1;
-        ph.args.i[4] = bitsToInt(o.seed);
-        b = B.buffer(o.gw, o.gh);
+        int t = B.buffer(gw, gh);
+        if (R <= kGrainFuseMaxRadius) {
+            PassDesc& ph = B.pass(KID_tx_blur4, t, {});
+            setBlurWeights(ph, o.g, 0, false);
+            ph.args.i[3] = 1;
+            ph.args.i[4] = bitsToInt(o.seed);
+        } else {
+            int n = B.buffer(gw, gh);
+            B.pass(KID_tx_grain_gen, n, {}).args.i[0] = bitsToInt(o.seed);
+            setBlurWeights(B.pass(KID_tx_blur4, t, {n}), o.g, 0, false);
+        }
+        b = B.buffer(gw, gh);
         setBlurWeights(B.pass(KID_tx_blur4, b, {t}), o.g, 1, false);
     }
     if (o.spacing > 1.0) b = addUpV(B, b, h, 1.0 / o.spacing, double(o.margin));
@@ -405,8 +418,13 @@ struct GrainGrids { int coarse = -1, fine = -1; tex::GrainDesign d; };
 GrainGrids addGrain(Builder& B, const tex::TextureParams& tp, int w, int h, float ps) {
     GrainGrids g;
     g.d = tex::designGrain(tp, w, h, ps);
-    g.coarse = addGrainOctave(B, g.d.coarse, h);
-    g.fine = addGrainOctave(B, g.d.fine, h);
+    const tex::GrainOctave &c = g.d.coarse, &f = g.d.fine;
+    // full-res grids of both octaves get one size, so the fine octave reuses the coarse octave's
+    // horizontal-pass buffer (bounded memory)
+    const bool same = c.spacing <= 1.0 && f.spacing <= 1.0;
+    const int gw = std::max(c.gw, f.gw), gh = std::max(c.gh, f.gh);
+    g.coarse = addGrainOctave(B, c, h, same ? gw : c.gw, same ? gh : c.gh);
+    g.fine = addGrainOctave(B, f, h, same ? gw : f.gw, same ? gh : f.gh);
     return g;
 }
 void setGrainArgs(PassDesc& p, const tex::GrainDesign& d) {
