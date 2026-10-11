@@ -183,20 +183,34 @@ struct Grey {
 // Print Crossover (v1.2, SPEC 4.4): the classic print crossover - slightly different contrast of the print's
 // layers around the middle of the scale (the trait of the owner's 2383 references: warm highlights, cool
 // shadows). Each layer's density table is scaled about the mid density Dm:
-//   D'(u) = Dm + (D(u) - Dm) (1 + c a_j kPrintXoverGamma),  a = (+1, 0, -1) for the R- (cyan), G-, B- (yellow) layer,
-// clamped to the layer's own fog .. D-max. c > 0: less cyan / more yellow below Dm (scene highlights, warm),
-// more cyan / less yellow above it (shadows, cool). Every layer stays monotonic; the grey balance solved
-// afterwards keeps 18 % grey neutral. c = 0 leaves the table untouched (bit-identical).
+//   g_j = 1 + c a_j kPrintXoverGamma,  a = (+1, 0, -1) for the R- (cyan), G-, B- (yellow) layer,
+//   x = (D - Dm) / (E - Dm) in [0, 1] toward the layer's end E (fog below Dm, D-max above),
+//   D' = Dm + (E - Dm) g x / (1 + (g - 1) x)
+// i.e. slope g at the pivot, the layer's own fog and D-max kept, strictly monotonic for any g > 0. (v1.2 fix:
+// the first version scaled linearly and clamped at fog / D-max; the steeper layer then reached its fog stops
+// earlier than the others, and the display red of a warm grey ramp turned down by ~4e-5 near +5 stops.)
+// c > 0: less cyan / more yellow below Dm (scene highlights, warm), more cyan / less yellow above it (shadows,
+// cool); the effect fades out toward fog and D-max. The grey balance solved afterwards keeps 18 % grey neutral.
+// c = 0 leaves the table untouched (bit-identical).
 // == reference/model.py print_crossover
 static void printCrossover(float* pc, float c, bool mono) {
     if (mono) return;
     static const double a[3] = {1.0, 0.0, -1.0};
     for (int j = 0; j < 3; ++j) {
-        float* t = pc + size_t(j) * kNCurve;
-        const float lo = t[0], hi = t[kNCurve - 1];
         const double g = 1.0 + double(c) * a[j] * kPrintXoverGamma;
-        for (int i = 0; i < kNCurve; ++i)
-            t[i] = std::min(std::max(float(kPrintXoverDm + (double(t[i]) - kPrintXoverDm) * g), lo), hi);
+        if (g == 1.0) continue;
+        float* t = pc + size_t(j) * kNCurve;
+        const double lo = t[0], hi = t[kNCurve - 1], dm = kPrintXoverDm;
+        for (int i = 0; i < kNCurve; ++i) {
+            const double D = t[i];
+            const double end = D < dm ? lo : hi, span = dm - end;
+            double r = D;
+            if (D != dm && std::fabs(span) > 1e-9) {
+                const double x = (dm - D) / span;
+                r = dm - span * (g * x / (1.0 + (g - 1.0) * x));
+            }
+            t[i] = float(std::min(std::max(r, std::min(lo, hi)), std::max(lo, hi)));
+        }
     }
 }
 

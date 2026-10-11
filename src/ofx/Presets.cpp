@@ -256,7 +256,7 @@ const std::vector<LookPreset>& lookPresets() {
             {
                 {"negStock", "RV 100 Slide"},
                 {"pushPull", "1.5"},
-                {"interlayer", "1.6"},
+                {"interlayer", "1.9"},   // v1.2: 1.6 -> 1.9 (keeps it >= 2 dE2000 from Slide Show Brilliance under the v1.2 hue hold)
                 {"halationAmount", "0.8"},
                 {"halationRadius", "30"},
                 {"halationThreshold", "3.0"},

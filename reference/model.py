@@ -689,12 +689,23 @@ PRINT_XOVER_GAMMA, PRINT_XOVER_DM = 0.08, 1.0
 
 
 def print_crossover(pc, c):
-    """== Core.cpp printCrossover: D' = Dm + (D - Dm)(1 + c a_j k), a = (+1, 0, -1), clamped per layer"""
+    """== Core.cpp printCrossover: per-layer contrast g_j = 1 + c a_j k about Dm, a = (+1, 0, -1), with the
+    layer's fog and D-max kept (endpoint-preserving rational pivot, see Core.cpp)"""
     a = np.array([1.0, 0.0, -1.0])
     out = pc.copy()
     for j in range(3):
         g = 1.0 + float(c) * a[j] * PRINT_XOVER_GAMMA
-        out[j] = np.clip(f32(PRINT_XOVER_DM + (pc[j].astype(np.float64) - PRINT_XOVER_DM) * g), pc[j][0], pc[j][-1])
+        if g == 1.0:
+            continue
+        D = pc[j].astype(np.float64)
+        lo, hi, dm = float(D[0]), float(D[-1]), PRINT_XOVER_DM
+        r = D.copy()
+        for side, end in ((D < dm, lo), (D > dm, hi)):
+            span = dm - end
+            if abs(span) > 1e-9:
+                x = (dm - D[side]) / span
+                r[side] = dm - span * (g * x / (1.0 + (g - 1.0) * x))
+        out[j] = f32(np.clip(r, min(lo, hi), max(lo, hi)))
     return f32(out)
 
 
