@@ -64,6 +64,21 @@ unchanged in a newer one.
   **Warm Print** (Vision3 250D on 2383 with Print Crossover).
 - `tools/look/owner_footage.py`: regression suite on the owner's F-Log2 C shots (metrics, contact
   sheet, baseline check).
+- **Film grain, rebuilt.** Grain is now made of dye clouds developed from each colour layer's own
+  exposure: a fast (coarse) and a slow (fine) emulsion per layer, calibrated on the published
+  KODAK VISION3 granularity curves. Coarse, sparse clumps sit in the shadows, the grain peaks a stop
+  under grey and gets finer towards the highlights; the film curves shape it, so it lives inside the
+  picture instead of on top of it. Layers stay highly correlated (low chroma noise).
+- **Film Resolution** (new group, on by default): the camera negative's own sharpness for the chosen
+  gauge (per colour layer, from the VISION3 MTF curves) and **Integrate**, the print/scan resolution
+  that picture and grain share (default 0.5).
+- **Physical halation** (Halation Threshold 0, the new default): no threshold - light comes back from
+  the film base as a thin warm ring around bright edges, added to the film's exposure so the film
+  renders it (never magenta). A smooth highlight emphasis gives practicals and speculars their full
+  share while a bright overcast sky does not tint the dark window in front of it. Thresholds above 0
+  keep the v1.1 behaviour.
+- Grain follows the pixel's film area: a proxy (render scale 0.5) shows the grain of the downsampled
+  full-resolution frame; 1920 px is the calibration point.
 
 ### Changed
 
@@ -73,6 +88,15 @@ unchanged in a newer one.
 - Hue hold: half strength, no chroma boost, and only beyond one stop from grey: highlight colours
   now desaturate and shift like film and the references do (they were held colorimetric before).
   The designed stocks render slightly differently in strong highlights.
+- **Gauge.** Grain Format is now **Gauge** in the Look group (same parameter, same choices) and sets
+  the whole texture ladder: grain amplitude 16 mm : Super 35 : 65 mm = 1.7 : 1 : 0.67 and size
+  1.25 : 1 : 0.5 (Super 8 coarser still), the film resolution, and the halation and acutance radii
+  (a fixed distance on the film, so smaller gauges get larger rings).
+- Acutance default 0.3 -> 0.35 (adjacency effect at the gauge's radius). Presets use physical halation
+  (their thresholds are gone); Archive 1978 gate weave 0.5 -> 0.4 (≤ 0.3 px rms at 1920).
+- Faster texture passes: acutance luminance, glow prefilter, grain noise generation and grain finish
+  are fused into neighbouring passes, and the colour pass no longer re-reads the source for alpha.
+- Projects saved with 1.1 render with the new grain, halation and film resolution.
 
 - **Personal build by default.** Celluloid Pro is now built for the owner's personal, non-commercial
   use: no license check, no trial watermark, and LUT export is always available. The License group

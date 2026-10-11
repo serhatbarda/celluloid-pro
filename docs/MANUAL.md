@@ -275,6 +275,8 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Texture Only* — for footage that is ALREADY graded/display-referred in the selected Output space; adds only the photographic texture (halation, bloom, grain, acutance, weave, vignette) and leaves the colour untouched. Use it after your own grade or after another film look.
 - **Pipeline Stage** (`pipelineStage`; default: Full Chain) — Where the film chain stops (or starts), so one node can do one job and you can build the chain from several nodes or finish with your own display transform (OpenDRT, 2499 DRT, ARRI REVEAL, ACES). Full Chain: camera -> negative -> print -> display (the complete look). Negative -> Log Scan: stops after the developed negative and writes it as a Cineon-style log scan (printing density as the selected Print Stock sees it, 0.002 density per 10-bit code value, clear film at code 95). Feed it to a second node set to Print Only. Negative -> Scene: the developed negative turned back into scene light (grey-balanced, film colour, curve shape, halation and grain kept, print and display left out), encoded in Scene Encoding (Output group). Put your own DRT after the node. Print Only: the input is a Log Scan from this plug-in (or any Cineon printing-density scan); prints it on the Print Stock and renders the display. Camera Log and Camera Emulation are not used. Texture Only: same as Mode = Texture Only. Negative Only (clean): Negative -> Scene without any texture (no halation, bloom, grain, acutance, weave, vignette, damage) - the node that only flips the negative stock. Grain, halation and damage always act in the film domain of the stage: in the negative for the negative exits, on the scanned negative's density for Print Only. Reversal (slide) stocks have no negative stage and always render the full chain.
   - Options: Full Chain · Negative -> Log Scan · Negative -> Scene · Print Only · Texture Only · Negative Only (clean)
+- **Gauge** (`grainFormat`; default: Super 35) — Film gauge the image was 'shot' on. It sets the whole texture ladder at once, like changing the camera: grain size and strength (Super 8 very coarse, 16 mm clearly visible, Super 35 the cinema standard, 65 mm very fine; 35 mm Stills between Super 35 and 65 mm), the film's own sharpness (Film Resolution), and the size of the halation ring and of the acutance edge effect.
+  - Options: Super 8 · 16 mm · Super 35 · 65 mm · 35 mm Stills
 
 ### Input
 
@@ -364,9 +366,9 @@ Resolve's keyframe editor. Read-only rows are status lines.
 *Red-orange glow around bright light sources.*
 
 - **Enable Halation** (`halationEnable`; default on) — Switches halation on or off without losing its settings. Off skips the halation passes entirely (no render cost).
-- **Halation Amount** (`halationAmount`; 0 … 2; default 0.5; keyframable) — Strength of halation: light that passes through the emulsion, reflects off the film base and re-exposes the red layer, creating a warm glow that hugs bright edges and practicals. Scaled by the stock (no-backing stocks glow much more). 0 = off.
-- **Halation Radius** (`halationRadius`; 2 … 80; default 20; keyframable) — Spread of the glow in pixels at 1920 px image width (automatically scaled for other resolutions and proxy render scales).
-- **Halation Threshold** (`halationThreshold`; 0 … 6; default 3.5; keyframable) — How bright a highlight must be before it halates, in stops above middle grey. The glow eases in over about a stop and a half above it, so broad bright areas (an overcast sky) barely halate while light sources and speculars glow fully. Lower values let more of the image glow.
+- **Halation Amount** (`halationAmount`; 0 … 2; default 0.5; keyframable) — Strength of halation: light that passes through the emulsion, reflects off the film base and re-exposes the red (and a little of the green) layer, creating a warm ring that hugs bright edges and practicals. It is added to the film's exposure, so the film curve shapes it like the image. Scaled by the stock (no-backing stocks glow much more). 0 = off.
+- **Halation Radius** (`halationRadius`; 2 … 80; default 20; keyframable) — Size of the halation ring in pixels at 1920 px image width for Super 35 (automatically scaled for other resolutions, proxy render scales and the Gauge: smaller gauges enlarge the ring).
+- **Halation Threshold** (`halationThreshold`; 0 … 6; default 0; keyframable) — 0 (default) = physical halation: no threshold - light reflects off the film base, so bright edges get a thin warm ring, strongest around practicals, lamps and speculars (their full share from about 6 stops above middle grey; a bright overcast sky contributes little, so it does not tint the dark objects in front of it). Flat areas stay clean because the ring only shows where light spills beyond an edge. Above 0 = an artistic gate: only highlights brighter than this many stops above middle grey halate (the v1.1 behaviour; the glow eases in over about a stop and a half).
 - **Halation Hue** (`halationHue`; -1 … 1; default 0; keyframable) — Colour of the glow: -1 deep red, 0 the classic red-orange, +1 orange-yellow.
 
 ### Bloom
@@ -381,22 +383,27 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 *Film grain, generated in the film's density domain.*
 
-- **Enable Grain** (`grainEnable`; default on) — Adds film grain. Grain is added to the dye densities of the negative, so it behaves like real grain: strongest in the mid-tones and shadows of the negative, varying per colour layer. Off skips the grain passes entirely and keeps the grain settings.
-- **Grain Format** (`grainFormat`; default: Super 35) — Film gauge the image was 'shot' on. Smaller formats enlarge the grain more: Super 8 is very coarse, 16 mm clearly visible, Super 35 the cinema standard, 65 mm very fine; 35 mm Stills (36x24 full frame) is finer than Super 35.
-  - Options: Super 8 · 16 mm · Super 35 · 65 mm · 35 mm Stills
-- **Grain Amount** (`grainAmount`; 0 … 3; default 1; keyframable) — Grain strength. 1 = the stock's nominal granularity for the chosen format and development; push processing increases it automatically.
+- **Enable Grain** (`grainEnable`; default on) — Adds film grain: dye clouds of a fast (coarse) and a slow (fine) emulsion in every colour layer, developed from each layer's own exposure (granularity measured from published film data). Coarse, sparse grain lives in the shadows and lower mid-tones, finer grain in the highlights, and the film curves shape it - it sits inside the image instead of on top of it. Off skips the grain passes entirely and keeps the grain settings.
+- **Grain Amount** (`grainAmount`; 0 … 3; default 1; keyframable) — Grain strength. 1 = the stock's nominal granularity for the chosen Gauge and development; push processing increases it automatically.
 - **Grain Size** (`grainSize`; 0.5 … 3; default 1; keyframable) — Grain size relative to the stock and format (1 = nominal). Resolution independent: it looks the same at HD, UHD and in proxy renders.
-- **Grain Softness** (`grainSoftness`; 0 … 1; default 0.5; keyframable) — 0 = crisp, sharply defined grains (like a sharp scan), 1 = soft clumps (like an optical print or a softer scan).
+- **Grain Softness** (`grainSoftness`; 0 … 1; default 0.5; keyframable) — 0 = crisp, sharply defined dye clouds (like a sharp scan), 1 = soft clumps with soft edges (like an optical print or a softer scan). Integrate (Film Resolution) softens grain and image together.
 - **Animated Grain** (`grainAnimated`; default on) — On: a new grain pattern every frame, like real film. Off: a frozen pattern (useful for stills or for matching a static texture).
 - **Grain Seed** (`grainSeed`; 0 … 9999; default 0; keyframable) — Changes the random grain pattern. Give different shots or layers different seeds so their grain never lines up.
+
+### Film Resolution
+
+*The film's own sharpness, so grain and picture share one resolution.*
+
+- **Enable Film Resolution** (`filmResolutionEnable`; default on) — Gives the image the modulation transfer of the camera negative for the chosen Gauge (measured from published film data: the red layer softest, blue sharpest). Digital micro-contrast is finer than any film grain; without this the grain looks laid on top of a too-sharp picture. Off skips the passes (Integrate still applies).
+- **Integrate** (`integrate`; 0 … 1; default 0.5; keyframable) — The print and scan resolution that picture AND grain share: higher values soften both together, so the grain is part of the image instead of an overlay (the colourist's 'defocus under the grain', done physically). 0 = off.
 
 ### Lens & Gate
 
 *Sharpness, gate weave and vignetting.*
 
 - **Enable Acutance** (`acutanceEnable`; default on) — Switches acutance (Acutance, Acutance Radius) on or off without losing its settings. Off = the image's own sharpness; the passes are skipped.
-- **Acutance** (`acutanceAmount`; -1 … 2; default 0.3; keyframable) — Edge contrast from development adjacency effects: crisp, film-like apparent sharpness without the halos of digital sharpening. Negative values soften the image.
-- **Acutance Radius** (`acutanceRadius`; 0.5 … 10; default 2; keyframable) — Size of the adjacency effect in pixels at 1920 px width. Small = fine micro-contrast, larger = broader edge enhancement.
+- **Acutance** (`acutanceAmount`; -1 … 2; default 0.35; keyframable) — Edge contrast from development adjacency effects: crisp, film-like apparent sharpness without the halos of digital sharpening. Negative values soften the image.
+- **Acutance Radius** (`acutanceRadius`; 0.5 … 10; default 2; keyframable) — Size of the adjacency effect in pixels at 1920 px width for Super 35 (scaled with the Gauge: the effect is a fixed distance on the film). Small = fine micro-contrast, larger = broader edge enhancement.
 - **Enable Gate Weave** (`weaveEnable`; default on) — Switches gate weave (Gate Weave, Weave Speed) on or off without losing its settings. Off = a rock steady frame; the pass is skipped.
 - **Gate Weave** (`weaveAmount`; 0 … 2; default 0; keyframable) — Subtle frame-to-frame movement of the film in the camera/projector gate, mostly vertical. 1 = typical 35 mm projection; keep it low for a believable result. 0 = off.
 - **Weave Speed** (`weaveSpeed`; 0.25 … 4; default 1; keyframable) — How quickly the gate weave wanders (1 = natural; lower is a slow drift, higher a nervous jitter).
@@ -580,9 +587,10 @@ Values are starting points; trust your monitor.
    Drama** (CN 500T pushed half a stop on P3) for deeper blacks.
 2. Expose for the faces and the practicals, not for the black sky: night footage often needs
    **Exposure** +0.3 to +0.7 so the shadows sit on the toe of the curve instead of below it.
-3. Halation: if every lit window glows, raise **Halation Threshold** toward 4–4.5 stops; if neon
-   does not glow enough, raise **Halation Amount** rather than lowering the threshold, so skin
-   edges stay clean. **Halation Hue** −0.2 gives a deeper red ring.
+3. Halation: the default physical halation (Threshold 0) gives every lit window and neon tube a thin
+   warm ring in proportion to its brightness; if it is too much, lower **Halation Amount**. Only if you
+   want practicals to glow and nothing else, set **Halation Threshold** to 3.5–4.5 stops (the v1.1
+   gate). **Halation Hue** −0.2 gives a deeper red ring.
 4. Time the print cool with **Printer Blue** −0.5 to −1.5; keep sodium light orange by not
    over-correcting.
 5. Grain: night stocks are coarse by design; **Grain Softness** 0.55–0.7 keeps it organic in dark
@@ -598,8 +606,9 @@ Values are starting points; trust your monitor.
    saturation.
 4. Grain **Amount** 0.6–0.8, **Size** 1.0, **Softness** 0.6; **Acutance** 0.2 so pores do not
    sharpen.
-5. Halation **Threshold** 3.5 (default) or higher: a bright window behind the subject should not
-   bleed red onto the hair line.
+5. Halation: the physical default leaves flat bright areas clean; if a bright window behind the
+   subject still rims the hair line too strongly, lower **Halation Amount** or set **Halation
+   Threshold** to about 3.5 stops.
 
 ### Music video
 
@@ -619,7 +628,7 @@ Values are starting points; trust your monitor.
 
 1. Preset **Archive 1978** (CN Vintage 85 on P4 Faded Archive) for faded colour film, or **Home
    Movie Super 8** for amateur reversal footage, or **Monochrome Noir** for black & white.
-2. **Grain Format** 16 mm or Super 8, **Grain Softness** 0.7–0.8, **Acutance** 0–0.1 (old lenses
+2. **Gauge** 16 mm or Super 8 (Look group), **Grain Softness** 0.7–0.8, **Acutance** 0–0.1 (old lenses
    and prints are soft).
 3. **Gate Weave** 0.4–0.8 at **Weave Speed** 0.8, **Vignette** 0.3–0.5.
 4. On Archive 1978, fade further with **Printer Red** −1 (warmer) and **Print Density** −1 for
@@ -896,7 +905,7 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
 | Image looks right in the node but wrong in the viewer / render | A colour-managed project converts the plug-in's display image again. Add the conversion back to the timeline space after the node, or use YRGB (section 3). |
 | Too dark or too bright | **Exposure** for the scene, **Print Density** for the print. Avoid fixing exposure with a gain after the node. |
 | Colour cast on every stock | Balance before the node, then fine-tune with printer lights in half points. |
-| Bright edges glow red everywhere | Raise **Halation Threshold** (stops over mid grey) or lower **Halation Amount**; CN 800T No-Backing glows by design. |
+| Bright edges glow red everywhere | Lower **Halation Amount**, or set **Halation Threshold** above 0 (stops over mid grey: only highlights above it halate); CN 800T No-Backing glows by design. |
 | Grain looks too strong or too fine in the viewer | Judge grain at 100 % zoom; the viewer scales it. Grain is resolution independent and matches the final render. |
 | Grain looks identical on two layered clips | Give each instance a different **Grain Seed**. |
 | Grain is frozen | **Animated Grain** is off. |

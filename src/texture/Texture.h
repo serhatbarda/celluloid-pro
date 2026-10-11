@@ -76,6 +76,13 @@ struct TextureParams {
     float blurBreathing      = 0.2f;  // 0 .. 1 continuous gentle focus breathing (share of the radius)
     float blurChromatic      = 0.3f;  // 0 .. 1 per-channel (longitudinal chromatic) defocus
     int   blurSeed           = 0;
+
+    // film resolution (v1.2, SPEC §5): the negative's modulation transfer (per layer, format
+    // dependent, KODAK VISION3 data) applied to the scene-linear image before acutance, and
+    // `integrate`, the print / scan resolution that image AND grain share (0 = off). Both off: no passes,
+    // grain unchanged.
+    bool  filmResolution     = false;
+    float integrate          = 0.f;   // 0 .. 1
 };
 
 }} // namespace cel::tex

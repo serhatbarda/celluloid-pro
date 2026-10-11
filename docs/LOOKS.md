@@ -57,7 +57,7 @@ index): new looks will be appended.
 
 **When to use.** Any scene, especially interiors and dialogue scenes with skin as the priority. Use it to judge exposure and lighting, then build on it.
 
-**Key settings.** Negative CN 200T Studio Tungsten, Process Print, Print P1 Standard Projection, Halation 0.5, Hal. Threshold 3.5, Bloom 0.15, Format Super 35, Grain Amount 0.9, Acutance 0.3.
+**Key settings.** Negative CN 200T Studio Tungsten, Process Print, Print P1 Standard Projection, Halation 0.5, Bloom 0.15, Format Super 35, Grain Amount 0.9, Acutance 0.3.
 
 ## 2. Tungsten Night Drama
 
@@ -67,7 +67,7 @@ index): new looks will be appended.
 
 **When to use.** Night interiors and exteriors lit by tungsten practicals, thrillers, moody dialogue. On daylight scenes it reads as day-for-night-ish cool.
 
-**Key settings.** Negative CN 500T High Speed, Push/Pull 0.5, Process Print, Print P3 Rich Contrast, Printer R 0.5, Printer B -1, Print Density 0.5, Halation 0.8, Hal. Radius 26, Hal. Threshold 3.6, Bloom 0.25, Bloom Radius 50, Format Super 35, Grain Amount 1, Grain Softness 0.55, Acutance 0.3, Vignette 0.2.
+**Key settings.** Negative CN 500T High Speed, Push/Pull 0.5, Process Print, Print P3 Rich Contrast, Printer R 0.5, Printer B -1, Print Density 0.5, Halation 0.8, Hal. Radius 26, Bloom 0.25, Bloom Radius 50, Format Super 35, Grain Amount 1, Grain Softness 0.55, Acutance 0.3, Vignette 0.2.
 
 ## 3. Soft Daylight Pastel
 
@@ -77,7 +77,7 @@ index): new looks will be appended.
 
 **When to use.** Fashion, lifestyle and romance, bright exteriors, window-lit interiors; footage with harsh contrast that needs taming.
 
-**Key settings.** Negative CN 250D Soft Daylight, Color Density 1, Process Print, Print P2 Low Contrast, Printer R -0.5, Printer G 0.5, Printer B 1, Print Density 0.5, Halation 0.35, Hal. Threshold 3.5, Bloom 0.25, Bloom Radius 70, Format 35 mm Stills, Grain Amount 0.8, Grain Softness 0.7, Acutance 0.15.
+**Key settings.** Negative CN 250D Soft Daylight, Color Density 1, Process Print, Print P2 Low Contrast, Printer R -0.5, Printer G 0.5, Printer B 1, Print Density 0.5, Halation 0.35, Bloom 0.25, Bloom Radius 70, Format 35 mm Stills, Grain Amount 0.8, Grain Softness 0.7, Acutance 0.15.
 
 ## 4. Archive 1978
 
@@ -87,7 +87,7 @@ index): new looks will be appended.
 
 **When to use.** Flashbacks, period pieces, found-footage and memory sequences. Strong by design - lower Print Density or Grain for a subtler age.
 
-**Key settings.** Negative CN Vintage 85, Process Print, Print P4 Faded Archive, Printer R -1, Printer B 1.5, Print Density -1, Halation 0.7, Hal. Radius 28, Hal. Threshold 3.2, Hal. Hue 0.2, Bloom 0.3, Bloom Radius 60, Format 16 mm, Grain Amount 0.8, Grain Softness 0.75, Acutance 0.1, Gate Weave 0.5, Weave Speed 0.8, Vignette 0.3.
+**Key settings.** Negative CN Vintage 85, Process Print, Print P4 Faded Archive, Printer R -1, Printer B 1.5, Print Density -1, Halation 0.7, Hal. Radius 28, Hal. Hue 0.2, Bloom 0.3, Bloom Radius 60, Format 16 mm, Grain Amount 0.8, Grain Softness 0.75, Acutance 0.1, Gate Weave 0.4, Weave Speed 0.8, Vignette 0.3.
 
 ## 5. Silver Retention Thriller
 
@@ -97,7 +97,7 @@ index): new looks will be appended.
 
 **When to use.** Action, war and crime, gritty urban exteriors, high-contrast lighting. Keep faces lit - shadows below about -4 stops go to black (P5's deep D-max).
 
-**Key settings.** Negative CN 200T Studio Tungsten, Push/Pull 0.5, Color Density 0.85, Neg Bleach 0.15, Process Print, Print P5 Silver Retention, Printer R 0.5, Printer B -0.5, Print Density 0.5, Halation 0.35, Hal. Threshold 3.5, Bloom 0.1, Format Super 35, Grain Amount 1.15, Grain Softness 0.4, Acutance 0.6, Acut. Radius 1.6, Vignette 0.15.
+**Key settings.** Negative CN 200T Studio Tungsten, Push/Pull 0.5, Color Density 0.85, Neg Bleach 0.15, Process Print, Print P5 Silver Retention, Printer R 0.5, Printer B -0.5, Print Density 0.5, Halation 0.35, Bloom 0.1, Format Super 35, Grain Amount 1.15, Grain Softness 0.4, Acutance 0.6, Acut. Radius 1.6, Vignette 0.15.
 
 ## 6. Neon Nocturne
 
@@ -107,7 +107,7 @@ index): new looks will be appended.
 
 **When to use.** Night scenes only: city streets, bars, neon and LED signage, car interiors at night. On day scenes it prints dense and glows; use Studio Classic instead.
 
-**Key settings.** Negative CN 800T No-Backing, Process Print, Print P1 Standard Projection, Printer B -0.5, Print Density -0.5, Halation 0.6, Hal. Radius 24, Hal. Threshold 3.6, Hal. Hue -0.2, Bloom 0.3, Bloom Radius 45, Format Super 35, Grain Amount 0.85, Grain Softness 0.55, Acutance 0.25.
+**Key settings.** Negative CN 800T No-Backing, Process Print, Print P1 Standard Projection, Printer B -0.5, Print Density -0.5, Halation 0.6, Hal. Radius 24, Hal. Hue -0.2, Bloom 0.3, Bloom Radius 45, Format Super 35, Grain Amount 0.85, Grain Softness 0.55, Acutance 0.25.
 
 ## 7. Golden Hour Portrait
 
@@ -117,7 +117,7 @@ index): new looks will be appended.
 
 **When to use.** Portraits, interviews, weddings and warm-light exteriors; anything shot near sunset. Works well on slightly over-exposed footage.
 
-**Key settings.** Negative C41 Portrait 400, Process Lab Scan, Printer R -0.5, Printer B 1, Halation 0.45, Hal. Threshold 3.2, Hal. Hue 0.3, Bloom 0.3, Bloom Radius 60, Format 35 mm Stills, Grain Amount 0.9, Grain Softness 0.6, Acutance 0.2.
+**Key settings.** Negative C41 Portrait 400, Process Lab Scan, Printer R -0.5, Printer B 1, Halation 0.45, Hal. Hue 0.3, Bloom 0.3, Bloom Radius 60, Format 35 mm Stills, Grain Amount 0.9, Grain Softness 0.6, Acutance 0.2.
 
 ## 8. Crisp Commercial
 
@@ -127,7 +127,7 @@ index): new looks will be appended.
 
 **When to use.** Commercials, product and food, sports and bright daytime work where colour and sharpness should pop without looking digital.
 
-**Key settings.** Negative CN 50D Fine Daylight, Color Density 1.1, Process Print, Print P1 Standard Projection, Halation 0.25, Hal. Threshold 3.8, Bloom 0.1, Format Super 35, Grain Amount 0.6, Grain Softness 0.4, Acutance 0.45, Acut. Radius 1.5.
+**Key settings.** Negative CN 50D Fine Daylight, Color Density 1.1, Process Print, Print P1 Standard Projection, Halation 0.25, Bloom 0.1, Format Super 35, Grain Amount 0.6, Grain Softness 0.4, Acutance 0.45, Acut. Radius 1.5.
 
 ## 9. Summer Snapshot
 
@@ -137,7 +137,7 @@ index): new looks will be appended.
 
 **When to use.** Travel and lifestyle content, music videos, nostalgic personal stories, beach and street scenes in sun.
 
-**Key settings.** Negative C41 Consumer 200, Process Lab Scan, Printer R -0.5, Printer B 0.5, Halation 0.45, Hal. Threshold 3.5, Bloom 0.25, Format 35 mm Stills, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.3, Vignette 0.25.
+**Key settings.** Negative C41 Consumer 200, Process Lab Scan, Printer R -0.5, Printer B 0.5, Halation 0.45, Bloom 0.25, Format 35 mm Stills, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.3, Vignette 0.25.
 
 ## 10. Slide Show Brilliance
 
@@ -147,7 +147,7 @@ index): new looks will be appended.
 
 **When to use.** Saturated travel, nature and architecture in good light. Expose carefully - highlights and shadows clip sooner than on negative film.
 
-**Key settings.** Negative RV 100 Slide, Halation 0.3, Hal. Threshold 3.5, Bloom 0.15, Format 35 mm Stills, Grain Amount 1.2, Grain Softness 0.45, Acutance 0.4, Vignette 0.3.
+**Key settings.** Negative RV 100 Slide, Halation 0.3, Bloom 0.15, Format 35 mm Stills, Grain Amount 1.2, Grain Softness 0.45, Acutance 0.4, Vignette 0.3.
 
 ## 11. Monochrome Noir
 
@@ -157,7 +157,7 @@ index): new looks will be appended.
 
 **When to use.** Noir and drama, portraits with hard light, night streets. Light for separation: colour contrast becomes tonal contrast.
 
-**Key settings.** Negative BW 400 Panchromatic, Push/Pull 1, Process Print, Print P3 Rich Contrast, Halation 0.45, Hal. Threshold 3, Bloom 0.3, Bloom Radius 55, Format Super 35, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.45, Vignette 0.35.
+**Key settings.** Negative BW 400 Panchromatic, Push/Pull 1, Process Print, Print P3 Rich Contrast, Halation 0.45, Bloom 0.3, Bloom Radius 55, Format Super 35, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.45, Vignette 0.35.
 
 ## 12. Home Movie Super 8
 
@@ -167,7 +167,7 @@ index): new looks will be appended.
 
 **When to use.** Home-movie inserts, memories, music videos, titles. Combine with a 4:3 crop and frame-rate reduction in Resolve for the full effect.
 
-**Key settings.** Negative RV 100 Slide, Push/Pull 1.5, Color Density 1.9, Halation 0.8, Hal. Radius 30, Hal. Threshold 3, Hal. Hue 0.3, Bloom 0.45, Bloom Radius 70, Format Super 8, Grain Amount 1.6, Grain Softness 0.6, Acutance -0.15, Gate Weave 1.1, Weave Speed 1.4, Vignette 0.45.
+**Key settings.** Negative RV 100 Slide, Push/Pull 1.5, Color Density 1.9, Halation 0.8, Hal. Radius 30, Hal. Hue 0.3, Bloom 0.45, Bloom Radius 70, Format Super 8, Grain Amount 1.6, Grain Softness 0.6, Acutance -0.15, Gate Weave 1.1, Weave Speed 1.4, Vignette 0.45.
 
 ## 13. Worn Release Print
 
@@ -177,7 +177,7 @@ index): new looks will be appended.
 
 **When to use.** Period pieces, flashbacks, "screening room" moments, trailers and title sequences. Give each shot its own Damage Seed so the dirt never repeats across a cut.
 
-**Key settings.** Negative CN 500T High Speed, Print P1 Standard Projection, Printer R +1 / G +0.5 / B -0.5, Print Density 0.5, Halation 0.6, Hal. Threshold 3.4, Bloom 0.2, Format Super 35, Grain Amount 1, Acutance 0.25, Gate Weave 0.6, Vignette 0.2; Film Damage on: Dust 0.7 (White Dust Mix 0.3), Scratches 0.5 (Persistence 0.75, Emulsion 0.35, White Scratch Mix 0.2), Hair 0.35; Film Blur on: Radius 2.5, Frequency 0.12, Duration 30, Breathing 0.15, Chromatic 0.3.
+**Key settings.** Negative CN 500T High Speed, Print P1 Standard Projection, Printer R +1 / G +0.5 / B -0.5, Print Density 0.5, Halation 0.6, Bloom 0.2, Format Super 35, Grain Amount 1, Acutance 0.25, Gate Weave 0.6, Vignette 0.2; Film Damage on: Dust 0.7 (White Dust Mix 0.3), Scratches 0.5 (Persistence 0.75, Emulsion 0.35, White Scratch Mix 0.2), Hair 0.35; Film Blur on: Radius 2.5, Frequency 0.12, Duration 30, Breathing 0.15, Chromatic 0.3.
 
 ## 14. Found Footage 16
 
@@ -187,7 +187,7 @@ index): new looks will be appended.
 
 **When to use.** Found-footage and documentary-archive inserts, music videos, memories, horror. Lower Dust and Scratch Amount for a cleaner copy; set Film Blur Frequency to 0 if the soft moments distract.
 
-**Key settings.** Negative CN 250D Soft Daylight, Print P4 Faded Archive, Printer R -1.5 / G +1, Print Density -1.5, Halation 0.8, Hal. Radius 30, Hal. Threshold 3, Hal. Hue 0.25, Bloom 0.35, Bloom Radius 60, Format 16 mm, Grain Amount 1, Grain Softness 0.7, Acutance 0, Gate Weave 1 at Speed 1.2, Vignette 0.4; Film Damage on: Dust 1.4 (Size 1.2, White Dust Mix 0.4), Scratches 1.2 (Persistence 0.4, Emulsion 0.5, White Scratch Mix 0.3), Hair 0.9; Film Blur on: Radius 4, Frequency 0.3, Duration 36, Breathing 0.35, Chromatic 0.5.
+**Key settings.** Negative CN 250D Soft Daylight, Print P4 Faded Archive, Printer R -1.5 / G +1, Print Density -1.5, Halation 0.8, Hal. Radius 30, Hal. Hue 0.25, Bloom 0.35, Bloom Radius 60, Format 16 mm, Grain Amount 1, Grain Softness 0.7, Acutance 0, Gate Weave 1 at Speed 1.2, Vignette 0.4; Film Damage on: Dust 1.4 (Size 1.2, White Dust Mix 0.4), Scratches 1.2 (Persistence 0.4, Emulsion 0.5, White Scratch Mix 0.3), Hair 0.9; Film Blur on: Radius 4, Frequency 0.3, Duration 36, Breathing 0.35, Chromatic 0.5.
 
 ## 15. Studio Modern
 
@@ -238,3 +238,17 @@ Colour distance (chart + skin, colour only, mean dE2000) to the nearest other pr
   src/core/Core.cpp printCrossover). The earlier linear scale-and-clamp made the red channel of a grey
   ramp turn down by ~4e-5 near +5 stops (render test `presets`: monotonic). The look is unchanged near
   middle grey; the warm/cool split now fades out toward white and black.
+
+## Revision notes (v1.2, texture)
+
+* Every preset uses the new physical halation (their Hal. Threshold settings are gone, including those
+  of Studio Modern, Soft Cinema and Warm Print: threshold 0 = a thin warm ring around every bright edge,
+  strongest for practicals and speculars; flat bright areas stay clean and a bright overcast sky does
+  not tint the dark objects in front of it). Halation amounts, radii and hues are unchanged; the ring radius now follows the gauge
+  (16 mm presets get about 1.4x the Super 35 radius, Super 8 about 2x).
+* Archive 1978: Gate Weave 0.5 -> 0.4 (<= 0.3 px rms at 1920 width). Home Movie Super 8, Worn Release
+  Print and Found Footage 16 keep their deliberate weave.
+* Presets do not set Film Resolution or Integrate, so every preset gets the defaults (on, 0.5): the
+  negative's own sharpness for its gauge and a shared print/scan resolution for picture and grain.
+* A project saved with v1.1 that uses a preset reads "(modified)" if it stored the old halation
+  threshold.

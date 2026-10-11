@@ -93,6 +93,10 @@ The table is stock-independent and generated offline (`reference/gen_upsampling.
   from the model (mask strength per stock).
 * **Grain** (amount from `LookParams.grainAmount`, spatial field from the texture engine):
   `D_i += σ_i·amount·1.25^push·sqrt(max(D_i − Dmin_i, 0) + 0.02)·n_i`; blue layer coarsest.
+  v1.2 (grain v2, `a->i[0] == 2`): `D_i += σ_i·amount·1.25^push·n_i(s_i)` where n_i is the
+  dye-cloud fluctuation of layer i developed from its own log exposure s_i (fast + slow emulsion,
+  `src/kernels/GrainKernels.h`, SPEC §5); it already falls off where the layer has little density,
+  so the sqrt(D) law is not applied. The print's dye coupling then decides the grain's chroma.
 * **Bleach bypass (negative)**: retained silver = neutral density `0.45·Σw(D − Dmin)` — exactly
   a log-exposure offset for the printer, so it needs no extra LUT dimension.
 
@@ -179,6 +183,8 @@ to ±65504 (an absurdly large code value renders white, never black).
   `Pipeline::stateVersion()` comes from one process-wide counter (unique across instances).
 * `color` / `display_finish`: in1 = grain field, xyz = R-, G-, B-sensitive layer, zero mean,
   unit variance; used when `inStride[1] != 0`. in2 = alpha source when `inStride[2] != 0`.
+  v1.2 grain v2 (`a->i[0] == 2`): in1 / in2 = coarse / fine grain grids, f[0..23] = the
+  GrainKernels.h argument block, alpha from in0 (SPEC §13).
   The kernels do **not** apply the texture engine's per-format amplitude
   (`tex::grainFormatAmplitude`); fold it into the field or `LookParams.grainAmount` once.
 * Texture-Only: `display_decode` gives display-linear light in the output primaries

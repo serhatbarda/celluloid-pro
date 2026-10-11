@@ -14,6 +14,7 @@ CEL_KERNEL(tx_hb_composite)  /* halation/bloom/vignette: in0 image + in1 glow py
 CEL_KERNEL(tx_vignette)      /* natural cos^4-like falloff, aspect-correct (stand-alone, when no glow pass) */
 CEL_KERNEL(tx_tonemap)       /* Texture-Only: display-linear <-> film-like pseudo scene (exact bijection) */
 CEL_KERNEL(tx_grain_gen)     /* grain: hashed white noise (4 independent channels) on the generation grid */
-CEL_KERNEL(tx_grain_finish)  /* grain: blurred noise -> layered, clumpy, normalised grain field (xyz) */
+CEL_KERNEL(tx_grain_finish)  /* grain (v1.2): diagnostic dye-cloud grain field at a fixed exposure (the colour pass evaluates it itself) */
 CEL_KERNEL(tx_params)        /* parameter table (8 x 1) from f[]: hands a following pass more than 32 floats */
 CEL_KERNEL(tx_damage)        /* film damage field: dust, scratches, hair (DamageKernels.h; read by color / display_finish as in3) */
+CEL_KERNEL(tx_hb_prefilter_down) /* v1.2 fusion: glow source + 2x downsample (tx_hb_prefilter -> tx_pyr_down in one pass) */

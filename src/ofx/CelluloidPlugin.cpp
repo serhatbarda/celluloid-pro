@@ -550,9 +550,12 @@ engine::FrameSettings CelluloidEffect::frameSettingsAt(double t, int fullWidthPx
     tp.blurBreathing = float(num(id::filmBlurBreathing, t));
     tp.blurChromatic = float(num(id::filmBlurChromatic, t));
     tp.blurSeed = int(std::lround(num(id::filmBlurSeed, t)));
-    // The grain field is unit variance per pixel for every format (cel::tex); visible granularity
-    // grows with the enlargement of the gate, so the density amplitude carries the per-format
-    // factor (Super 8 ~2x ... 65 mm ~0.7x of Super 35). Applied here, exactly once.
+    // film resolution (v1.2): negative MTF of the gauge + Integrate (print / scan, shared with the grain)
+    tp.filmResolution = flag(id::filmResolutionEnable, t);
+    tp.integrate = float(num(id::integrate, t));
+    // The grain model is normalised to unit std at grey for every gauge (cel::tex); visible granularity
+    // grows with the enlargement of the gate, so the density amplitude carries the gauge ladder
+    // (Super 8 2.6x, 16 mm 1.7x ... 65 mm 0.67x of Super 35). Applied here, exactly once.
     if (tp.grainEnabled) fs.look.grainAmount *= tex::grainFormatAmplitude(tp.grainFormat);
 
     if (fs.mode == core::Mode::ColorOnly) {   // colour pipeline only: exactly what a LUT contains
@@ -1002,9 +1005,11 @@ void CelluloidEffect::refreshEnabledness(double t) {
     for (const char* p : {id::acutanceAmount, id::acutanceRadius}) setEnabled(p, texture && acutOn);
     for (const char* p : {id::weaveAmount, id::weaveSpeed}) setEnabled(p, texture && weaveOn);
     setEnabled(id::vignette, texture && vigOn);
-    for (const char* p : {id::grainFormat, id::grainAmount, id::grainSize, id::grainSoftness, id::grainAnimated,
-                          id::grainSeed})
+    for (const char* p : {id::grainAmount, id::grainSize, id::grainSoftness, id::grainAnimated, id::grainSeed})
         setEnabled(p, texture && grainOn);
+    setEnabled(id::grainFormat, texture);   // the gauge drives grain, film resolution, halation and acutance
+    setEnabled(id::filmResolutionEnable, texture);
+    setEnabled(id::integrate, texture);
     // film damage (master switch + dust / scratches / hair sub-switches) and film blur
     const bool dmgOn = texture && flag(id::damageEnable, t);
     setEnabled(id::damageEnable, texture);

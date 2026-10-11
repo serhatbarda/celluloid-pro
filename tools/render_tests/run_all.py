@@ -44,12 +44,14 @@ SPEC7 = [
     ("printerR", "double", 0.0, -12, 12), ("printerG", "double", 0.0, -12, 12), ("printerB", "double", 0.0, -12, 12),
     ("printExposure", "double", 0.0, -12, 12), ("printBleach", "double", 0.0, 0, 1),
     ("halationAmount", "double", 0.5, 0, 2), ("halationRadius", "double", 20, 2, 80),
-    ("halationThreshold", "double", 3.5, 0, 6), ("halationHue", "double", 0.0, -1, 1),
+    ("halationThreshold", "double", 0.0, 0, 6), ("halationHue", "double", 0.0, -1, 1),
     ("bloomAmount", "double", 0.15, 0, 2), ("bloomRadius", "double", 40, 5, 200),
     ("grainEnable", "bool", True, None, None), ("grainFormat", "choice", r"S(uper)?\s*35", None, None),
     ("grainAmount", "double", 1.0, 0, 3), ("grainSize", "double", 1.0, 0.5, 3), ("grainSoftness", "double", 0.5, 0, 1),
     ("grainAnimated", "bool", True, None, None), ("grainSeed", "int", 0, 0, 9999),
-    ("acutanceAmount", "double", 0.3, -1, 2), ("acutanceRadius", "double", 2, 0.5, 10),
+    ("acutanceAmount", "double", 0.35, -1, 2), ("acutanceRadius", "double", 2, 0.5, 10),
+    # v1.2 film resolution
+    ("filmResolutionEnable", "bool", True, None, None), ("integrate", "double", 0.5, 0, 1),
     ("weaveAmount", "double", 0.0, 0, 2), ("weaveSpeed", "double", 1.0, 0.25, 4), ("vignette", "double", 0.0, 0, 1),
     ("outputSpace", "choice", None, None, None), ("hdrPeakNits", "double", 1000, 300, 4000), ("hdrUnroll", "double", 1.0, 0, 1),
     ("lutSize", "choice", "33", None, None), ("lutPath", "string", None, None, None), ("lutExport", "button", None, None, None),
@@ -103,7 +105,7 @@ REAL_STOCK = r"\b(vision\s*3|2383|eterna)\b"
 DAMAGE_ALL = {"damageEnable": True, "dustAmount": 2.0, "scratchAmount": 2.0, "hairAmount": 2.0, "scratchEmulsion": 0.5,
               "filmBlurEnable": True, "filmBlurFrequency": 1.0, "filmBlurBreathing": 1.0, "filmBlurRadius": 12.0}
 TEX_OFF = {"halationAmount": 0.0, "bloomAmount": 0.0, "grainEnable": False, "acutanceAmount": 0.0,
-           "weaveAmount": 0.0, "vignette": 0.0}
+           "weaveAmount": 0.0, "vignette": 0.0, "filmResolutionEnable": False, "integrate": 0.0}
 
 
 class Suite:
@@ -968,8 +970,10 @@ class Suite:
             self.check(g, "grain present, zero-mean (S35 default)", st["std"] > 0.002 and abs(st["mean"]) < 0.25 * st["std"],
                        "std %.4f mean %+.5f" % (st["std"], st["mean"]))
             cc = np.mean([st["rg"], st["rb"], st["gb"]])
-            self.check(g, "grain layers strongly correlated (mostly luminance grain, 0.90 nominal)", 0.72 <= cc <= 0.97,
-                       "rg %.2f rb %.2f gb %.2f" % (st["rg"], st["rb"], st["gb"]), "0.90 (+-0.15)")
+            # v1.2 grain: the layers share 0.98 of the cloud field variance (neutral grain reads as
+            # luminance grain; saturated colours decorrelate through their different layer exposures)
+            self.check(g, "grain layers strongly correlated on grey (mostly luminance grain, 0.98 shared)", 0.93 <= cc <= 0.995,
+                       "rg %.2f rb %.2f gb %.2f" % (st["rg"], st["rb"], st["gb"]), "0.93..0.995")
         order = []
         for name, pt in GRAIN_FORMATS[:4]:
             f = next((x for x in fmts if re.search(pt, x, re.I)), None)

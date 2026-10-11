@@ -79,7 +79,7 @@ int main() {
         {"printContrast", "groupPrint", -1, 1, 0},    // v1.3
         {"halationAmount", "groupHalation", 0, 2, 0.5},
         {"halationRadius", "groupHalation", 2, 80, 20},
-        {"halationThreshold", "groupHalation", 0, 6, 3.5},
+        {"halationThreshold", "groupHalation", 0, 6, 0},   // v1.2: 0 = physical (threshold-free)
         {"halationHue", "groupHalation", -1, 1, 0},
         {"bloomAmount", "groupBloom", 0, 2, 0.15},
         {"bloomRadius", "groupBloom", 5, 200, 40},
@@ -87,8 +87,9 @@ int main() {
         {"grainSize", "groupGrain", 0.5, 3, 1},
         {"grainSoftness", "groupGrain", 0, 1, 0.5},
         {"grainSeed", "groupGrain", 0, 9999, 0},
-        {"acutanceAmount", "groupLensGate", -1, 2, 0.3},
+        {"acutanceAmount", "groupLensGate", -1, 2, 0.35},   // v1.2
         {"acutanceRadius", "groupLensGate", 0.5, 10, 2},
+        {"integrate", "groupFilmResolution", 0, 1, 0.5},   // v1.2 film resolution
         {"weaveAmount", "groupLensGate", 0, 2, 0},
         {"weaveSpeed", "groupLensGate", 0.25, 4, 1},
         {"vignette", "groupLensGate", 0, 1, 0},
@@ -159,8 +160,11 @@ int main() {
         {"printEnable", "groupPrint", true, true, {"printerR", "printerG", "printerB", "printExposure", "printBleach"}},
         {"halationEnable", "groupHalation", true, true, {"halationAmount", "halationRadius", "halationThreshold", "halationHue"}},
         {"bloomEnable", "groupBloom", true, true, {"bloomAmount", "bloomRadius"}},
-        {"grainEnable", "groupGrain", true, true, {"grainFormat", "grainAmount", "grainSize", "grainSoftness", "grainAnimated", "grainSeed"}},
+        {"grainEnable", "groupGrain", true, true, {"grainAmount", "grainSize", "grainSoftness", "grainAnimated", "grainSeed"}},
         {"acutanceEnable", "groupLensGate", true, true, {"acutanceAmount", "acutanceRadius"}},
+        // v1.2: film resolution (negative MTF + print/scan system); grainFormat moved to the Look
+        // group as "Gauge" (it scales grain, halation and acutance), so no switch owns it
+        {"filmResolutionEnable", "groupFilmResolution", true, true, {"integrate"}},
         {"weaveEnable", "groupLensGate", true, true, {"weaveAmount", "weaveSpeed"}},
         {"vignetteEnable", "groupLensGate", true, true, {"vignette"}},
         {"hdrUnrollEnable", "groupOutput", true, false, {"hdrUnroll"}},

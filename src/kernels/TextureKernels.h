@@ -22,6 +22,7 @@
 #ifndef CEL_TEXTURE_KERNELS_H
 #define CEL_TEXTURE_KERNELS_H
 #include "KernelABI.h"
+#include "GrainKernels.h"
 
 /* ------------------------------------------------------------------------------------------ */
 /* helpers                                                                                     */
@@ -175,7 +176,9 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_s2d(float x, float x0, float p, float Yk
 
 /* ---- halation / bloom sources ---------------------------------------------------------------
  * Halation energy: light that reaches the film base and is reflected back into the (mostly red
- * sensitive) bottom layer.  Weighted towards red light.  Above the threshold T the energy is the
+ * sensitive) bottom layer.  Weighted towards red light.  T <= 0 (v1.2 default, physical): linear
+ * with a highlight emphasis k (linear units, see below), e' = yh / (1 + (k / yh)^2),
+ * e = e' emax / (emax + e').  Otherwise (optional gate) above the threshold T the energy is the
  * linear excess (halation is a fixed fraction of the light, so a +8-stop practical carries ~40x the
  * energy of a +4-stop sky) eased in by a knee in STOPS over the threshold:
  *     s = log2(yh / T),   e = (yh - T) * s^2 / (s^2 + k^2)        (k = knee in stops, 2; C1 at s = 0)
@@ -184,6 +187,15 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_s2d(float x, float x0, float p, float Yk
  * towards emax. */
 CEL_DEVICE CEL_TXH_INLINE float cel_txh_hal_energy(CelF4 v, float T, float k, float emax, float wr, float wg, float wb) {
     float yh = cel_txh_max(wr * v.x + wg * v.y + wb * v.z, 0.0f);
+    /* v1.2 physical halation (T <= 0): a fixed fraction of the light, no threshold; k > 0 = highlight
+     * emphasis in LINEAR units, e = yh / (1 + (k / yh)^2) (full share from about a stop over k, x0.08
+     * for an overcast sky 1.75 stops under k), so broad mid-bright areas do not tint the dark objects
+     * next to them; only extreme energies compressed */
+    if (!(T > 0.0f)) {
+        float e = yh;
+        if (k > 0.0f) { float q = k / cel_txh_max(yh, 1e-20f); e = yh / (1.0f + q * q); }
+        return e * emax / (emax + e);
+    }
     if (!(yh > T)) return 0.0f;
     float s = cel_log2(yh / T);
     float s2 = s * s;
@@ -206,6 +218,24 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_vig_factor(int x, int y, float amount, f
     return cel_mix(1.0f, c2 * c2, amount);
 }
 
+/* approximately Gaussian, zero-mean, unit-variance white noise from a 32-bit key: sum of the
+ * eight bytes of two hashes (Irwin-Hall n = 8, kurtosis 2.85; the following blur makes it
+ * Gaussian for all practical purposes). */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_gauss_noise(cel_uint key) {
+    cel_uint h1 = cel_hash_u32(key);
+    cel_uint h2 = cel_hash_u32(key ^ 0x5bd1e995U);
+    cel_uint s = (h1 & 255U) + ((h1 >> 8) & 255U) + ((h1 >> 16) & 255U) + (h1 >> 24)
+               + (h2 & 255U) + ((h2 >> 8) & 255U) + ((h2 >> 16) & 255U) + (h2 >> 24);
+    return ((float)s - 1020.0f) * (1.0f / 209.0215f);
+}
+
+/* the 4 white-noise channels of generation-grid texel (x, y) (tx_grain_gen, and fused into tx_blur4) */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_grain_white(int x, int y, cel_uint seed) {
+    cel_uint base = cel_hash_u32(((cel_uint)x * 0x8da6b343U) ^ cel_hash_u32(((cel_uint)y * 0xd8163841U) ^ seed));
+    return cel_f4(cel_txh_gauss_noise(base + 0x9e3779b9U), cel_txh_gauss_noise(base + 0x3c6ef372U),
+                  cel_txh_gauss_noise(base + 0xdaa66d2bU), cel_txh_gauss_noise(base + 0x78dde6e4U));
+}
+
 /* ------------------------------------------------------------------------------------------ */
 /* kernels                                                                                     */
 /* ------------------------------------------------------------------------------------------ */
@@ -220,6 +250,8 @@ CEL_DEVICE void cel_k_tx_copy(CEL_KERNEL_PARAMS) {
  * clamping to the range of the 4 nearest texels (no overshoot around lamps), clamp-to-edge.
  *   f[0], f[1] = d (px, actual resolution)     f[2], f[3] = cos(rot), sin(rot)
  *   f[4], f[5] = rotation centre c (px)
+ * Alpha is NOT resampled (v1.2): out.w = in0.w at (x, y), so the colour pass can take the host's alpha
+ * from the image buffer instead of reading the source a second time.
  * Input is sanitised (first image pass): only the 4 nearest texels are cleaned; a NaN/Inf in the
  * 4x4 footprint makes the sum non-finite and the de-ring clamp then falls back to the clean
  * bounds (cel_txh_max/min select the second operand when the first is NaN). */
@@ -242,6 +274,7 @@ CEL_DEVICE void cel_k_tx_weave(CEL_KERNEL_PARAMS) {
     CelF4 lo = cel_txh_min4(cel_txh_min4(p00, p10), cel_txh_min4(p01, p11));
     CelF4 hi = cel_txh_max4(cel_txh_max4(p00, p10), cel_txh_max4(p01, p11));
     r = cel_txh_min4(cel_txh_max4(r, lo), hi);
+    r.w = cel_txh_clean(cel_load(in0, st, w, h, x, y).w);
     cel_store(out, a->outStride, x, y, r);
 }
 
@@ -282,11 +315,34 @@ CEL_DEVICE void cel_k_tx_acut_apply(CEL_KERNEL_PARAMS) {
     cel_store(out, a->outStride, x, y, cel_f4(v.x * m, v.y * m, v.z * m, v.w));
 }
 
+/* log2 luminance of an image texel (acutance; == tx_acut_luma) */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_logluma(CEL_GLOBAL const float* row, int xi, float eps) {
+    return cel_log2(cel_txh_max(cel_txh_luma(cel_txh_clean4(cel_txh_px(row, xi))), 0.0f) + eps);
+}
 /* tx_pyr_down: 2x downsample, separable binomial [1 3 3 1]/8 (variance 0.75 source px^2),
- * all four channels, clamp-to-edge.  out size = ceil(in / 2).  f/i unused. */
+ * all four channels, clamp-to-edge.  out size = ceil(in / 2).
+ *   i[0] = 1 (v1.2 fusion): in0 is the IMAGE and the source value is its log2 luminance computed on
+ *          the fly (tx_acut_luma fused away); out = (L, 0, 0, 0).  f[0] = eps */
 CEL_DEVICE void cel_k_tx_pyr_down(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
     CelF4 wb = cel_f4(0.125f, 0.375f, 0.375f, 0.125f);
+    if (a->i[0] == 1) {
+        int w = a->inW[0], h = a->inH[0], st = a->inStride[0];
+        int x0 = 2 * x - 1, y0 = 2 * y - 1;
+        int c0 = cel_txh_cidx(x0, w), c1 = cel_txh_cidx(x0 + 1, w), c2 = cel_txh_cidx(x0 + 2, w), c3 = cel_txh_cidx(x0 + 3, w);
+        float eps = a->f[0], r = 0.0f;
+        for (int j = 0; j < 4; ++j) {
+            CEL_GLOBAL const float* row = in0 + cel_txh_cidx(y0 + j, h) * st;
+            float q = cel_txh_logluma(row, c0, eps) * wb.x;
+            q = q + cel_txh_logluma(row, c1, eps) * wb.y;
+            q = q + cel_txh_logluma(row, c2, eps) * wb.z;
+            q = q + cel_txh_logluma(row, c3, eps) * wb.w;
+            float wy = j == 0 ? wb.x : (j == 1 ? wb.y : (j == 2 ? wb.z : wb.w));
+            r = j == 0 ? q * wy : r + q * wy;
+        }
+        cel_store(out, a->outStride, x, y, cel_f4(r, 0.0f, 0.0f, 0.0f));
+        return;
+    }
     cel_store(out, a->outStride, x, y,
               cel_txh_filter4x4(in0, a->inStride[0], a->inW[0], a->inH[0], 2 * x - 1, 2 * y - 1, wb, wb));
 }
@@ -295,11 +351,42 @@ CEL_DEVICE void cel_k_tx_pyr_down(CEL_KERNEL_PARAMS) {
  *   i[0] = radius R (0..7)   i[1] = direction (0 = horizontal, 1 = vertical)
  *   i[2] = 1: only channel x carries data (y, z, w written as 0), 0: all four channels
  *   f[0..7]   = channel x weights for taps 0..7 (tap k is applied at +k and -k)
- *   f[8..15]  = channel y weights, f[16..23] = channel z, f[24..31] = channel w */
+ *   f[8..15]  = channel y weights, f[16..23] = channel z, f[24..31] = channel w
+ * v1.2 fusions (the source is computed on the fly instead of read from a buffer a pass wrote):
+ *   i[3] = 1: the source is the grain white noise of tx_grain_gen with seed i[4] on a grid of the
+ *             output size (in0 unused; horizontal only)
+ *   i[2] = 1 and i[6] = 1: the source is the log2 luminance of the image in0 (tx_acut_luma fused;
+ *             eps = f[8], horizontal only)
+ *   i[5] = 1: channel w is passed through unchanged (alpha of the film-resolution blur) */
 CEL_DEVICE void cel_k_tx_blur4(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
     int w = a->inW[0], h = a->inH[0], st = a->inStride[0];
     int R = cel_imin(cel_imax(a->i[0], 0), 7);
+    if (a->i[3] == 1) {   /* virtual grain noise source (generation grid = output grid), horizontal */
+        int gw = a->outW;
+        cel_uint seed = (cel_uint)a->i[4];
+        CelF4 c = cel_txh_grain_white(x, y, seed);
+        float sx = c.x * a->f[0], sy = c.y * a->f[8], sz = c.z * a->f[16], sw = c.w * a->f[24];
+        for (int k = 1; k <= R; ++k) {
+            CelF4 p = cel_txh_grain_white(cel_txh_cidx(x + k, gw), y, seed);
+            CelF4 m = cel_txh_grain_white(cel_txh_cidx(x - k, gw), y, seed);
+            sx += (p.x + m.x) * a->f[k];
+            sy += (p.y + m.y) * a->f[8 + k];
+            sz += (p.z + m.z) * a->f[16 + k];
+            sw += (p.w + m.w) * a->f[24 + k];
+        }
+        cel_store(out, a->outStride, x, y, cel_f4(sx, sy, sz, sw));
+        return;
+    }
+    if (a->i[2] == 1 && a->i[6] == 1) {   /* log2 luminance of the image, horizontal */
+        CEL_GLOBAL const float* row = in0 + cel_txh_cidx(y, h) * st;
+        float eps = a->f[8];
+        float s1 = cel_txh_logluma(row, cel_txh_cidx(x, w), eps) * a->f[0];
+        for (int k = 1; k <= R; ++k)
+            s1 += (cel_txh_logluma(row, cel_txh_cidx(x + k, w), eps) + cel_txh_logluma(row, cel_txh_cidx(x - k, w), eps)) * a->f[k];
+        cel_store(out, a->outStride, x, y, cel_f4(s1, 0.0f, 0.0f, 0.0f));
+        return;
+    }
     if (a->i[2] == 1) {   /* only channel x carries data (acutance luma): 1-channel loop */
         int hx1 = a->i[1] == 0 ? 1 : 0, hy1 = 1 - hx1;
         float s1 = cel_load(in0, st, w, h, x, y).x * a->f[0];
@@ -330,6 +417,7 @@ CEL_DEVICE void cel_k_tx_blur4(CEL_KERNEL_PARAMS) {
         sz += (p.z + m.z) * a->f[16 + k];
         sw += (p.w + m.w) * a->f[24 + k];
     }
+    if (a->i[5] == 1) sw = c.w;
     cel_store(out, a->outStride, x, y, cel_f4(sx, sy, sz, sw));
 }
 
@@ -366,6 +454,35 @@ CEL_DEVICE void cel_k_tx_hb_prefilter(CEL_KERNEL_PARAMS) {
     cel_store(out, a->outStride, x, y, b);
 }
 
+/* tx_hb_prefilter_down (v1.2 fusion): tx_hb_prefilter + tx_pyr_down in one pass. out = pyramid level
+ * 1 (ceil(w/2) x ceil(h/2)) of the glow source of in0 (full-res image); every one of the 4 x 4 taps is
+ * prefiltered (sanitised -> bloom source, halation energy) before the binomial weights, so the result
+ * equals the two-pass chain. f[] as tx_hb_prefilter. */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_prefilter_px(CEL_GLOBAL const float* row, int xi, CEL_CONSTANT const CelPassArgs* a) {
+    CelF4 v = cel_txh_clean4(cel_txh_px(row, xi));
+    CelF4 b = cel_txh_bloom_src(v, a->f[3]);
+    b.w = cel_txh_hal_energy(v, a->f[0], a->f[1], a->f[2], a->f[4], a->f[5], a->f[6]);
+    return b;
+}
+CEL_DEVICE void cel_k_tx_hb_prefilter_down(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    int w = a->inW[0], h = a->inH[0], st = a->inStride[0];
+    CelF4 wb = cel_f4(0.125f, 0.375f, 0.375f, 0.125f);
+    int x0 = 2 * x - 1, y0 = 2 * y - 1;
+    int c0 = cel_txh_cidx(x0, w), c1 = cel_txh_cidx(x0 + 1, w), c2 = cel_txh_cidx(x0 + 2, w), c3 = cel_txh_cidx(x0 + 3, w);
+    CelF4 r = cel_f4(0.0f, 0.0f, 0.0f, 0.0f);
+    for (int j = 0; j < 4; ++j) {
+        CEL_GLOBAL const float* row = in0 + cel_txh_cidx(y0 + j, h) * st;
+        CelF4 q = cel_txh_scale4(cel_txh_prefilter_px(row, c0, a), wb.x);
+        q = cel_txh_madd4(q, cel_txh_prefilter_px(row, c1, a), wb.y);
+        q = cel_txh_madd4(q, cel_txh_prefilter_px(row, c2, a), wb.z);
+        q = cel_txh_madd4(q, cel_txh_prefilter_px(row, c3, a), wb.w);
+        float wy = j == 0 ? wb.x : (j == 1 ? wb.y : (j == 2 ? wb.z : wb.w));
+        r = j == 0 ? cel_txh_scale4(q, wy) : cel_txh_madd4(r, q, wy);
+    }
+    cel_store(out, a->outStride, x, y, r);
+}
+
 /* tx_hb_composite: adds bloom + halation from the accumulated glow pyramid and applies the
  * vignette, at full res.
  *   in0 = image (scene-linear, or pseudo-scene in Texture-Only), in1 = glow accumulation at its
@@ -379,6 +496,10 @@ CEL_DEVICE void cel_k_tx_hb_prefilter(CEL_KERNEL_PARAMS) {
  *   f[12] = in1 column scale (1 / 2^L)
  *   f[13] = vignette amount  f[14] = vignette k  f[15], f[16] = optical centre  f[17] = 1/half diag
  *   f[18..23] = tone map (x0, p, Yk, xk, slope, sdr), used when i[0] = 1
+ *   f[24] = K, f[25] = h0 (v1.2 physical halation, chroma activity; K = 0: fixed tint): the green
+ *           (and blue) share of the tint is scaled by 1 + K (2 h / (h + h0) - 1), h = the added
+ *           halation light: faint light (the outer tail, weak sources) stays deep red, strong light
+ *           near bright sources turns orange, so the hue varies with source intensity and radius
  *   i[0] = 1: Texture-Only (in0 is pseudo-scene; result is mapped back to display-linear and the
  *             vignette is applied in display-linear, like the stand-alone tx_vignette; for SDR
  *             outputs the result is <= 1 by construction of the curve)
@@ -397,7 +518,9 @@ CEL_DEVICE void cel_k_tx_hb_composite(CEL_KERNEL_PARAMS) {
     if (a->i[1] != 0) {
         float e = cel_txh_hal_energy(v, a->f[5], a->f[6], a->f[7], a->f[9], a->f[10], a->f[11]);
         float hal = a->f[1] * cel_txh_max(g.w - e, 0.0f);
-        o.x += hal * a->f[2]; o.y += hal * a->f[3]; o.z += hal * a->f[4];
+        float cs = 1.0f;
+        if (a->f[24] != 0.0f) cs = 1.0f + a->f[24] * (2.0f * hal / (hal + a->f[25]) - 1.0f);
+        o.x += hal * a->f[2]; o.y += hal * a->f[3] * cs; o.z += hal * a->f[4] * cs;
     }
     if (a->i[0] != 0) {
         o.x = cel_txh_s2d(o.x, a->f[18], a->f[19], a->f[20], a->f[21], a->f[22], a->f[23]);
@@ -459,84 +582,25 @@ CEL_DEVICE void cel_k_tx_up_v(CEL_KERNEL_PARAMS) {
 
 /* ---- grain ---------------------------------------------------------------------------------- */
 
-/* approximately Gaussian, zero-mean, unit-variance white noise from a 32-bit key: sum of the
- * eight bytes of two hashes (Irwin-Hall n = 8, kurtosis 2.85; the following blur makes it
- * Gaussian for all practical purposes). */
-CEL_DEVICE CEL_TXH_INLINE float cel_txh_gauss_noise(cel_uint key) {
-    cel_uint h1 = cel_hash_u32(key);
-    cel_uint h2 = cel_hash_u32(key ^ 0x5bd1e995U);
-    cel_uint s = (h1 & 255U) + ((h1 >> 8) & 255U) + ((h1 >> 16) & 255U) + (h1 >> 24)
-               + (h2 & 255U) + ((h2 >> 8) & 255U) + ((h2 >> 16) & 255U) + (h2 >> 24);
-    return ((float)s - 1020.0f) * (1.0f / 209.0215f);
-}
-
 /* tx_grain_gen: 4 independent white-noise channels on a generation grid (any size):
  *   x, y, z = per-layer grain (red-, green-, blue-sensitive layer), w = shared clump field.
  *   i[0] = frame seed (bit pattern of a 32-bit hash of grainSeed and, when animated, the frame) */
 CEL_DEVICE void cel_k_tx_grain_gen(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
-    cel_uint seed = (cel_uint)a->i[0];
-    cel_uint base = cel_hash_u32(((cel_uint)x * 0x8da6b343U) ^ cel_hash_u32(((cel_uint)y * 0xd8163841U) ^ seed));
-    cel_store(out, a->outStride, x, y,
-              cel_f4(cel_txh_gauss_noise(base + 0x9e3779b9U), cel_txh_gauss_noise(base + 0x3c6ef372U),
-                     cel_txh_gauss_noise(base + 0xdaa66d2bU), cel_txh_gauss_noise(base + 0x78dde6e4U)));
+    cel_store(out, a->outStride, x, y, cel_txh_grain_white(x, y, (cel_uint)a->i[0]));
 }
 
-/* tx_grain_finish: turns the band-limited noise channels into the final grain field.
- *   in0 = coarse noise (dominant grain size + shared clump field), in1 = fine noise (crisp
- *   sub-structure of the dye clouds, per layer; only when resolvable).  Both live on their own
- *   generation grid (spacing D >= 1 full-res px, any real value; margin M grid px on every side;
- *   grid pixel M + i covers full-res [i D, (i+1) D)). When D > 1 the grid is B-spline upsampled:
- *   vertically by tx_up_v (-> grid width x frame height), horizontally here.
- *   n_c = in0.c * f[1+c] + in1.c * f[15+c]   (weights include the octave mix: unit variance)
- *   s   = in0.w * f[4]                        (shared clump field, unit variance)
- *   X_c = (a * n_c * (1 + m * (s^2 - 1) / sqrt 2) + b * s) * invX
- *         layers share s -> correlated (target 0.4); clumps: the per-layer grain is stronger where
- *         the shared field is far from its mean (either sign, so the clumping adds no skew)
- *   y_c = (X_c + gamma * sqrt((X_c - t)^2 + kappa^2) - mu) * invSigma
- *         mildly skewed, heavier-tailed (clumpy) distribution; gamma/kappa from grainSoftness;
- *         mu/invSigma computed on the host by quadrature -> zero mean, unit variance.
- *   out = (y_r, y_g, y_b, 0); monochrome: all three = y_g.
- *   f[0] = in0 coordinate scale (1 / Dc)   f[1..3] = coarse weights x, y, z   f[4] = shared norm
- *   f[5] = a  f[6] = b  f[7] = m  f[8] = invX  f[9] = gamma  f[10] = t  f[11] = kappa^2
- *   f[12] = mu  f[13] = invSigma  f[14] = in1 coordinate scale (1 / Df)
- *   f[15..17] = fine weights x, y, z   f[18], f[19] = coarse / fine grid margin (grid px, integer):
- *   the grids extend beyond the frame so no blur tap is ever clamped inside the frame (clamping
- *   would replicate edge noise and raise the variance along the borders)
- *   i[0] = 1: B-spline upsample in0   i[1] = 1: monochrome   i[2] = 1: in1 used
- *   i[3] = 1: B-spline upsample in1 */
-CEL_DEVICE CEL_TXH_INLINE float cel_txh_grain_shape(float X, CEL_CONSTANT const CelPassArgs* a) {
-    float d = X - a->f[10];
-    return (X + a->f[9] * cel_sqrt(d * d + a->f[11]) - a->f[12]) * a->f[13];
-}
-/* grid value for full-res pixel (x, y). bspline = 1: buf was upsampled vertically by tx_up_v
- * (rows = full-res rows), sample columns at (x + 0.5) * s + margin; 0: direct, offset by margin */
-CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_grain_fetch(CEL_GLOBAL const float* buf, int st, int w, int h, int x, int y,
-                                     int bspline, float s, float margin) {
-    if (bspline != 0) return cel_txh_sample_bspline_h(buf, st, w, h, ((float)x + 0.5f) * s + margin, y);
-    int m = (int)margin;
-    return cel_load(buf, st, w, h, x + m, y + m);
-}
+/* tx_grain_finish (v1.2): DIAGNOSTIC grain field = what the colour pass adds per layer (in units of the
+ * stock's grain sigma at grey) when every layer is exposed at s = f[30] stops relative to grey: the
+ * dual-emulsion dye-cloud model of GrainKernels.h (celg_eval) on the coarse (in0) and fine (in1)
+ * grids. f[0..23] / i[] = the GrainKernels.h argument block. out = (r, g, b, 0). The production plan
+ * does not run this pass: the colour pass evaluates the same function from the true layer exposures. */
 CEL_DEVICE void cel_k_tx_grain_finish(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
-    CelF4 v = cel_txh_grain_fetch(in0, a->inStride[0], a->inW[0], a->inH[0], x, y, a->i[0], a->f[0], a->f[18]);
-    float nx = v.x * a->f[1], ny = v.y * a->f[2], nz = v.z * a->f[3];
-    if (a->i[2] != 0) {
-        CelF4 q = cel_txh_grain_fetch(in1, a->inStride[1], a->inW[1], a->inH[1], x, y, a->i[3], a->f[14], a->f[19]);
-        nx += q.x * a->f[15]; ny += q.y * a->f[16]; nz += q.z * a->f[17];
-    }
-    float sh = v.w * a->f[4];
-    float ka = a->f[5] * (1.0f + a->f[7] * (sh * sh - 1.0f) * 0.70710678f), kb = a->f[6] * sh, ix = a->f[8];
-    float gy = cel_txh_grain_shape((ny * ka + kb) * ix, a);
-    CelF4 o;
-    if (a->i[1] != 0) {
-        o = cel_f4(gy, gy, gy, 0.0f);
-    } else {
-        float gx = cel_txh_grain_shape((nx * ka + kb) * ix, a);
-        float gz = cel_txh_grain_shape((nz * ka + kb) * ix, a);
-        o = cel_f4(gx, gy, gz, 0.0f);
-    }
-    cel_store(out, a->outStride, x, y, o);
+    CelgPx g = celg_sample(in0, a->inStride[0], a->inW[0], a->inH[0], in1, a->inStride[1], a->inW[1], a->inH[1], x, y, a);
+    float s = a->f[30];
+    CelF3 n = celg_eval(g, cel_f3(s, s, s), a);
+    cel_store(out, a->outStride, x, y, cel_f4(n.x, n.y, n.z, 0.0f));
 }
 
 /* film damage (v1.1): tx_params, tx_damage */

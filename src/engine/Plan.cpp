@@ -3,28 +3,33 @@
 //
 // PASS GRAPH (SPEC §3).  "full" = frame size w x h, "Ln" = pyramid level n (ceil(w/2^n) x ...).
 //
-//   Full:        decode(SRC) -> [weave] -> [acutance] -> [glow: halation/bloom (+vignette)]
-//                -> [vignette] ; [grain] ; [damage] ; color(img, grain|-, SRC, damage|-)
+//   Full:        decode(SRC) -> [weave] -> [film resolution] -> [acutance] -> [glow: halation/bloom
+//                (+vignette)] -> [vignette] ; [grain grids] ; [damage] ;
+//                color(img, coarse grid|-, fine grid|-, damage|-)  (v1.2: grain evaluated in the colour
+//                pass from the layer exposures; alpha from img, which every texture pass keeps)
 //                -> [film blur] -> [watermark] -> DST
 //   ColorOnly:   color(SRC decoded in the kernel, i[1] = 1) -> [watermark] -> DST
-//   TextureOnly: display_decode(SRC) -> [weave] -> [tonemap to pseudo scene] -> [acutance]
-//                -> [glow (maps back to display, vignette)] | [tonemap back] -> [vignette] ;
-//                [grain] ; [damage] ; display_finish(img, grain|-, SRC, damage|-) -> [film blur]
+//   TextureOnly: display_decode(SRC) -> [weave] -> [tonemap to pseudo scene] -> [film resolution]
+//                -> [acutance] -> [glow (maps back to display, vignette)] | [tonemap back] -> [vignette] ;
+//                [grain grids] ; [damage] ; display_finish(img, coarse|-, fine|-, damage|-) -> [film blur]
 //                -> [watermark] -> DST
 //                (SDR outputs: the curve back to display never exceeds 1.0; HDR: exact inverse)
 //
 // Texture sub-graphs (each only when its amount is non-zero):
-//   weave     tx_weave(full)
-//   acutance  tx_acut_luma(full) -> tx_pyr_down x L -> tx_blur4 h, v (L) -> [tx_up_v] -> tx_acut_apply
-//             (L = 0 for radius <= 2.33 px, otherwise the level where the residual blur fits)
-//   glow      tx_hb_prefilter(full: bloom source + halation energy) -> tx_pyr_down (L1 .. Ln)
+//   weave     tx_weave(full; alpha not resampled)
+//   film res. tx_blur4 h, v (per channel negative MTF + Integrate print/scan blur; alpha kept)  (v1.2)
+//   acutance  L = 0: tx_blur4 h (log2 luma computed from the image on the fly) -> tx_blur4 v
+//             L > 0: tx_pyr_down (log2 luma on the fly) -> tx_pyr_down x (L-1) -> tx_blur4 h, v -> tx_up_v
+//             -> tx_acut_apply   (L = 0 for radius <= 2.33 px, otherwise the level where the residual
+//             blur fits; radius x gauge scale)
+//   glow      tx_hb_prefilter_down(full -> L1: bloom source + halation energy, fused) -> tx_pyr_down (L2 .. Ln)
 //             for every used level from coarse to fine: tx_blur4 h, v -> tx_pyr_up_add
 //             (accumulates B-spline upsampled coarser result + weighted level) -> tx_up_v
 //             -> tx_hb_composite
 //   vignette  fused into tx_hb_composite when the glow runs, else tx_vignette(full)
-//   grain     tx_grain_gen(coarse grid, spacing Dc >= 1 px) -> tx_blur4 h, v [-> tx_up_v] ; [fine
-//             octave on its own grid Df]
-//             -> tx_grain_finish(full)
+//   grain     per emulsion (coarse = fast, fine = slow; own grid spacing D >= 1 px):
+//             tx_blur4 h (white noise generated on the fly) -> tx_blur4 v [-> tx_up_v]; the colour pass
+//             samples both grids (GrainKernels.h). buildGrainPlan adds tx_grain_finish (diagnostic field).
 //   damage    [tx_params (8x1 scratch / hair tables)] -> tx_damage(full)   (v1.1, film damage on and
 //             something to draw; the field is the colour pass's in3)
 //   film blur display_decode(colour result) -> [tx_pyr_down x L] -> tx_blur4 h, v (per channel)
@@ -34,10 +39,12 @@
 //
 // f[] / i[] OF THE COLOUR AND LICENSE PASSES (kernels owned by core / license):
 //   decode, display_decode:  f[] = 0, i[] = 0 (everything comes from `state`).
-//   color, display_finish:   i[0] = 1 when in1 holds the grain field (then in1 = grain noise xyz,
-//                            unit variance per layer), 0 when no grain (in1 unused: inStride[1] = 0,
-//                            inW[1] = inH[1] = 0). in2 = SRC (alpha). in3 = damage field or unused.
-//                            f[] = 0.
+//   color, display_finish:   i[0] = 2 (v1.2 grain): in1 = coarse grid, in2 = fine grid, f[0..23] and
+//                            i[3..5] = the GrainKernels.h block, display_finish also f[24..29] = tone
+//                            map; alpha = in0.w. i[0] = 0: no grain (in1 / in2 unused). in3 = damage
+//                            field or unused. Film blur re-encode: display_finish(img, -, SRC): alpha
+//                            from SRC (in2), f[] = 0. (i[0] = 1 = v1.1 finished grain field in in1 is
+//                            still understood by the kernels.)
 //                            color only: i[1] = 1 = in0 is the encoded host source, decoded in the
 //                            kernel (Color Only plan; alpha = in0.w, in2 unused).
 //   watermark:               in0 = colour result (dst size) -> DST; f[0] = pixelScale, f[1..4] and
@@ -237,7 +244,7 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
     // Texture-Only: acutance and glow work in the film-like pseudo scene (log exposure semantics
     // and display-referred thresholds); the way back goes through the same curve, which for SDR
     // outputs never exceeds 1.0.
-    const bool pseudo = dr && (acutOn(tp) || hal || bloom);
+    const bool pseudo = dr && (acutOn(tp) || hal || bloom || tex::designMtf(tp, ps).on);
     if (pseudo) {
         int o = B.buffer(w, h);
         PassDesc& p = B.pass(KID_tx_tonemap, o, {cur});
@@ -245,22 +252,49 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
         p.args.i[0] = 0;
         cur = o;
     }
-    // ---- acutance
+    // ---- film resolution (v1.2): negative MTF + Integrate, per channel, alpha kept
+    {
+        const tex::MtfDesign md = tex::designMtf(tp, ps);
+        if (md.on) {
+            int t = B.buffer(w, h);
+            PassDesc& ph = B.pass(KID_tx_blur4, t, {cur});
+            setBlurWeights(ph, md.g, 0, false);
+            ph.args.i[5] = 1;
+            int o = B.buffer(w, h);
+            PassDesc& pv = B.pass(KID_tx_blur4, o, {t});
+            setBlurWeights(pv, md.g, 1, false);
+            pv.args.i[5] = 1;
+            cur = o;
+        }
+    }
+    // ---- acutance (log2 luminance computed on the fly by the first blur / downsample pass)
     if (acutOn(tp)) {
         double r = std::isfinite(tp.acutanceRadius) ? std::max(0.05, double(tp.acutanceRadius)) : 2.0;
-        tex::AcutDesign ad = tex::designAcutance(r * ps);
-        int luma = B.buffer(w, h);
-        B.pass(KID_tx_acut_luma, luma, {cur}).args.f[0] = ad.eps;
-        int lb = luma;
-        for (int l = 1; l <= ad.level; ++l) {
-            int d = B.buffer(tex::levelSize(w, l), tex::levelSize(h, l));
-            B.pass(KID_tx_pyr_down, d, {lb});
-            lb = d;
-        }
+        tex::AcutDesign ad = tex::designAcutance(r * ps * tex::gaugeRadiusScale(tp.grainFormat));
         tex::Gauss1D g[4] = {ad.g, tex::Gauss1D{}, tex::Gauss1D{}, tex::Gauss1D{}};
         g[1].w[0] = g[2].w[0] = g[3].w[0] = 0.f;      // unused channels: zero
-        int blurred = addBlur(B, lb, g, true);
-        if (ad.level > 0) blurred = addUpV(B, blurred, h, std::ldexp(1.0, -ad.level), 0.0);
+        int blurred;
+        if (ad.level == 0) {
+            int t = B.buffer(w, h);
+            PassDesc& ph = B.pass(KID_tx_blur4, t, {cur});
+            setBlurWeights(ph, g, 0, true);
+            ph.args.i[6] = 1;
+            ph.args.f[8] = ad.eps;
+            blurred = B.buffer(w, h);
+            setBlurWeights(B.pass(KID_tx_blur4, blurred, {t}), g, 1, true);
+        } else {
+            int lb = B.buffer(tex::levelSize(w, 1), tex::levelSize(h, 1));
+            PassDesc& pd = B.pass(KID_tx_pyr_down, lb, {cur});
+            pd.args.i[0] = 1;
+            pd.args.f[0] = ad.eps;
+            for (int l = 2; l <= ad.level; ++l) {
+                int d = B.buffer(tex::levelSize(w, l), tex::levelSize(h, l));
+                B.pass(KID_tx_pyr_down, d, {lb});
+                lb = d;
+            }
+            blurred = addBlur(B, lb, g, true);
+            blurred = addUpV(B, blurred, h, std::ldexp(1.0, -ad.level), 0.0);
+        }
         int o = B.buffer(w, h);
         PassDesc& p = B.pass(KID_tx_acut_apply, o, {cur, blurred});
         p.args.f[0] = std::min(2.f, std::max(-1.f, tp.acutanceAmount));
@@ -274,20 +308,19 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
     // ---- halation + bloom (+ vignette fused)
     bool vigDone = false, backToDisplay = false;
     if (hal || bloom) {
-        double hr = (std::isfinite(tp.halationRadius) ? std::max(0.1, double(tp.halationRadius)) : 20.0) * ps;
+        double hr = (std::isfinite(tp.halationRadius) ? std::max(0.1, double(tp.halationRadius)) : 20.0) * ps
+                    * tex::gaugeRadiusScale(tp.grainFormat);
         double br = (std::isfinite(tp.bloomRadius) ? std::max(0.1, double(tp.bloomRadius)) : 40.0) * ps;
-        tex::GlowDesign gd = tex::designGlow(bloom, br, hal, hr, w, h);
         tex::HalationLook hl = tex::halationLook(tp.halationAmount, tp.halationThreshold, tp.halationHue);
+        tex::GlowDesign gd = tex::designGlow(bloom, br, hal, hr, w, h, hl.ring);
         if (gd.nLevels >= 1) {
             std::vector<int> down(size_t(gd.nLevels) + 1, -1);
-            {
-                int src = B.buffer(w, h);
-                PassDesc& p = B.pass(KID_tx_hb_prefilter, src, {cur});
+            {   // glow source + level 1 in one pass (tx_hb_prefilter -> tx_pyr_down fused)
+                int d1 = B.buffer(tex::levelSize(w, 1), tex::levelSize(h, 1));
+                PassDesc& p = B.pass(KID_tx_hb_prefilter_down, d1, {cur});
                 p.args.f[0] = hl.threshold; p.args.f[1] = hl.knee; p.args.f[2] = hl.emax;
                 p.args.f[3] = tex::kBloomBMax;
                 p.args.f[4] = hl.srcW[0]; p.args.f[5] = hl.srcW[1]; p.args.f[6] = hl.srcW[2];
-                int d1 = B.buffer(tex::levelSize(w, 1), tex::levelSize(h, 1));
-                B.pass(KID_tx_pyr_down, d1, {src});
                 down[1] = d1;
             }
             for (int l = 2; l <= gd.nLevels; ++l) {
@@ -325,6 +358,7 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
             if (vigOn(tp)) { setVignette(f + 13, tp.vignette, w, h); vigDone = true; }
             // setVignette writes f[13..17]: amount, k, cx, cy, 1/halfdiag
             setToneMap(f + 18, tm);
+            f[24] = hal ? hl.chroma : 0.f; f[25] = hl.chromaRef;
             p.args.i[0] = dr ? 1 : 0;
             backToDisplay = dr;
             p.args.i[1] = hal ? 1 : 0;
@@ -349,38 +383,55 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
     return cur;
 }
 
-int addGrainOctave(Builder& B, const tex::GrainOctave& o, int h) {
-    int n = B.buffer(o.gw, o.gh);
-    B.pass(KID_tx_grain_gen, n, {}).args.i[0] = bitsToInt(o.seed);
-    int b = addBlur(B, n, o.g);
+// one emulsion's band-limited sensitivity field: white noise generated inside the horizontal blur
+// Grain white noise is generated inside the horizontal blur (tx_blur4 i[3]) only for short kernels:
+// each output texel hashes 2R + 1 noise texels, so for wide kernels a tx_grain_gen pass (one hash set
+// per texel, one extra write + read) is cheaper on both the CPU and Apple-class GPUs.
+constexpr int kGrainFuseMaxRadius = 2;
+
+// gw / gh: the grid buffer size (>= o.gw x o.gh; the extra right / bottom texels are never read)
+int addGrainOctave(Builder& B, const tex::GrainOctave& o, int h, int gw, int gh) {
+    int b;
+    const int R = maxRadius(o.g);
+    if (R == 0) {
+        b = B.buffer(gw, gh);
+        B.pass(KID_tx_grain_gen, b, {}).args.i[0] = bitsToInt(o.seed);
+    } else {
+        int t = B.buffer(gw, gh);
+        if (R <= kGrainFuseMaxRadius) {
+            PassDesc& ph = B.pass(KID_tx_blur4, t, {});
+            setBlurWeights(ph, o.g, 0, false);
+            ph.args.i[3] = 1;
+            ph.args.i[4] = bitsToInt(o.seed);
+        } else {
+            int n = B.buffer(gw, gh);
+            B.pass(KID_tx_grain_gen, n, {}).args.i[0] = bitsToInt(o.seed);
+            setBlurWeights(B.pass(KID_tx_blur4, t, {n}), o.g, 0, false);
+        }
+        b = B.buffer(gw, gh);
+        setBlurWeights(B.pass(KID_tx_blur4, b, {t}), o.g, 1, false);
+    }
     if (o.spacing > 1.0) b = addUpV(B, b, h, 1.0 / o.spacing, double(o.margin));
     return b;
 }
 
-int addGrain(Builder& B, const tex::TextureParams& tp, int w, int h, float ps) {
-    tex::GrainDesign gd = tex::designGrain(tp, w, h, ps);
-    int c = addGrainOctave(B, gd.coarse, h);
-    int fn = gd.fine.used ? addGrainOctave(B, gd.fine, h) : -1;
-    int o = B.buffer(w, h);
-    PassDesc& p = B.pass(KID_tx_grain_finish, o, {c, fn});
-    float* f = p.args.f;
-    f[0] = float(1.0 / gd.coarse.spacing);
-    for (int k = 0; k < 3; ++k) f[1 + k] = float(gd.wCoarse * gd.coarse.norm[k]);
-    f[4] = gd.coarse.norm[3];
-    f[5] = float(gd.shape.a); f[6] = float(gd.shape.b); f[7] = float(gd.shape.m); f[8] = float(gd.shape.invX);
-    f[9] = float(gd.shape.gamma); f[10] = float(gd.shape.t); f[11] = float(gd.shape.kappa * gd.shape.kappa);
-    f[12] = float(gd.shape.mu); f[13] = float(gd.shape.invSigma);
-    if (gd.fine.used) {
-        f[14] = float(1.0 / gd.fine.spacing);
-        for (int k = 0; k < 3; ++k) f[15 + k] = float(gd.wFine * gd.fine.norm[k]);
-    }
-    f[18] = float(gd.coarse.margin);
-    f[19] = gd.fine.used ? float(gd.fine.margin) : 0.f;
-    p.args.i[0] = gd.coarse.spacing > 1.0 ? 1 : 0;
-    p.args.i[1] = gd.mono ? 1 : 0;
-    p.args.i[2] = gd.fine.used ? 1 : 0;
-    p.args.i[3] = (gd.fine.used && gd.fine.spacing > 1.0) ? 1 : 0;
-    return o;
+struct GrainGrids { int coarse = -1, fine = -1; tex::GrainDesign d; };
+GrainGrids addGrain(Builder& B, const tex::TextureParams& tp, int w, int h, float ps) {
+    GrainGrids g;
+    g.d = tex::designGrain(tp, w, h, ps);
+    const tex::GrainOctave &c = g.d.coarse, &f = g.d.fine;
+    // full-res grids of both octaves get one size, so the fine octave reuses the coarse octave's
+    // horizontal-pass buffer (bounded memory)
+    const bool same = c.spacing <= 1.0 && f.spacing <= 1.0;
+    const int gw = std::max(c.gw, f.gw), gh = std::max(c.gh, f.gh);
+    g.coarse = addGrainOctave(B, c, h, same ? gw : c.gw, same ? gh : c.gh);
+    g.fine = addGrainOctave(B, f, h, same ? gw : f.gw, same ? gh : f.gh);
+    return g;
+}
+void setGrainArgs(PassDesc& p, const tex::GrainDesign& d) {
+    for (int k = 0; k < 24; ++k) p.args.f[k] = d.f[k];
+    p.args.i[0] = d.i[0];
+    for (int k = 3; k < 6; ++k) p.args.i[k] = d.i[k];
 }
 
 bool hdrOutput(const FrameSettings& fs) {
@@ -446,7 +497,8 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
     const tex::TextureParams& tp = fs.tex;
     const float ps = tex::effectivePixelScale(tp, w);
     Builder B(w, h);
-    int img = -1, noise = -1, damage = -1;
+    int img = -1, damage = -1;
+    GrainGrids grain;
     KernelId colorK = KID_color;
     switch (fs.mode) {
         case core::Mode::ColorOnly: {
@@ -457,7 +509,7 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
             int dl = B.buffer(w, h);
             B.pass(KID_display_decode, dl, {BUF_SRC});
             img = addImageTexture(B, dl, tp, true, hdrOutput(fs), w, h, ps);
-            if (grainOn(fs)) noise = addGrain(B, tp, w, h, ps);
+            if (grainOn(fs)) grain = addGrain(B, tp, w, h, ps);
             damage = addDamage(B, tp, w, h, ps);
             colorK = KID_display_finish;
             break;
@@ -467,7 +519,7 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
             int sc = B.buffer(w, h);
             B.pass(KID_decode, sc, {BUF_SRC});
             img = addImageTexture(B, sc, tp, false, hdrOutput(fs), w, h, ps);
-            if (grainOn(fs)) noise = addGrain(B, tp, w, h, ps);
+            if (grainOn(fs)) grain = addGrain(B, tp, w, h, ps);
             damage = addDamage(B, tp, w, h, ps);
             break;
         }
@@ -478,8 +530,12 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
                                   (fs.look.stage == int(core::Stage::NegativeLogScan) || fs.look.stage == int(core::Stage::NegativeToScene));
     const tex::FilmBlurDesign fb = (fusedDecode || beforeProjection) ? tex::FilmBlurDesign{} : tex::designFilmBlur(tp, w, h, ps);
     int colorOut = (fs.watermark || fb.on) ? B.buffer(w, h) : int(BUF_DST);
-    PassDesc& cp = fusedDecode ? B.pass(colorK, colorOut, {img, noise, -1}) : B.pass(colorK, colorOut, {img, noise, BUF_SRC, damage});
-    cp.args.i[0] = noise >= 0 ? 1 : 0;
+    PassDesc& cp = fusedDecode ? B.pass(colorK, colorOut, {img, -1, -1})
+                               : B.pass(colorK, colorOut, {img, grain.coarse, grain.fine, damage});
+    if (grain.coarse >= 0) {
+        setGrainArgs(cp, grain.d);
+        if (colorK == KID_display_finish) setToneMap(cp.args.f + 24, tex::toneMap(!hdrOutput(fs)));
+    }
     cp.args.i[1] = fusedDecode ? 1 : 0;
     int finalOut = colorOut;
     if (fb.on) {
@@ -564,12 +620,14 @@ engine::Plan buildDamagePlan(int w, int h, const TextureParams& tp) {
     return B.finish();
 }
 
-engine::Plan buildGrainPlan(int w, int h, const TextureParams& tp) {
+engine::Plan buildGrainPlan(int w, int h, const TextureParams& tp, float stops) {
     using namespace engine;
     w = std::max(1, w); h = std::max(1, h);
     Builder B(w, h);
-    int r = addGrain(B, tp, w, h, effectivePixelScale(tp, w));
-    B.redirectLast(r, BUF_DST);
+    GrainGrids g = addGrain(B, tp, w, h, effectivePixelScale(tp, w));
+    PassDesc& p = B.pass(KID_tx_grain_finish, BUF_DST, {g.coarse, g.fine});
+    setGrainArgs(p, g.d);
+    p.args.f[30] = std::isfinite(stops) ? stops : 0.f;
     return B.finish();
 }
 

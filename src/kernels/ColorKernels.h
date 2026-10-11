@@ -11,6 +11,11 @@
  *                   in1 = grain noise field (xyz = R-,G-,B-sensitive layer; zero mean, unit variance)
  *                         -- used only when a->inStride[1] != 0 (ABI: stride 0 = input unused)
  *                   in2 = host source (alpha source) -- used when a->inStride[2] != 0, else alpha of in0
+ *                   GRAIN v2 (v1.2, i[0] = 2, texture-owned GrainKernels.h): in1 = coarse, in2 = fine
+ *                         grain grid, f[] / i[3..5] = the GrainKernels.h argument block; the grain is
+ *                         evaluated here from the layer exposures (exposure-coupled dye clouds) and
+ *                         added in density without the v1 sqrt(D) law (the model carries its own
+ *                         exposure dependence); alpha = in0.w (the texture passes keep it)
  *                   in3 = film damage field (v1.1, tx_damage in DamageKernels.h) -- used when
  *                         a->inStride[3] != 0: x = negative neutral density, y = negative emulsion
  *                         removal depth (layers, 0..3), z = print neutral density, w = print emulsion
@@ -35,6 +40,7 @@
 #include "KernelABI.h"
 #include "ColorState.h"
 #include "ColorTransfer.h"
+#include "GrainKernels.h"   /* v1.2 grain v2 (texture agent): celg_* */
 
 /* ------------------------------------------------------------------------- small helpers */
 CEL_DEVICE int celc_i(CEL_GLOBAL const float* s, int idx) { return (int)(s[idx] + 0.5f); }
@@ -258,7 +264,12 @@ CEL_DEVICE CelcNeg celc_negative_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF3
         x = cel_f3(x.x + s[CEL_CS_OFF], x.y + s[CEL_CS_OFF + 1], x.z + s[CEL_CS_OFF + 2]);
     CelF3 d = celc_lut1_3(s, nco, ncn, x0, x1, x);
     CelF3 dmin = cel_f3(s[CEL_CS_DMIN], s[CEL_CS_DMIN + 1], s[CEL_CS_DMIN + 2]);
-    if (hasNoise && s[CEL_CS_GRAIN_ON] > 0.5f) {
+    if (hasNoise == CEL_GRAIN_V2 && s[CEL_CS_GRAIN_ON] > 0.5f) {
+        /* grain v2: noise is the dye-cloud density fluctuation in units of the grain sigma at grey */
+        d.x += s[CEL_CS_GSIG + 0] * noise.x;
+        d.y += s[CEL_CS_GSIG + 1] * noise.y;
+        d.z += s[CEL_CS_GSIG + 2] * noise.z;
+    } else if (hasNoise && s[CEL_CS_GRAIN_ON] > 0.5f) {
         CelF3 nz = noise;
         if (celc_i(s, CEL_CS_MONO)) nz = cel_f3(noise.y, noise.y, noise.y);
         d.x += s[CEL_CS_GSIG + 0] * cel_sqrt(cel_fmax(d.x - dmin.x, 0.0f) + CEL_GRAIN_EPS) * nz.x;
@@ -542,7 +553,14 @@ CEL_DEVICE CelF3 celc_stage_exit(CEL_GLOBAL const float* s, int stage, CelF3 rgb
     }
     int mono = celc_i(s, CEL_CS_MONO);
     CelF3 pd = celc_ns_density(s, rgb);
-    if (hasNoise && s[CEL_CS_GRAIN_ON] > 0.5f) {
+    if (hasNoise == CEL_GRAIN_V2 && s[CEL_CS_GRAIN_ON] > 0.5f) {
+        /* grain v2: the dye-cloud fluctuation at the scan's layer exposures, added in density like the
+         * negative path (celc_negative_dmg; the model carries its own exposure dependence, mono is
+         * already folded in by celg_eval) */
+        pd.x += s[CEL_CS_GSIG + 0] * noise.x;
+        pd.y += s[CEL_CS_GSIG + 1] * noise.y;
+        pd.z += s[CEL_CS_GSIG + 2] * noise.z;
+    } else if (hasNoise && s[CEL_CS_GRAIN_ON] > 0.5f) {
         CelF3 nz = noise;
         if (mono) nz = cel_f3(noise.y, noise.y, noise.y);
         pd.x += s[CEL_CS_GSIG + 0] * cel_sqrt(cel_fmax(pd.x, 0.0f) + CEL_GRAIN_EPS) * nz.x;
@@ -630,7 +648,9 @@ CEL_DEVICE CelF3 celc_display_finish_dmg(CEL_GLOBAL const float* s, CelF3 lin, C
         if (celc_i(s, CEL_CS_MONO)) nz = cel_f3(nz.y, nz.y, nz.y);
         float Y = celc_dot3(s, CEL_CS_LUM, lin);
         float l = cel_log10(cel_fmax(Y, 1e-6f)) + 0.95f;
-        float sig = s[CEL_CS_TX_GSIG] * cel_exp(-0.5f * l * l / (0.7f * 0.7f));
+        /* grain v2 carries its own exposure dependence (and a positive fluctuation = more negative
+         * density = a brighter print, as in Full mode) */
+        float sig = hasNoise == CEL_GRAIN_V2 ? -s[CEL_CS_TX_GSIG] : s[CEL_CS_TX_GSIG] * cel_exp(-0.5f * l * l / (0.7f * 0.7f));
         if (out <= CEL_OUT_P3DCI_G26) {
             /* SDR: grain fades out toward display white and never pushes a channel above
              * max(its value, 1.0), so a legal input stays legal */
@@ -662,15 +682,28 @@ CEL_DEVICE void cel_k_decode(CEL_KERNEL_PARAMS) {
 
 CEL_DEVICE void cel_k_color(CEL_KERNEL_PARAMS) {
     CelF4 p = cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y);
+    int v2 = a->i[0] == CEL_GRAIN_V2;
     int hasNoise = a->inStride[1] != 0;
     CelF3 nz = cel_f3(0.0f, 0.0f, 0.0f);
-    if (hasNoise) { CelF4 n = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], x, y); nz = cel_f3(n.x, n.y, n.z); }
+    if (hasNoise && !v2) { CelF4 n = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], x, y); nz = cel_f3(n.x, n.y, n.z); }
     float alpha = p.w;
-    if (a->inStride[2] != 0) alpha = cel_load(in2, a->inStride[2], a->inW[2], a->inH[2], x, y).w;
+    if (a->inStride[2] != 0 && !v2) alpha = cel_load(in2, a->inStride[2], a->inW[2], a->inH[2], x, y).w;
     CelF3 sc = cel_f3(p.x, p.y, p.z);
     /* i[1] = 1: in0 is the encoded host source (Color Only plan: decode fused into this pass,
      * bit-identical to a separate decode pass) */
     if (a->i[1] != 0) sc = celc_decode_px(state, sc);
+    if (v2) {   /* grain v2: dye clouds at the layer exposures of this pixel (stops re 18 % grey) */
+        hasNoise = 0;
+        if ((a->inStride[1] != 0 && a->inStride[2] != 0) && state[CEL_CS_GRAIN_ON] > 0.5f) {
+            CelF3 sn = cel_f3(celc_sanitize(sc.x), celc_sanitize(sc.y), celc_sanitize(sc.z));
+            CelF3 e = celc_exposures(state, sn);
+            CelF3 st = cel_f3((e.x - CEL_LOG10_018) * CEL_INV_LOG10_2, (e.y - CEL_LOG10_018) * CEL_INV_LOG10_2,
+                              (e.z - CEL_LOG10_018) * CEL_INV_LOG10_2);
+            CelgPx g = celg_sample(in1, a->inStride[1], a->inW[1], a->inH[1], in2, a->inStride[2], a->inW[2], a->inH[2], x, y, a);
+            nz = celg_eval(g, st, a);
+            hasNoise = CEL_GRAIN_V2;
+        }
+    }
     CelF4 dmg = cel_f4(0.0f, 0.0f, 0.0f, 0.0f);
     if (a->inStride[3] != 0) dmg = cel_load(in3, a->inStride[3], a->inW[3], a->inH[3], x, y);
     CelF3 r = celc_scene_to_output_dmg(state, sc, nz, hasNoise, dmg);
@@ -686,11 +719,21 @@ CEL_DEVICE void cel_k_display_decode(CEL_KERNEL_PARAMS) {
 
 CEL_DEVICE void cel_k_display_finish(CEL_KERNEL_PARAMS) {
     CelF4 p = cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y);
+    int v2 = a->i[0] == CEL_GRAIN_V2;
     int hasNoise = a->inStride[1] != 0;
     CelF3 nz = cel_f3(0.0f, 0.0f, 0.0f);
-    if (hasNoise) { CelF4 n = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], x, y); nz = cel_f3(n.x, n.y, n.z); }
+    if (hasNoise && !v2) { CelF4 n = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], x, y); nz = cel_f3(n.x, n.y, n.z); }
     float alpha = p.w;
-    if (a->inStride[2] != 0) alpha = cel_load(in2, a->inStride[2], a->inW[2], a->inH[2], x, y).w;
+    if (a->inStride[2] != 0 && !v2) alpha = cel_load(in2, a->inStride[2], a->inW[2], a->inH[2], x, y).w;
+    if (v2) {   /* grain v2 on the display-referred image: exposure from the Texture-Only pseudo scene */
+        hasNoise = 0;
+        if ((a->inStride[1] != 0 && a->inStride[2] != 0) && state[CEL_CS_TX_GSIG] > 0.0f) {
+            CelF3 st = cel_f3(celg_display_stops(p.x, a), celg_display_stops(p.y, a), celg_display_stops(p.z, a));
+            CelgPx g = celg_sample(in1, a->inStride[1], a->inW[1], a->inH[1], in2, a->inStride[2], a->inW[2], a->inH[2], x, y, a);
+            nz = celg_eval(g, st, a);
+            hasNoise = CEL_GRAIN_V2;
+        }
+    }
     int hasDmg = a->inStride[3] != 0;
     CelF4 dmg = cel_f4(0.0f, 0.0f, 0.0f, 0.0f);
     if (hasDmg) dmg = cel_load(in3, a->inStride[3], a->inW[3], a->inH[3], x, y);

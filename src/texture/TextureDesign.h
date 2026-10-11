@@ -24,25 +24,42 @@ Gauss1D gaussKernel(double sigma);
 // Size of pyramid level L (ceil division, never below 1).
 int levelSize(int fullSize, int level);
 
-// ---- grain -------------------------------------------------------------------------------------
-double      grainFormatSigma(GrainFormat f);      // green-layer grain sigma, px @1920, grainSize 1
-float       grainFormatAmplitude(GrainFormat f);  // suggested amplitude factor vs Super 35 (see .cpp)
+// ---- gauge (film format) ------------------------------------------------------------------------
+// Physical camera gate width (mm) and the gauge ladder of grain amplitude / size calibrated to the
+// owner's power grade (16 : 35 : 65 = 1.7 : 1 : 0.67 amplitude, 1.25 : 1 : 0.5 size; Super 8 and
+// 35 mm stills placed on the same ladder by gate width).
+double gaugeGateMm(GrainFormat f);
+// sqrt(gate(S35) / gate(f)): radii of physical effects that are a fixed distance ON THE FILM
+// (adjacency effect, halation ring) grow as the gauge gets smaller; the square root is the owner's
+// ladder (his 16 mm grade uses ~1.2x the 35 mm halation radius).
+double gaugeRadiusScale(GrainFormat f);
+
+// ---- grain (v1.2: exposure-coupled dual-emulsion dye clouds, src/kernels/GrainKernels.h) --------
+double      grainFormatSigma(GrainFormat f);      // fast-emulsion (coarse) cloud sigma, px @1920, grainSize 1
+float       grainFormatAmplitude(GrainFormat f);  // density amplitude factor vs Super 35 (gauge ladder)
 const char* grainFormatName(GrainFormat f);
 
-// Layer sizes relative to the green layer, and the shared clump field.
-constexpr double kGrainRelSigma[4] = {1.12, 1.00, 1.45, 1.20};   // red, green, blue, shared
-
-struct GrainShape {          // distribution shaping (from grainSoftness)
-    double sigmaScale;       // softness widens the grain (HF roll-off)
-    double gamma, t, kappa;  // y = X + gamma * sqrt((X - t)^2 + kappa^2)
-    double m;                // clump modulation of the per-layer grain by the shared field
-    double a, b;             // X = (a n (1 + m (s^2-1)/sqrt2) + b s) * invX; b from the layer correlation
-    double invX;
-    double mu, invSigma;     // normalisation of y (quadrature, exact for Gaussian n, s)
-    double corr;             // resulting inter-layer correlation of y
-};
-constexpr double kGrainLayerCorrelation = 0.90;   // SPEC section 5 (look refinement): mostly luminance grain
-GrainShape grainShape(float softness);             // cached, thread-safe
+// Layer sizes relative to the green layer, and the shared (inter-layer) structure.
+constexpr double kGrainRelSigma[4] = {1.12, 1.00, 1.45, 1.00};   // red, green, blue own fields, shared
+// Shared share of every layer's sensitivity field (variance): colour film grain reads as luminance
+// grain (look-dev: below ~0.97 the film's colour separation turns the grain into chroma noise).
+constexpr double kGrainSharedVar = 0.98;
+// Fine (slow emulsion) cloud size relative to the coarse one, and its floor (px @1920).
+constexpr double kGrainFineRel = 0.45;
+constexpr double kGrainFineMinPx = 0.35;
+// Emulsion development curves (stops relative to 18 % grey). Fitted to the KODAK VISION3 granularity
+// curves (reference/filmdata/fit_grain.py, w = 0.6: fast centre -3.25, width 1.56, fog z -1.42; slow
+// centre +2.12, width 4.88; A_fast / A_slow 1.26), then the FAST emulsion is placed for our stocks'
+// camera-to-print tone scale (v1.2 default look): centre -0.7 stops, width 1.0, fog z -2.1, A_fast / A_slow 1.36, so the coarse
+// grain sits in the print's lower mid-tones (L* 20..50) and thins out in the deep shadows, as in the
+// owner's references (look-dev T1; tools/look/texture_metrics.py on the F-Log2 C footage). The slow
+// emulsion keeps the Kodak fit.
+constexpr double kGrainFastCentre = -0.7, kGrainFastWidth = 1.0, kGrainFogZ = -2.1, kGrainFogKappa = 0.6;
+constexpr double kGrainSlowCentre = 2.12, kGrainSlowWidth = 4.88;
+constexpr double kGrainFastSlowRatio = 1.36;   // A_fast / A_slow
+// overall level: n has unit std at grey times this (the colour pass then scales by the stock's grain
+// sigma, which v1.1 multiplied by sqrt(D - Dmin) ~ 0.8 at grey)
+constexpr double kGrainGain = 1.42;
 
 struct GrainOctave {
     bool     used = false;
@@ -55,24 +72,41 @@ struct GrainOctave {
     uint32_t seed = 0;           // tx_grain_gen seed
 };
 // The generation grid is chosen so the green layer has sigma = kGrainGridSigma grid px: well
-// above the B-spline reconstruction basis (isotropic, no grid structure) and the widest channel
-// (shared field, 1.6x) still fits the 7-tap radius.
+// above the B-spline reconstruction basis (isotropic, no grid structure) and every channel still
+// fits the 7-tap radius.
 constexpr double kGrainGridSigma = 1.30;
-// Fine octave: crisp sub-structure of the dye clouds (real grain has a much flatter Wiener
-// spectrum than a Gaussian). Sigma relative to the layer sigma; its weight fades out with
-// softness and when it would be sub-pixel at the 1920 px reference (so the look stays
-// resolution independent).
-constexpr double kGrainFineRel = 0.40;
-constexpr double kGrainFineWeight = 0.55;     // amplitude share (0.3 of the variance) at softness 0
 struct GrainDesign {
-    GrainOctave coarse;          // x, y, z = layers, w = shared clump field
-    GrainOctave fine;            // x, y, z = layers (w unused)
-    double   wCoarse = 1.0, wFine = 0.0;   // octave amplitudes, wCoarse^2 + wFine^2 = 1
-    GrainShape shape{};
+    GrainOctave coarse;          // fast emulsion: x, y, z = own layer fields, w = shared
+    GrainOctave fine;            // slow emulsion: x, y, z = own layer fields, w = shared
+    double   cs = 1.0, ci = 0.0; // shared / own field weights (cs^2 + ci^2 = 1)
+    double   w = 0.6;            // soft indicator width (grainSoftness)
+    double   aFast = 1.0, aSlow = 1.0;   // amplitudes: unit std at grey (incl. the Integrate print MTF loss)
     bool     mono = false;
+    float    f[24] = {};         // GrainKernels.h argument block f[0..23]
+    int      i[6] = {};          // i[0] = 2, i[3..5]
 };
 GrainDesign designGrain(const TextureParams& tp, int w, int h, float pixelScale);
 uint32_t    grainFrameSeed(int grainSeed, bool animated, double time);
+// host reference of the model (double): standard deviation of the density fluctuation (units of the
+// grain sigma at grey) at exposure s stops for indicator width w (quadrature over the field)
+double grainModelStd(double s, double w);
+
+// ---- film resolution (v1.2): negative MTF + Integrate (print / scan resolution shared by image and
+// grain). Gaussian fits of the KODAK VISION3 250D / 500T modulation-transfer curves
+// (reference/filmdata/vision3_texture.json): sigma on the film in micrometres per layer.
+constexpr double kNegMtfSigmaUm[3] = {4.4, 3.4, 2.9};   // red, green, blue layer
+constexpr double kIntegrateSigmaUm = 10.0;               // print + scan system at Integrate = 1
+// share of that system blur the grain receives: the colourist's "soften the picture under the grain"
+// (the grain is re-imaged by the same optics but its dye clouds are the finest structure the scan
+// keeps, so it loses far less than the camera image)
+constexpr double kIntegrateGrainShare = 0.35;
+struct MtfDesign {
+    bool    on = false;
+    double  sigma[3] = {0, 0, 0};   // full-res px per channel (image)
+    Gauss1D g[4];                   // per channel (alpha: identity)
+    double  grainSigma = 0.0;       // full-res px: the part of the print / scan blur the grain also gets
+};
+MtfDesign designMtf(const TextureParams& tp, float pixelScale);
 
 // ---- glow pyramid (halation + bloom) --------------------------------------------------------------
 struct GlowLevel {
@@ -91,17 +125,32 @@ constexpr int    kBloomScales = 4;
 constexpr double kBloomRel[kBloomScales] = {0.25, 0.5, 1.0, 2.0};
 constexpr double kBloomW[kBloomScales]   = {0.16, 0.24, 0.32, 0.28};
 constexpr int    kHalScales = 6;
+// v1.1 (thresholded) halation: centre-peaked multi-scale glow
 constexpr double kHalRel[kHalScales] = {0.2, 0.35, 0.6, 1.0, 1.8, 3.2};
 constexpr double kHalW[kHalScales]   = {0.16, 0.24, 0.24, 0.18, 0.12, 0.06};
-GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h);
+// v1.2 physical halation: an ANNULAR point spread (light reflected at the back of the base returns at
+// a ring around its source; the inner negative scale empties the centre) with a long tail; >= 0
+// everywhere, value at the centre ~0.18 of the ring peak, peak at ~0.6 radius, integral 1.
+constexpr double kHalRingRel[kHalScales] = {0.3, 0.55, 0.85, 1.3, 2.0, 3.2};
+constexpr double kHalRingW[kHalScales]   = {-0.10, 0.18, 0.30, 0.28, 0.20, 0.14};
+GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h, bool halRing = false);
 
 struct HalationLook {
     float tint[3];               // added light colour (red = 1)
     float gain;                  // per unit halationAmount
     float threshold, knee, emax; // threshold / emax scene-linear, knee in stops over the threshold
     float srcW[3];               // halation source weights
+    bool  ring;                  // v1.2 physical mode (threshold <= 0): linear source, annular PSF
+    float chroma = 0.f;          // physical mode: chroma activity K of the tint (tx_hb_composite f[24])
+    float chromaRef = 1.f;       //   and its reference level h0 (scene-linear added light, f[25])
 };
+// thresholdStops <= 0: physical, threshold-free halation (a fixed fraction of the red-weighted light,
+// only extreme energies compressed; annular PSF). > 0: the v1.1 soft-knee gate (unchanged).
 HalationLook halationLook(float amount, float thresholdStops, float hue);
+constexpr double kHalRingGainPerAmount = 0.10;  // physical mode: amount 0.5 = 5 % of the red light halates
+// physical mode highlight emphasis (stops over 18 % grey of red-weighted light): the halating share
+// is x1/(1 + (k/yh)^2), half at k, ~0.08 for a +4.2-stop overcast sky, ~0.95 for a +8-stop practical
+constexpr double kHalEmphasisStops = 5.95;
 constexpr float kBloomMixPerAmount = 0.10f;  // bloom mix s = amount * this
 constexpr float kBloomBMax = 48.f;           // bloom source compression
 
