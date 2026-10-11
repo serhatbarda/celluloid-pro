@@ -50,16 +50,16 @@ constexpr double kGrainFineMinPx = 0.35;
 // Emulsion development curves (stops relative to 18 % grey). Fitted to the KODAK VISION3 granularity
 // curves (reference/filmdata/fit_grain.py, w = 0.6: fast centre -3.25, width 1.56, fog z -1.42; slow
 // centre +2.12, width 4.88; A_fast / A_slow 1.26), then the FAST emulsion is placed for our stocks'
-// camera-to-print tone scale: centre -1.5 stops, width 1.0, fog z -2.1, A_fast / A_slow 1.36, so the coarse
+// camera-to-print tone scale (v1.2 default look): centre -0.7 stops, width 1.0, fog z -2.1, A_fast / A_slow 1.36, so the coarse
 // grain sits in the print's lower mid-tones (L* 20..50) and thins out in the deep shadows, as in the
 // owner's references (look-dev T1; tools/look/texture_metrics.py on the F-Log2 C footage). The slow
 // emulsion keeps the Kodak fit.
-constexpr double kGrainFastCentre = -1.5, kGrainFastWidth = 1.0, kGrainFogZ = -2.1, kGrainFogKappa = 0.6;
+constexpr double kGrainFastCentre = -0.7, kGrainFastWidth = 1.0, kGrainFogZ = -2.1, kGrainFogKappa = 0.6;
 constexpr double kGrainSlowCentre = 2.12, kGrainSlowWidth = 4.88;
 constexpr double kGrainFastSlowRatio = 1.36;   // A_fast / A_slow
 // overall level: n has unit std at grey times this (the colour pass then scales by the stock's grain
 // sigma, which v1.1 multiplied by sqrt(D - Dmin) ~ 0.8 at grey)
-constexpr double kGrainGain = 1.35;
+constexpr double kGrainGain = 1.42;
 
 struct GrainOctave {
     bool     used = false;
@@ -141,6 +141,8 @@ struct HalationLook {
     float threshold, knee, emax; // threshold / emax scene-linear, knee in stops over the threshold
     float srcW[3];               // halation source weights
     bool  ring;                  // v1.2 physical mode (threshold <= 0): linear source, annular PSF
+    float chroma = 0.f;          // physical mode: chroma activity K of the tint (tx_hb_composite f[24])
+    float chromaRef = 1.f;       //   and its reference level h0 (scene-linear added light, f[25])
 };
 // thresholdStops <= 0: physical, threshold-free halation (a fixed fraction of the red-weighted light,
 // only extreme energies compressed; annular PSF). > 0: the v1.1 soft-knee gate (unchanged).

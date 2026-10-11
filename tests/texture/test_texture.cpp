@@ -164,8 +164,8 @@ void testGrainStatistics() {
         dist(0.f, sk0, ku0, sd0);
         dist(-3.f, skS, kuS, sdS);
         std::printf("  distribution (S35, soft 0): grey skew %.3f kurtosis %.3f; -3 stops skew %.3f kurtosis %.3f\n", sk0, ku0, skS, kuS);
-        CHECK(ku0 > 3.2 && ku0 < 7.0, "kurtosis %f", ku0);
-        CHECK(sk0 > -0.4 && sk0 < 0.4, "grey skew %f", sk0);
+        CHECK(ku0 > 2.5 && ku0 < 7.0 && kuS > 4.0 && kuS < 12.0, "kurtosis grey %f, shadows %f", ku0, kuS);
+        CHECK(sk0 > -0.6 && sk0 < 0.4, "grey skew %f", sk0);
         CHECK(skS > sk0 + 0.1 && skS > 0.0, "shadow grain must be skewed towards dense clumps: %f (grey %f)", skS, sk0);
     }
     // exposure coupling (Kodak VISION3 granularity shape): the field std follows the analytic model,
@@ -767,11 +767,19 @@ void testV12Texture() {
         std::printf("  physical halation: added red for a 0.5 / 1.0 spot %.4f / %.4f (ratio %.4f)\n", e1, e2, e2 / e1);
         CHECK(e1 > 0.0, "physical halation must not have a threshold (%g)", e1);
         CHECK(std::fabs(e2 / e1 - 2.0) < 0.06, "physical halation must be linear in the light: %f", e2 / e1);
-        // the added light is warm: R >> G, no blue (hue 0), never magenta
+        // the added light is warm: R >> G, no blue (hue 0), never magenta; chroma activity: faint
+        // halation (weak sources, the outer tail) is deeper red than strong halation near bright sources
         Img s = spot(20.f, 3), so = textured(s, tp);
         double eg = added(s, so, 1) / added(s, so, 0), eb = added(s, so, 2) / added(s, so, 0);
-        std::printf("  physical halation added G/R %.3f B/R %.3f\n", eg, eb);
-        CHECK(std::fabs(eg - 0.25) < 0.01 && std::fabs(eb) < 1e-6, "physical halation tint G/R %f B/R %f", eg, eb);
+        Img sw = spot(0.3f, 3), swo = textured(sw, tp);
+        double egw = added(sw, swo, 1) / added(sw, swo, 0);
+        const float* pn = so.at(246, 135);
+        const float* pf = so.at(275, 135);
+        double gNear = (pn[1] - 0.01) / (pn[0] - 0.01), gFar = (pf[1] - 0.01) / (pf[0] - 0.01);
+        std::printf("  physical halation added G/R: strong source %.3f, weak source %.3f; near %.3f, far %.3f; B/R %.3f\n",
+                    eg, egw, gNear, gFar, eb);
+        CHECK(eg > 0.1 && eg < 0.4 && egw > 0.1 && egw < 0.4 && std::fabs(eb) < 1e-6, "physical halation tint G/R %f %f B/R %f", eg, egw, eb);
+        CHECK(egw < eg - 0.03 && gFar < gNear - 0.03, "halation hue must vary with intensity and radius (%f %f / %f %f)", egw, eg, gFar, gNear);
         // annular: around a point-like source the added light peaks away from it (a ring of about
         // the halation radius: light reflected at the base comes back at a distance)
         {

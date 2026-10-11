@@ -43,12 +43,14 @@ SPEC7 = [
     ("printerR", "double", 0.0, -12, 12), ("printerG", "double", 0.0, -12, 12), ("printerB", "double", 0.0, -12, 12),
     ("printExposure", "double", 0.0, -12, 12), ("printBleach", "double", 0.0, 0, 1),
     ("halationAmount", "double", 0.5, 0, 2), ("halationRadius", "double", 20, 2, 80),
-    ("halationThreshold", "double", 3.5, 0, 6), ("halationHue", "double", 0.0, -1, 1),
+    ("halationThreshold", "double", 0.0, 0, 6), ("halationHue", "double", 0.0, -1, 1),
     ("bloomAmount", "double", 0.15, 0, 2), ("bloomRadius", "double", 40, 5, 200),
     ("grainEnable", "bool", True, None, None), ("grainFormat", "choice", r"S(uper)?\s*35", None, None),
     ("grainAmount", "double", 1.0, 0, 3), ("grainSize", "double", 1.0, 0.5, 3), ("grainSoftness", "double", 0.5, 0, 1),
     ("grainAnimated", "bool", True, None, None), ("grainSeed", "int", 0, 0, 9999),
-    ("acutanceAmount", "double", 0.3, -1, 2), ("acutanceRadius", "double", 2, 0.5, 10),
+    ("acutanceAmount", "double", 0.35, -1, 2), ("acutanceRadius", "double", 2, 0.5, 10),
+    # v1.2 film resolution
+    ("filmResolutionEnable", "bool", True, None, None), ("integrate", "double", 0.5, 0, 1),
     ("weaveAmount", "double", 0.0, 0, 2), ("weaveSpeed", "double", 1.0, 0.25, 4), ("vignette", "double", 0.0, 0, 1),
     ("outputSpace", "choice", None, None, None), ("hdrPeakNits", "double", 1000, 300, 4000), ("hdrUnroll", "double", 1.0, 0, 1),
     ("lutSize", "choice", "33", None, None), ("lutPath", "string", None, None, None), ("lutExport", "button", None, None, None),
@@ -103,7 +105,7 @@ FORBIDDEN_ANY = r"\b(kodak|portra|ektar|eterna|2383|2393|cinestill|ektachrome|ve
 DAMAGE_ALL = {"damageEnable": True, "dustAmount": 2.0, "scratchAmount": 2.0, "hairAmount": 2.0, "scratchEmulsion": 0.5,
               "filmBlurEnable": True, "filmBlurFrequency": 1.0, "filmBlurBreathing": 1.0, "filmBlurRadius": 12.0}
 TEX_OFF = {"halationAmount": 0.0, "bloomAmount": 0.0, "grainEnable": False, "acutanceAmount": 0.0,
-           "weaveAmount": 0.0, "vignette": 0.0}
+           "weaveAmount": 0.0, "vignette": 0.0, "filmResolutionEnable": False, "integrate": 0.0}
 
 
 class Suite:

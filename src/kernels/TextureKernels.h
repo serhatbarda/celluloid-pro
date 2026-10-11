@@ -489,6 +489,10 @@ CEL_DEVICE void cel_k_tx_hb_prefilter_down(CEL_KERNEL_PARAMS) {
  *   f[12] = in1 column scale (1 / 2^L)
  *   f[13] = vignette amount  f[14] = vignette k  f[15], f[16] = optical centre  f[17] = 1/half diag
  *   f[18..23] = tone map (x0, p, Yk, xk, slope, sdr), used when i[0] = 1
+ *   f[24] = K, f[25] = h0 (v1.2 physical halation, chroma activity; K = 0: fixed tint): the green
+ *           (and blue) share of the tint is scaled by 1 + K (2 h / (h + h0) - 1), h = the added
+ *           halation light: faint light (the outer tail, weak sources) stays deep red, strong light
+ *           near bright sources turns orange, so the hue varies with source intensity and radius
  *   i[0] = 1: Texture-Only (in0 is pseudo-scene; result is mapped back to display-linear and the
  *             vignette is applied in display-linear, like the stand-alone tx_vignette; for SDR
  *             outputs the result is <= 1 by construction of the curve)
@@ -507,7 +511,9 @@ CEL_DEVICE void cel_k_tx_hb_composite(CEL_KERNEL_PARAMS) {
     if (a->i[1] != 0) {
         float e = cel_txh_hal_energy(v, a->f[5], a->f[6], a->f[7], a->f[9], a->f[10], a->f[11]);
         float hal = a->f[1] * cel_txh_max(g.w - e, 0.0f);
-        o.x += hal * a->f[2]; o.y += hal * a->f[3]; o.z += hal * a->f[4];
+        float cs = 1.0f;
+        if (a->f[24] != 0.0f) cs = 1.0f + a->f[24] * (2.0f * hal / (hal + a->f[25]) - 1.0f);
+        o.x += hal * a->f[2]; o.y += hal * a->f[3] * cs; o.z += hal * a->f[4] * cs;
     }
     if (a->i[0] != 0) {
         o.x = cel_txh_s2d(o.x, a->f[18], a->f[19], a->f[20], a->f[21], a->f[22], a->f[23]);

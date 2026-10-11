@@ -387,6 +387,11 @@ HalationLook halationLook(float amount, float thresholdStops, float hue) {
         L.knee = 0.f;
         L.emax = float(0.18 * 512.0);                  // compress only beyond +9 stops
         L.srcW[0] = 0.85f; L.srcW[1] = 0.15f; L.srcW[2] = 0.0f;
+        // chroma activity: the green share of the tint runs from x0.5 (faint light: the outer tail,
+        // weak sources - deep red) to x1.5 (strong light at bright sources - orange); h0 = 0.05 is
+        // about 2 stops under grey of added light
+        L.chroma = 0.5f;
+        L.chromaRef = 0.05f;
         return L;
     }
     // v1.1 soft-knee gate (unchanged)

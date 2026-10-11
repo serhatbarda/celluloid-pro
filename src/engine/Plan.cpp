@@ -358,6 +358,7 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
             if (vigOn(tp)) { setVignette(f + 13, tp.vignette, w, h); vigDone = true; }
             // setVignette writes f[13..17]: amount, k, cx, cy, 1/halfdiag
             setToneMap(f + 18, tm);
+            f[24] = hal ? hl.chroma : 0.f; f[25] = hl.chromaRef;
             p.args.i[0] = dr ? 1 : 0;
             backToDisplay = dr;
             p.args.i[1] = hal ? 1 : 0;
