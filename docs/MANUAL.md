@@ -859,6 +859,30 @@ and at their defaults the image is exactly the same as without them. Zones and F
 nothing in Print Only (the input there is a scan, not scene light); Film Roll-off needs the print
 (Process = Print); Dye Saturation does not apply to black & white stocks.
 
+### Looking like an ALEXA (Sensor Match and ALEXA Rendering, v1.3)
+
+A camera's "look" has two parts. Celluloid Pro models each one separately:
+
+1. **The sensor** (Sensor Match group): the colours the ALEXA's sensor would have recorded of the
+   same scene. This change is subtle and scene-referred. It has no tone curve and greys stay put. It
+   is on by default for F-Log2 C / F-Log2 / F-Log footage.
+2. **The rendering** (ALEXA Rendering group): how the ALEXA's classic LogC3 -> Rec.709 look turns that
+   scene into a picture, with its tone curve, its saturation and hue per hue and brightness, and its
+   skin. Celluloid Pro uses its own parametric model, fitted to ARRI's published look. No ARRI LUT is
+   included or needed. On the owner footage the model is within a mean of 0.6 dE2000 of ARRI's own
+   rendering.
+
+Two recipes:
+
+- **The ALEXA look without film**: set **Pipeline Stage = ALEXA Rec.709**. Grain, halation, bloom and
+  damage still apply if you want them, on the display picture. Rec.709 Gamma 2.4 is the reference
+  output. P3, PQ and HLG get the same rendering re-encoded, and HDR places grey at 15 nits. Switch
+  **Enable ALEXA Rec.709** off to compare with the film chain on the same node.
+- **ALEXA colour, film tone**: keep the Full Chain and turn on **Enable ALEXA Colour**. The scene gets
+  the ALEXA rendering's colour before the negative, at grey brightness, so exposure, greys and the
+  film's curve and print stay as they are. **ALEXA Colour** at 0.3-0.6 is a gentle nudge. Very
+  saturated light outside Rec.709, and super-whites above the camera's range, pass unchanged.
+
 ---
 
 ## 8. LUT export

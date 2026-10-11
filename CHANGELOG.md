@@ -30,6 +30,17 @@ unchanged in a newer one.
     CPU, OpenCL, CUDA and Metal.
   - The manual's HDR-wheels-style recipe explains why Exposure alone keeps a bright sky bright: the
     print shoulder squeezes the top five stops into L* 95-99.
+- **ALEXA Rendering group**: our own parametric model of the ALEXA's classic LogC3 -> Rec.709
+  rendering (tone curve, saturation and hue per hue and brightness, skin), fitted to ARRI's published
+  look. No ARRI LUT is shipped or loaded.
+  - **Pipeline Stage = ALEXA Rec.709** (appended): renders the camera that way instead of a film print,
+    on every output (SDR, P3, PQ, HLG). Texture is applied display-referred. *Enable ALEXA Rec.709* off
+    gives the Full Chain for a quick A/B.
+  - **ALEXA Colour** (default off): only the colour of that rendering, applied in scene light before the
+    negative, at grey brightness. Greys and exposure are left alone, and the film still makes the tone.
+  - Mean dE2000 against ARRI's rendering on the owner footage is 0.57, with a 95th percentile of 1.05.
+  - The **Sensor Match** group (previously Camera Emulation) has new labels only; its IDs are unchanged.
+  - Off or at the defaults, projects render unchanged. Results match across CPU, OpenCL, CUDA and Metal.
 
 ### Fixed
 
