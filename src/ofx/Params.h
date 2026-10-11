@@ -193,6 +193,27 @@ constexpr const char* printContrast = "printContrast";
 constexpr const char* printRender = "printRender";
 constexpr const char* negProvenance = "negProvenance";          // read-only label [Negative]
 constexpr const char* printProvenance = "printProvenance";      // read-only label [Print]
+// ---- v1.3 Tone: Zones (HDR-palette style), Filmic Contrast, Film Roll-off, Dye Saturation -------
+constexpr const char* gTone = "groupTone";
+constexpr const char* toneEnable = "toneEnable";                // Zones + Filmic Contrast
+constexpr const char* zoneShadows = "zoneShadows";
+constexpr const char* zoneShadowsRange = "zoneShadowsRange";
+constexpr const char* zoneLights = "zoneLights";
+constexpr const char* zoneLightsRange = "zoneLightsRange";
+constexpr const char* zoneHighlights = "zoneHighlights";
+constexpr const char* zoneHighlightsRange = "zoneHighlightsRange";
+constexpr const char* zoneSpecular = "zoneSpecular";
+constexpr const char* zoneSpecularRange = "zoneSpecularRange";
+constexpr const char* zoneFalloff = "zoneFalloff";
+constexpr const char* filmContrast = "filmContrast";
+constexpr const char* contrastPivot = "contrastPivot";
+constexpr const char* rolloffEnable = "rolloffEnable";
+constexpr const char* rolloffStart = "rolloffStart";
+constexpr const char* rolloffSoftness = "rolloffSoftness";
+constexpr const char* dyeSatEnable = "dyeSatEnable";
+constexpr const char* dyeSaturation = "dyeSaturation";
+constexpr const char* dyeRichness = "dyeRichness";
+constexpr const char* dyeSatBalance = "dyeSatBalance";
 } // namespace id
 
 // v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are

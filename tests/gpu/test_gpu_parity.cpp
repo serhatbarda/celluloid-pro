@@ -266,6 +266,23 @@ std::vector<Case> makeCases(bool all) {
         c.fs.look.stage = int(core::Stage::PrintOnly); c.scene = Scene::Display; });
     add("stage negative -> scene, B&W, lab scan process ignored", [](Case& c) { fullTexture(c.fs); c.fs.look.negStock = 9;
         c.fs.look.process = core::Process::NegativeScan; c.fs.look.stage = int(core::Stage::NegativeToScene); });
+    // ---- v1.3 Tone: zones + filmic contrast (decode), film roll-off (baked), dye saturation (print / scan / reversal)
+    add("tone: HDR recipe zones + contrast 1.3, all texture", [](Case& c) { fullTexture(c.fs); c.fs.look.zoneHighlights = -1.5f;
+        c.fs.look.zoneHighlightsRange = 2.5f; c.fs.look.zoneSpecular = -1.f; c.fs.look.zoneShadows = 0.5f; c.fs.look.filmContrast = 1.3f; });
+    add("tone: contrast 0.6 pivot +1, falloff 0.25, PQ", [](Case& c) { c.fs.look.filmContrast = 0.6f; c.fs.look.contrastPivot = 1.f;
+        c.fs.look.zoneLights = 1.f; c.fs.look.zoneFalloff = 0.25f; c.fs.look.output = OS::Rec2100_PQ; });
+    add("tone: roll-off +1 @ 2, dye saturation 1.6 balance +0.5", [](Case& c) { fullTexture(c.fs); c.fs.look.rolloffSoftness = 1.f;
+        c.fs.look.rolloffStart = 2.f; c.fs.look.dyeSaturation = 1.6f; c.fs.look.dyeSatBalance = 0.5f; });
+    add("tone: roll-off -1, dye saturation 0.4, damage", [](Case& c) { filmDamage(c.fs, c.w, c.h); c.fs.look.rolloffSoftness = -1.f;
+        c.fs.look.dyeSaturation = 0.4f; c.fs.look.dyeRichness = 1.f; });
+    add("tone: lab scan, dye saturation 2, zones", [](Case& c) { fullTexture(c.fs); c.fs.look.process = core::Process::NegativeScan;
+        c.fs.look.dyeSaturation = 2.f; c.fs.look.dyeSatBalance = -1.f; c.fs.look.zoneHighlights = -2.f; });
+    add("tone: reversal, dye saturation 1.5, contrast 1.5", [](Case& c) { fullTexture(c.fs); c.fs.look.negStock = 17;
+        c.fs.look.dyeSaturation = 1.5f; c.fs.look.filmContrast = 1.5f; });
+    add("tone: stage print only, roll-off + dye saturation", [](Case& c) { c.fs.look.stage = int(core::Stage::PrintOnly);
+        c.scene = Scene::Display; c.fs.look.rolloffSoftness = 0.6f; c.fs.look.dyeSaturation = 1.4f; });
+    add("tone: torture, everything", [](Case& c) { fullTexture(c.fs); c.scene = Scene::Torture; c.fs.look.zoneHighlights = -4.f;
+        c.fs.look.zoneShadows = 4.f; c.fs.look.filmContrast = 2.f; c.fs.look.rolloffSoftness = 1.f; c.fs.look.dyeSaturation = 2.f; });
     // ---- hostile inputs
     add("torture, stage print only", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::PrintOnly); c.scene = Scene::Torture; });
     add("torture, stage negative -> scene ACEScct", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::NegativeToScene);

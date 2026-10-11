@@ -296,6 +296,30 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - Options: Fujifilm X-H2S -> ARRI ALEXA / AMIRA
 - **Strength** (`cameraEmulationStrength`; 0 … 1; default 1; keyframable) — Blend between the camera's own colour (0) and the full emulation (1).
 
+### Tone
+
+*Zone exposure, filmic contrast, highlight roll-off and dye saturation - the film responds to them physically.*
+
+- **Enable Zones & Contrast** (`toneEnable`; default on) — Switches the zone exposure and Filmic Contrast below on or off without losing their values. Both act on the scene light after Exposure and before the negative, so the film's toe and shoulder still shape the result. At their defaults (0 stops, contrast 1) they change nothing.
+- **Shadows** (`zoneShadows`; -4 … 4; default 0; keyframable) — Exposure in stops of everything BELOW Shadows Range (dark areas). Like Exposure, but only for that part of the tone scale: it acts on the scene light before the film, ratio-preserving (colours keep their hue and saturation, greys stay neutral), with a smooth transition set by Zone Falloff. Tones can never cross: a strong pull is softened so a brighter area always stays brighter.
+- **Shadows Range** (`zoneShadowsRange`; -8 … 2; default -2; keyframable) — Where the Shadows zone ends, in stops relative to 18 % grey of the scene (after Exposure).
+- **Lights** (`zoneLights`; -4 … 4; default 0; keyframable) — Exposure in stops of everything ABOVE Lights Range (bright mid-tones and above). Like Exposure, but only for that part of the tone scale: it acts on the scene light before the film, ratio-preserving (colours keep their hue and saturation, greys stay neutral), with a smooth transition set by Zone Falloff. Tones can never cross: a strong pull is softened so a brighter area always stays brighter.
+- **Lights Range** (`zoneLightsRange`; -2 … 6; default 1; keyframable) — Where the Lights zone begins, in stops relative to 18 % grey of the scene.
+- **Highlights** (`zoneHighlights`; -4 … 4; default 0; keyframable) — Exposure in stops of everything ABOVE Highlights Range (skies, windows, bright walls). Pull it down (-) to bring sky detail out of the print's shoulder into its straight part while faces stay where they are. Like Exposure, but only for that part of the tone scale: it acts on the scene light before the film, ratio-preserving (colours keep their hue and saturation, greys stay neutral), with a smooth transition set by Zone Falloff. Tones can never cross: a strong pull is softened so a brighter area always stays brighter.
+- **Highlights Range** (`zoneHighlightsRange`; -1 … 8; default 3; keyframable) — Where the Highlights zone begins, in stops relative to 18 % grey of the scene (a bright sky is typically +3 to +5 stops).
+- **Specular** (`zoneSpecular`; -4 … 4; default 0; keyframable) — Exposure in stops of everything ABOVE Specular Range (practicals, the sun, glints). Like Exposure, but only for that part of the tone scale: it acts on the scene light before the film, ratio-preserving (colours keep their hue and saturation, greys stay neutral), with a smooth transition set by Zone Falloff. Tones can never cross: a strong pull is softened so a brighter area always stays brighter.
+- **Specular Range** (`zoneSpecularRange`; 0 … 10; default 5; keyframable) — Where the Specular zone begins, in stops relative to 18 % grey of the scene.
+- **Zone Falloff** (`zoneFalloff`; 0.25 … 4; default 1; keyframable) — How softly every zone fades in around its range, in stops. Small = a tight zone, large = a gentle, wide blend.
+- **Filmic Contrast** (`filmContrast`; 0.5 … 2; default 1; keyframable) — Contrast of the scene in log exposure about the Contrast Pivot, before the negative: the film's toe and shoulder still roll the ends off, so blacks and whites never clip. 1 = off, higher = punchier, lower = flatter. The colour density of the stock is kept (the channels follow half of the contrast change, so saturation neither drains nor goes neon).
+- **Contrast Pivot** (`contrastPivot`; -3 … 3; default 0; keyframable) — The tone that Filmic Contrast leaves unchanged, in stops relative to 18 % grey (0 = middle grey).
+- **Enable Film Roll-off** (`rolloffEnable`; default on) — Switches the Film Roll-off below on or off without losing its values. At Softness 0 it changes nothing.
+- **Roll-off Start** (`rolloffStart`; 0.5 … 8; default 3; keyframable) — Where the reshaped highlight shoulder of the print begins, in stops above 18 % grey of the scene. Everything below stays exactly as the print stock renders it.
+- **Roll-off Softness** (`rolloffSoftness`; -1 … 1; default 0; keyframable) — Shape of the print's highlight shoulder above Roll-off Start: + = a longer, softer shoulder (highlights compress gently and keep detail, white is reached later), - = a shorter, crisper shoulder (highlights reach print white sooner). It reshapes the print stock's own curve, so print white stays the clear print and printer points slide along the new curve. 0 = the stock. Print process only.
+- **Enable Dye Saturation** (`dyeSatEnable`; default on) — Switches Dye Saturation below on or off without losing its values. At Saturation 1 and Balance 0 it changes nothing.
+- **Dye Saturation** (`dyeSaturation`; 0 … 2; default 1; keyframable) — Saturation the way dye film makes it: more saturation means more dye in the layers that carry the colour, so saturated colours get deeper, denser and darker instead of brighter and neon (unlike RGB saturation). It scales each colour's dye difference from a neutral of the same brightness in the projected film (print, reversal original or scan), so greys, print white and black stay exactly as they are. 1 = the stock, 0 = black & white dyes.
+- **Richness** (`dyeRichness`; 0 … 1; default 0.25; keyframable) — How much denser (darker) a colour gets as it gains saturation: the extra dye a richer colour carries. 0 = the dye differences are only spread (the colour keeps its brightness), 0.25 = film-like (strong colours deepen a little, skin barely darkens), 0.5 = rich, 1 = very dense. Lowering saturation does the reverse. Only acts when Dye Saturation or Balance moves.
+- **Saturation Balance** (`dyeSatBalance`; -1 … 1; default 0; keyframable) — Where the dye saturation acts most: + = more saturation in the highlights and less in the shadows, - = the reverse (up to x2 / x0.5 at the ends). 0 = even.
+
 ### Negative
 
 *Camera film stock and its development.*
@@ -770,6 +794,58 @@ where the selected stock's numbers come from:
 - a style approximation
 
 The full list is in [STOCKS.md](STOCKS.md), section 5c.
+
+### Bright highlights: zones, contrast, roll-off and dye saturation (Tone group)
+
+**Why Exposure alone does not tame a bright sky.** Exposure moves the whole scene along the film's
+curve, exactly like opening or closing the lens. Near the top the print curve is a long, flat shoulder:
+the last five stops above a bright sky all land between L* 95 and 99, so one or two stops less exposure
+mostly darkens the faces and the mid-tones, while the sky stays almost white. That is how film behaves;
+to change *only* the highlights, use the Tone group.
+
+**HDR-wheels-style recipe: pull the highlights down, keep the mids.**
+
+1. Leave Exposure where the faces look right.
+2. **Highlights** -1.5 with **Highlights Range** +2.5 (stops above grey where the zone begins). The
+   sky and bright walls come down into the print's straight part, where they keep their colour and
+   detail; grey and skin move by about half an L*.
+3. **Specular** -1 (Range +5) for sun glints, chrome and practicals that are still too hot.
+4. Optional: **Shadows** +0.3 (Range -2) to open the shadows a little, **Zone Falloff** larger for a
+   softer blend between the zones, smaller for a sharper split.
+5. If the top end now looks too dense, give the print a longer shoulder: **Roll-off Softness** +0.5 at
+   **Roll-off Start** +3.
+
+On test footage this recipe takes the brightest tenth of a sunny exterior from L* 89.5 to 75 and of
+a bright sky from 92.5 to 80, with the mid-tones changing by about 0.5 L*. Exposure -1 on the same shot
+darkens the mid-tones by 15 L* and still leaves that sky at 87.
+
+**What each control does.**
+
+- **Zones** (Shadows, Lights, Highlights, Specular): exposure in stops for one part of the tonal
+  range, on the scene light before the negative, so the film still renders the result (halation and
+  grain follow it, like Exposure). Each Range is in stops relative to 18 % grey. The zones blend
+  smoothly and never reverse tones: a strong pull compresses, it does not turn bright into dark.
+  Colours keep their hue and saturation.
+- **Filmic Contrast** with **Contrast Pivot**: contrast in log exposure about the pivot (default 18 %
+  grey), before the negative, like a harder or softer development of the scene. Saturation follows the
+  contrast half-way, the way film behaves: it neither drains (as a pure luminance curve would) nor turns
+  neon (as a per-channel curve would). Greys stay grey.
+- **Film Roll-off** (Start, Softness; Print process): reshapes the print's highlight shoulder - the
+  way the print approaches its clear base (white). + = a longer, softer shoulder with more detail in
+  the brightest parts and white reached later; - = a harder shoulder that reaches white sooner. Below
+  the start the stock is unchanged; printer points still slide along the new curve.
+- **Dye Saturation** (Saturation, Richness, Saturation Balance): saturation the way dye film makes it.
+  More saturation means more dye in the layers that carry the colour, so strong colours get deeper and
+  slightly darker instead of brighter and neon; greys, white and black do not move. **Richness** sets
+  how much darker (0 = the colour keeps its brightness, 0.25 default, 1 = very dense). Compared with
+  RGB saturation of the same strength on test footage, Dye Saturation 1.5 lowers saturated colours by
+  2 to 3 L* (RGB: no change) and skin by under 2 L*. **Saturation Balance** moves the
+  change towards the highlights (+) or the shadows (-).
+
+Every part has its own switch (Enable Zones & Contrast, Enable Film Roll-off, Enable Dye Saturation),
+and at their defaults the image is exactly the same as without them. Zones and Filmic Contrast do
+nothing in Print Only (the input there is a scan, not scene light); Film Roll-off needs the print
+(Process = Print); Dye Saturation does not apply to black & white stocks.
 
 ---
 

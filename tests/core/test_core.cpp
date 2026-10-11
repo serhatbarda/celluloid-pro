@@ -1068,6 +1068,131 @@ static void testStages() {
     }
 }
 
+// v1.3 Tone (SPEC 4.9): Zones, Filmic Contrast, Film Roll-off, Dye Saturation
+static void testTone(bool quick) {
+    std::printf("[tone: zones, filmic contrast, film roll-off, dye saturation]\n");
+    // 1. neutral values (whatever the companions are) leave the state and the render bit-identical
+    {
+        LookParams a = lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24), b = a;
+        b.zoneShadowsRange = -5.f; b.zoneLightsRange = 0.f; b.zoneHighlightsRange = 1.5f; b.zoneSpecularRange = 8.f;
+        b.zoneFalloff = 3.f; b.contrastPivot = 1.5f; b.rolloffStart = 1.f; b.dyeRichness = 0.9f;
+        for (Process pr : {Process::NegativeToPrint, Process::NegativeScan}) {
+            a.process = b.process = pr;
+            Pipeline A, B;
+            A.prepare(a); B.prepare(b);
+            CHECK(A.state() == B.state(), "neutral tone settings change the state (process %d)", int(pr));
+            const float* s = B.state().data();
+            CHECK(s[CEL_CS_TONE_ON] == 0.f && s[CEL_CS_DSAT_ON] == 0.f && s[CEL_CS_ROLL_ON] == 0.f, "neutral tone must be off");
+        }
+    }
+    // 2. every setting: neutral ramp monotone and neutral (as neutral as the stock's own ramp), grey kept
+    //    where the setting promises it, print white and black unchanged by Dye Saturation
+    struct T { const char* name; void (*set)(LookParams&); bool keepsGrey; };
+    const T sets[] = {
+        {"highlights -1.5 @ +2.5", [](LookParams& p) { p.zoneHighlights = -1.5f; p.zoneHighlightsRange = 2.5f; }, true},
+        {"hdr recipe", [](LookParams& p) { p.zoneHighlights = -1.5f; p.zoneHighlightsRange = 2.5f; p.zoneSpecular = -1.f; }, true},
+        {"all zones +-4, falloff 0.25", [](LookParams& p) { p.zoneShadows = 4.f; p.zoneLights = -4.f; p.zoneHighlights = -4.f;
+                                                           p.zoneSpecular = -4.f; p.zoneFalloff = 0.25f; }, false},
+        {"zones crossing", [](LookParams& p) { p.zoneShadows = -4.f; p.zoneShadowsRange = 2.f; p.zoneLights = 4.f;
+                                              p.zoneLightsRange = -2.f; p.zoneSpecular = -4.f; p.zoneSpecularRange = 0.f; }, false},
+        {"contrast 2", [](LookParams& p) { p.filmContrast = 2.f; }, true},
+        {"contrast 0.5 pivot +3", [](LookParams& p) { p.filmContrast = 0.5f; p.contrastPivot = 3.f; }, false},
+        {"roll-off +1 @ 0.5", [](LookParams& p) { p.rolloffSoftness = 1.f; p.rolloffStart = 0.5f; }, true},
+        {"roll-off -1 @ 0.5", [](LookParams& p) { p.rolloffSoftness = -1.f; p.rolloffStart = 0.5f; }, true},
+        {"roll-off +1 @ 8", [](LookParams& p) { p.rolloffSoftness = 1.f; p.rolloffStart = 8.f; }, true},
+        {"dye saturation 2", [](LookParams& p) { p.dyeSaturation = 2.f; p.dyeRichness = 1.f; }, true},
+        {"dye saturation 0 balance +1", [](LookParams& p) { p.dyeSaturation = 0.f; p.dyeSatBalance = 1.f; }, true},
+        {"everything", [](LookParams& p) { p.zoneHighlights = -2.f; p.zoneShadows = 1.f; p.filmContrast = 1.4f;
+                                          p.rolloffSoftness = 0.7f; p.dyeSaturation = 1.6f; p.dyeSatBalance = -0.5f; }, false},
+    };
+    const int negs[] = {1, 15, 8};   // CN 200T, a data-sheet negative (Eterna 250D), a reversal (RV 100 Slide)
+    for (const T& t : sets)
+        for (int n : negs)
+            for (Process pr : {Process::NegativeToPrint, Process::NegativeScan})
+                for (OutputSpace o : {OutputSpace::Rec709_G24, OutputSpace::Rec2100_PQ}) {
+                    if (quick && (o != OutputSpace::Rec709_G24 || n != 1)) continue;
+                    LookParams base = lpFor(n, 0, pr, o);
+                    base.input = InputSpace::LinearRec2020;
+                    LookParams lp = base;
+                    t.set(lp);
+                    Pipeline P, R;
+                    P.prepare(lp); R.prepare(base);
+                    Float3 prev = P.processColor({0.18f / 1024.f, 0.18f / 1024.f, 0.18f / 1024.f});
+                    double worstTint = 0, refTint = 0;
+                    bool mono = true;
+                    for (int k = 1; k <= 1600; ++k) {
+                        const float v = 0.18f * std::pow(2.f, -10.f + 22.f * k / 1600.f);
+                        // the chain itself is verified up to +12 stops of scene light (PQ flattens above ~+14);
+                        // a strong contrast maps +12 in to +24 scene, so stop the ramp there
+                        if (P.decodeToScene({v, v, v}).g > 0.18f * 4096.f) break;
+                        Float3 a = P.processColor({v, v, v}), r = R.processColor({v, v, v});
+                        const float tol = 5e-6f;
+                        if (!(a.r >= prev.r - tol && a.g >= prev.g - tol && a.b >= prev.b - tol)) {
+                            if (mono) CHECK(false, "%s: neg %d proc %d out %d not monotone at %.2f stops", t.name, n, int(pr), int(o),
+                                            -10.f + 22.f * k / 1600.f);
+                            mono = false;
+                        }
+                        CHECK(finite3(a), "%s: non-finite", t.name);
+                        prev = a;
+                        worstTint = std::max(worstTint, double(std::max({a.r, a.g, a.b}) - std::min({a.r, a.g, a.b})));
+                        refTint = std::max(refTint, double(std::max({r.r, r.g, r.b}) - std::min({r.r, r.g, r.b})));
+                    }
+                    // greys stay as neutral as the stock renders its own grey ramp (+ a small interpolation margin)
+                    CHECK(worstTint <= refTint + 0.004, "%s: neg %d proc %d out %d grey ramp tint %.4f (stock %.4f)", t.name, n, int(pr),
+                          int(o), worstTint, refTint);
+                    if (t.keepsGrey) {
+                        Float3 a = P.processColor({0.18f, 0.18f, 0.18f}), r = R.processColor({0.18f, 0.18f, 0.18f});
+                        CHECK(std::fabs(a.g - r.g) < 0.004f, "%s: 18%% grey moved %.4f -> %.4f (neg %d proc %d)", t.name, r.g, a.g, n, int(pr));
+                    }
+                }
+    // 3. Highlights pull: a +4 stop sky renders darker (into the print's straight part) while grey stays
+    {
+        LookParams a = lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+        a.input = InputSpace::LinearRec2020;
+        LookParams b = a;
+        b.zoneHighlights = -1.5f; b.zoneHighlightsRange = 2.5f;
+        Pipeline A, B;
+        A.prepare(a); B.prepare(b);
+        const float sky = 0.18f * 16.f;
+        Float3 sa = A.processColor({sky, sky, sky}), sb = B.processColor({sky, sky, sky});
+        std::printf("  +4 stops: %.4f -> %.4f with Highlights -1.5\n", sa.g, sb.g);
+        CHECK(sb.g < sa.g - 0.05f, "Highlights -1.5 must pull a +4 stop sky down (%.4f -> %.4f)", sa.g, sb.g);
+        // ratio-preserving zones: a saturated colour keeps its scene channel ratios through the zone gain
+        Float3 c = {0.9f, 0.5f, 0.2f};
+        Float3 d = B.decodeToScene(c);
+        CHECK(std::fabs(d.r / d.g - c.r / c.g) < 1e-4f && std::fabs(d.b / d.g - c.b / c.g) < 1e-4f, "zones must keep channel ratios");
+    }
+    // 4. Dye Saturation: a saturated colour gets more saturated and not lighter; neutral white / black kept
+    {
+        LookParams a = lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+        a.input = InputSpace::LinearRec2020;
+        LookParams b = a;
+        b.dyeSaturation = 1.5f;
+        Pipeline A, B;
+        A.prepare(a); B.prepare(b);
+        auto lum = [](Float3 v) { return 0.2126 * std::pow(v.r, 2.4) + 0.7152 * std::pow(v.g, 2.4) + 0.0722 * std::pow(v.b, 2.4); };
+        // purity: 1 - min/max of the display-linear channels (independent of how dark the colour gets)
+        auto spread = [](Float3 v) { return 1.f - std::pow(std::min({v.r, v.g, v.b}) / std::max({v.r, v.g, v.b}), 2.4f); };
+        // red-orange, blue, green, skin, yellow (scene-linear Rec.2020)
+        const Float3 cols[] = {{0.30f, 0.06f, 0.03f}, {0.05f, 0.12f, 0.35f}, {0.08f, 0.25f, 0.05f}, {0.35f, 0.22f, 0.14f}, {0.6f, 0.5f, 0.1f}};
+        double l0 = 0, l1 = 0;
+        for (Float3 c : cols) {
+            Float3 x = A.processColor(c), y = B.processColor(c);
+            l0 += lum(x); l1 += lum(y);
+            CHECK(spread(y) > std::min(spread(x) + 0.01f, 0.99f), "Dye Saturation 1.5 must saturate (%.3f -> %.3f)", spread(x), spread(y));
+            // the extreme red is gamut-mapped on the way to Rec.709, so allow a few percent there
+            CHECK(lum(y) <= lum(x) * 1.04, "Dye Saturation 1.5 must not brighten a saturated colour (%.4f -> %.4f)", lum(x), lum(y));
+        }
+        std::printf("  5 saturated colours: mean display luminance %.4f -> %.4f with Dye Saturation 1.5\n", l0 / 5, l1 / 5);
+        CHECK(l1 < l0 * 0.97, "Dye Saturation 1.5 (Richness 0.25) must darken saturated colours on average");
+        for (float v : {0.18f / 256.f, 0.18f * 512.f}) {
+            Float3 p = A.processColor({v, v, v}), q = B.processColor({v, v, v});
+            CHECK(std::fabs(p.r - q.r) < 2e-3f && std::fabs(p.g - q.g) < 2e-3f && std::fabs(p.b - q.b) < 2e-3f,
+                  "Dye Saturation moved black / white (%.4f -> %.4f)", p.g, q.g);
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     std::string golden = CEL_REFERENCE_DIR "/golden/core_golden.txt";
     std::string tmp = "/tmp";
@@ -1092,6 +1217,7 @@ int main(int argc, char** argv) {
     testBehaviour();
     testStages();
     testPrintLab();
+    testTone(quick);
     testGolden(golden);
     testCube(tmp);
     testCubeAccuracy(tmp);

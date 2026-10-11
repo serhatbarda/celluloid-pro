@@ -188,7 +188,15 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.printCrossover == b.printCrossover &&
            a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
            a.printContrast == b.printContrast &&
-           a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount;
+           a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount &&
+           // v1.3: the stage exit (a stage change alone must re-prepare the state) and the Tone fields
+           a.stage == b.stage && a.sceneEncoding == b.sceneEncoding && a.zoneShadows == b.zoneShadows &&
+           a.zoneShadowsRange == b.zoneShadowsRange && a.zoneLights == b.zoneLights && a.zoneLightsRange == b.zoneLightsRange &&
+           a.zoneHighlights == b.zoneHighlights && a.zoneHighlightsRange == b.zoneHighlightsRange &&
+           a.zoneSpecular == b.zoneSpecular && a.zoneSpecularRange == b.zoneSpecularRange && a.zoneFalloff == b.zoneFalloff &&
+           a.filmContrast == b.filmContrast && a.contrastPivot == b.contrastPivot && a.rolloffStart == b.rolloffStart &&
+           a.rolloffSoftness == b.rolloffSoftness && a.dyeSaturation == b.dyeSaturation && a.dyeRichness == b.dyeRichness &&
+           a.dyeSatBalance == b.dyeSatBalance;
 }
 
 std::string versionString() {
@@ -480,6 +488,29 @@ core::LookParams CelluloidEffect::lookAt(double t) const {
     if (flag(id::cameraEmulationEnable, t)) {
         lp.cameraEmulation = 1 + std::min(std::max(choice(id::cameraEmulation, t), 0), int(core::CameraEmulation::Count) - 2);
         lp.emulationStrength = float(num(id::cameraEmulationStrength, t));
+    }
+    // v1.3 Tone (switched off = the neutral LookParams values)
+    if (flag(id::toneEnable, t)) {
+        lp.zoneShadows = float(num(id::zoneShadows, t));
+        lp.zoneShadowsRange = float(num(id::zoneShadowsRange, t));
+        lp.zoneLights = float(num(id::zoneLights, t));
+        lp.zoneLightsRange = float(num(id::zoneLightsRange, t));
+        lp.zoneHighlights = float(num(id::zoneHighlights, t));
+        lp.zoneHighlightsRange = float(num(id::zoneHighlightsRange, t));
+        lp.zoneSpecular = float(num(id::zoneSpecular, t));
+        lp.zoneSpecularRange = float(num(id::zoneSpecularRange, t));
+        lp.zoneFalloff = float(num(id::zoneFalloff, t));
+        lp.filmContrast = float(num(id::filmContrast, t));
+        lp.contrastPivot = float(num(id::contrastPivot, t));
+    }
+    if (flag(id::rolloffEnable, t)) {
+        lp.rolloffStart = float(num(id::rolloffStart, t));
+        lp.rolloffSoftness = float(num(id::rolloffSoftness, t));
+    }
+    if (flag(id::dyeSatEnable, t)) {
+        lp.dyeSaturation = float(num(id::dyeSaturation, t));
+        lp.dyeRichness = float(num(id::dyeRichness, t));
+        lp.dyeSatBalance = float(num(id::dyeSatBalance, t));
     }
     lp.hdrPeakNits = float(num(id::hdrPeakNits, t));
     lp.hdrUnroll = flag(id::hdrUnrollEnable, t) ? float(num(id::hdrUnroll, t)) : 0.f;
@@ -969,6 +1000,23 @@ void CelluloidEffect::refreshEnabledness(double t) {
         setEnabled(id::cameraEmulation, colour && fuji && emuOn);
         setEnabled(id::cameraEmulationStrength, colour && fuji && emuOn);
     }
+    {   // v1.3 Tone: zones / contrast act on the scene (not in Print Only), roll-off on the print, dye
+        // saturation on any colour film
+        const StageChoice sc = stageChoice(t);
+        const bool scene = colour && sc != StageChoice::PrintOnly;
+        const bool toneOn = flag(id::toneEnable, t), rollOn = flag(id::rolloffEnable, t), dsOn = flag(id::dyeSatEnable, t);
+        setEnabled(id::toneEnable, scene);
+        for (const char* p : {id::zoneShadows, id::zoneShadowsRange, id::zoneLights, id::zoneLightsRange, id::zoneHighlights,
+                              id::zoneHighlightsRange, id::zoneSpecular, id::zoneSpecularRange, id::zoneFalloff,
+                              id::filmContrast, id::contrastPivot})
+            setEnabled(p, scene && toneOn);
+        const bool printPath = colour && !reversal && !scan;
+        setEnabled(id::rolloffEnable, printPath);
+        setEnabled(id::rolloffStart, printPath && rollOn);
+        setEnabled(id::rolloffSoftness, printPath && rollOn);
+        setEnabled(id::dyeSatEnable, colour && !mono);
+        for (const char* p : {id::dyeSaturation, id::dyeRichness, id::dyeSatBalance}) setEnabled(p, colour && !mono && dsOn);
+    }
     setEnabled(id::hdrPeakNits, pq);
     setEnabled(id::hdrUnrollEnable, colour && hdr);
     setEnabled(id::hdrUnroll, colour && hdr && unrollOn);
@@ -983,7 +1031,9 @@ void CelluloidEffect::refreshEnabledness(double t) {
             for (const char* p : {id::printerR, id::printerG, id::printerB, id::printExposure, id::printBleach, id::printCrossover,
                                   id::printEnable, id::outputSpace, id::hdrPeakNits, id::hdrUnrollEnable, id::hdrUnroll,
                                   id::filmBlurEnable, id::filmBlurRadius, id::filmBlurFrequency, id::filmBlurDuration,
-                                  id::filmBlurBreathing, id::filmBlurChromatic, id::filmBlurSeed})
+                                  id::filmBlurBreathing, id::filmBlurChromatic, id::filmBlurSeed, id::rolloffEnable,
+                                  id::rolloffStart, id::rolloffSoftness, id::dyeSatEnable, id::dyeSaturation, id::dyeRichness,
+                                  id::dyeSatBalance})
                 setEnabled(p, false);
             setEnabled(id::printStock, true);   // printing density is defined by the print stock
         } else {

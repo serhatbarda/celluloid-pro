@@ -63,6 +63,15 @@ SPEC7 = [
     ("bloomEnable", "bool", True, None, None), ("acutanceEnable", "bool", True, None, None),
     ("weaveEnable", "bool", True, None, None), ("vignetteEnable", "bool", True, None, None),
     ("hdrUnrollEnable", "bool", True, None, None),
+    # v1.3 Tone (neutral defaults: existing projects render unchanged)
+    ("toneEnable", "bool", True, None, None), ("zoneShadows", "double", 0.0, -4, 4), ("zoneShadowsRange", "double", -2.0, -8, 2),
+    ("zoneLights", "double", 0.0, -4, 4), ("zoneLightsRange", "double", 1.0, -2, 6),
+    ("zoneHighlights", "double", 0.0, -4, 4), ("zoneHighlightsRange", "double", 3.0, -1, 8),
+    ("zoneSpecular", "double", 0.0, -4, 4), ("zoneSpecularRange", "double", 5.0, 0, 10), ("zoneFalloff", "double", 1.0, 0.25, 4),
+    ("filmContrast", "double", 1.0, 0.5, 2), ("contrastPivot", "double", 0.0, -3, 3),
+    ("rolloffEnable", "bool", True, None, None), ("rolloffStart", "double", 3.0, 0.5, 8), ("rolloffSoftness", "double", 0.0, -1, 1),
+    ("dyeSatEnable", "bool", True, None, None), ("dyeSaturation", "double", 1.0, 0, 2), ("dyeRichness", "double", 0.25, 0, 1),
+    ("dyeSatBalance", "double", 0.0, -1, 1),
 ]
 # v1.1 module switches: (switch, module values used for the "on" render, neutral values the "off"
 # render must reproduce bit for bit, mode, scene)
@@ -92,6 +101,11 @@ MODULES = [
      {"dustAmount": 0.0, "scratchAmount": 0.0, "hairAmount": 0.0}, "texture", "display"),
     ("filmBlurEnable", {"filmBlurFrequency": 1.0, "filmBlurBreathing": 1.0, "filmBlurRadius": 12.0},
      {"filmBlurFrequency": 0.0, "filmBlurBreathing": 0.0, "filmBlurRadius": 12.0}, "full", "natural"),
+    # v1.3 Tone (SPEC 4.9): zones + filmic contrast, film roll-off, dye saturation
+    ("toneEnable", {"zoneHighlights": -1.5, "zoneShadows": 0.5, "filmContrast": 1.3},
+     {"zoneHighlights": 0.0, "zoneShadows": 0.0, "filmContrast": 1.0}, "full", "highlights"),
+    ("rolloffEnable", {"rolloffSoftness": 0.8, "rolloffStart": 2.0}, {"rolloffSoftness": 0.0, "rolloffStart": 2.0}, "full", "highlights"),
+    ("dyeSatEnable", {"dyeSaturation": 1.6, "dyeSatBalance": 0.5}, {"dyeSaturation": 1.0, "dyeSatBalance": 0.0}, "full", "natural"),
 ]
 SPEC_NEGS = ["CN 50D Fine Daylight", "CN 200T Studio Tungsten", "CN 250D Soft Daylight", "CN 500T High Speed",
              "CN 800T No-Backing", "CN Vintage 85", "C41 Portrait 400", "C41 Consumer 200", "RV 100 Slide",
