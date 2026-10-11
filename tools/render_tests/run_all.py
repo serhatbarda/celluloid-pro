@@ -98,9 +98,8 @@ SPEC_NEGS = ["CN 50D Fine Daylight", "CN 200T Studio Tungsten", "CN 250D Soft Da
 SPEC_PRINTS = ["P1 Standard Projection", "P2 Low Contrast", "P3 Rich Contrast", "P4 Faded Archive", "P5 Silver Retention"]
 GRAIN_FORMATS = [("Super 8", r"8"), ("16 mm", r"16"), ("Super 35", r"35(?!\s*mm\s*St)"), ("65 mm", r"65"),
                  ("35 mm Stills", r"still")]
-# real product names that must never appear in our UI (SPEC §1)
-FORBIDDEN_STOCK = r"\b(kodak|fuji\w*|vision\s*3|portra|ektar|eterna|2383|2393|cinestill|ektachrome|velvia|provia|kodachrome|tri-?x|ilford|hp5|agfa|superia)\b"
-FORBIDDEN_ANY = r"\b(kodak|portra|ektar|eterna|2383|2393|cinestill|ektachrome|velvia|provia|kodachrome|superia)\b"
+# real stocks from public data sheets are part of the product (owner decision, SPEC §1 v1.2)
+REAL_STOCK = r"\b(vision\s*3|2383|eterna)\b"
 
 DAMAGE_ALL = {"damageEnable": True, "dustAmount": 2.0, "scratchAmount": 2.0, "hairAmount": 2.0, "scratchEmulsion": 0.5,
               "filmBlurEnable": True, "filmBlurFrequency": 1.0, "filmBlurBreathing": 1.0, "filmBlurRadius": 12.0}
@@ -322,18 +321,10 @@ class Suite:
         self.check(g, "outputSpace offers Rec.709 2.4, PQ and HLG",
                    self.opt("outputSpace", "709", r"2\.4") is not None and self.opt("outputSpace", "pq|2084") is not None and
                    self.opt("outputSpace", "hlg") is not None, ", ".join(outs))
-        # originality: no real product names
-        bad = []
-        for pid in ("negStock", "printStock", "lookPreset"):
-            for o in P.options(pid):
-                if re.search(FORBIDDEN_STOCK, o, re.I):
-                    bad.append("%s: %s" % (pid, o))
-        for p in P.desc.get("params", []):
-            for field in ("label", "hint"):
-                if re.search(FORBIDDEN_ANY, p.get(field, ""), re.I):
-                    bad.append("%s.%s" % (p["name"], field))
-        self.check(g, "no real product names in stocks/presets/labels/hints (SPEC §1)", not bad, "%d hits" % len(bad), "0",
-                   "; ".join(bad[:8]))
+        # real data-sheet stocks are offered (owner decision v1.2: real stock names are allowed)
+        real = [o for pid in ("negStock", "printStock") for o in P.options(pid) if re.search(REAL_STOCK, o, re.I)]
+        self.check(g, "data-sheet stocks offered (Vision3 / 2383 / Eterna)", len(real) >= 3, "%d real stocks" % len(real), ">= 3",
+                   "; ".join(real[:8]))
         no_hint = [p["name"] for p in P.value_params() if not p.get("secret") and not p.get("hint", "").strip()]
         self.check(g, "every visible parameter has a hint", not no_hint, "%d without hint" % len(no_hint), "0", ", ".join(no_hint[:10]))
         pl = self.desc.get("plugin", {})
