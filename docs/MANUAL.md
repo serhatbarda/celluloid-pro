@@ -344,11 +344,15 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Kodak Portra 400* — PORTRA 400: portrait colour negative: warm, low-chroma skin, very wide latitude.
   - *Kodak Ektachrome E100* — EKTACHROME E100: daylight reversal: clean neutral greys, crisp, saturated colour, short latitude.
   - *Kodachrome 64 Style* — Kodachrome-style reversal (designed, no data sheet): dense, contrasty, warm reds, deep blue skies.
+  - *Kodak Vision2 500T 5218* — VISION2 500T: the 2000s high-speed tungsten negative: a little more grain and less latitude than VISION3, warm, punchy mids.
+  - *Kodak Ektachrome 100D 5294* — EKTACHROME 100D: the motion-picture colour reversal: clean, saturated, contrasty, short latitude.
+  - *Kodak Double-X 5222* — DOUBLE-X 5222: the classic panchromatic B&W negative: open grain, blue-heavy sensitivity, gentle toe.
 - **Enable Development** (`developmentEnable`; default on) — Switches the development controls below (Push / Pull, Color Density, Neg Bleach Bypass, Neutralize) on or off without losing their values. Off = the stock's standard development: no push or pull, nominal colour density, normal bleach, the stock's own curves. The film stock itself always stays active - it is the look.
 - **Push / Pull** (`pushPull`; -2 … 3; default 0; keyframable) — Development in stops. Push (+) raises contrast and effective speed, lifts fog and makes the grain coarser (about x1.25 per stop); pull (-) gives a softer, lower-contrast, finer-grained negative. Unlike Exposure this changes the curve shape, not the position on it.
 - **Color Density** (`interlayer`; 0 … 2; default 1; keyframable) — Interlayer (DIR) effect: how strongly the dye layers inhibit each other. 1 = the stock's nominal colour density; higher values give denser, more separated colours, 0 a flatter, purer-channel rendering. Neutrals stay neutral at any setting.
 - **Neg Bleach Bypass** (`negBleach`; 0 … 1; default 0; keyframable) — Skips (partially) the bleach step of the negative so silver stays in the film alongside the dyes. The extra silver density builds with exposure: higher contrast, harder highlights and muted colour, strongest in the bright parts of the image. 0 = normal processing.
 - **Neutralize** (`neutralize`; 0 … 1; default 0; keyframable) — Removes the stock's per-layer curve differences (the subtle colour crossover between shadows and highlights). 0 = the stock's natural character, 1 = perfectly neutral greys from black to white.
+- **Stock Data** (`negProvenance`; read-only; “Data sheet: Kodak H-1-5207 (2015): spectral sensitivity, characteristic curves; dyes from H-1-5219t (VISION3 dye set). ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film.”) — Where the selected film stock's data comes from (v1.3): a manufacturer data sheet (fitted, not measured from film), partly borrowed from a named proxy stock, a Celluloid design, or a style approximation.
 
 ### Print
 
@@ -367,6 +371,15 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Print Density** (`printExposure`; -12 … 12; default 0; keyframable) — Overall printer light in points on all three layers. Positive values make the print BRIGHTER (less print density), negative values darker and denser. This is the lab's way to brighten or darken a print: highlights and blacks respond like real print film, not like a gain.
 - **Print Bleach Bypass** (`printBleach`; 0 … 1; default 0; keyframable) — Bleach bypass on the print: retained silver deepens the blacks and shadows, raises contrast and desaturates - the classic gritty, metallic release-print look. 0 = normal processing.
 - **Print Crossover** (`printCrossover`; -1 … 1; default 0; keyframable) — Warm highlights and cool shadows the way many release prints render them (the classic 2383 chain): positive values add yellow and remove cyan in the bright end of the print and do the opposite in the shadows, growing from the middle of the scale outward, while middle grey stays neutral. Negative values reverse it (cool highlights, warm shadows). 0 = the print stock exactly as designed. Print process only.
+- **Print Stock Data** (`printProvenance`; read-only; “Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the default-look target).”) — Where the selected print stock's data comes from: a manufacturer data sheet (fitted, not measured from film), partly borrowed from a named proxy stock, a Celluloid design, or a style approximation.
+- **Enable Print Lab** (`printLabEnable`; default on) — Switches the print lab controls below (Projection White, Process Aim, Print Contrast, Rendering) on or off without losing their values. Off = a contact print at the nominal process aim, adapted to D65 - exactly the v1.2 print.
+- **Projection White** (`projectionWhite`; default: D65 (Adapted)) — The white the projected print is shown at. D65 (Adapted): the eye adapted to the projector lamp, mapped to the D65 white of a video display (the classic film-out preview). Theatre Xenon (Unadapted): the print as a colorimeter reads it off a xenon-lit screen - the clear print base and the lamp give a warmer, slightly yellow white. D60 Sim: adapted to the ACES D60 white and shown on a D65 display (a slightly warm white, as in DCI / ACES D60 sim mastering).
+  - Options: D65 (Adapted) · Theatre Xenon (Unadapted) · D60 Sim
+- **Process Aim** (`printAim`; default: Nominal) — Where the lab runs its print process within its tolerance band (ECP-2 development). Nominal: the data-sheet aim. Rich: one unit more development - higher print gamma, deeper D-max, slightly more fog; denser blacks and more saturated colour. Soft: one unit less - lower gamma and D-max, lifted blacks, gentler colour. The lab re-times the print, so middle grey stays put.
+  - Options: Nominal · Rich · Soft
+- **Print Contrast** (`printContrast`; -1 … 1; default 0; keyframable) — Fine control of print development in the same units as Process Aim (added to it): + raises the print's gamma and D-max (more contrast, deeper blacks), - lowers them. Each layer reacts by its own development sensitivity (the bottom yellow layer most). Middle grey stays at the print's aim.
+- **Rendering** (`printRender`; default: Contact Print) — How the print is made and viewed. Contact Print: the camera negative printed directly (answer / show print). Release Print (IP / IN): the negative is duplicated twice on VISION Color Intermediate 2242 (interpositive, internegative) at the lab aims before printing - slightly softer toe and shoulder and a subtle colour shift, as in a theatrical release print. Telecine / Scan: the print scanned on a telecine; every layer is balanced between print D-min and D-max and the black is set just above D-max - neutral blacks and highlights.
+  - Options: Contact Print · Release Print (IP / IN) · Telecine / Scan
 
 ### Halation
 
@@ -745,6 +758,42 @@ texture in a later Texture Only node or keep it out entirely.
 Notes: reversal (slide) stocks have no negative stage, so every stage renders the full chain with
 them. In the negative stages Process, the print timing controls, Output and Film Blur are greyed:
 they belong to the print. Print Only ignores Camera Log and Camera Emulation (the input is a scan).
+
+### The print lab: projection, process aim, release prints (v1.3)
+
+The lab block in the **Print** group sets how the print is made and shown. It works on every print
+stock and makes most difference on the data-sheet prints (Kodak Vision 2383, Vision Premier 2393 and
+Fujifilm Eterna-CP 3513DI). With **Enable Print Lab** off, or with every setting at its default, the
+print looks exactly as it did in v1.2.
+
+- **Projection White**:
+  - **D65 (Adapted)**: the classic film-out preview on a video display.
+  - **Theatre Xenon (Unadapted)**: what a light meter reads off a xenon-lit cinema screen, with a
+    warmer, slightly yellow white. Use it to judge the print as an audience sees it.
+  - **D60 Sim**: the ACES D60 white on a D65 display.
+- **Process Aim**: the lab's development within its tolerance band.
+  - **Rich**: more gamma, a deeper D-max and denser blacks.
+  - **Soft**: less of each, with open blacks and gentler colour.
+
+  **Print Contrast** fine-tunes the aim in the same units. The lab re-times the print, so middle grey
+  stays put and only the contrast around it changes.
+- **Rendering**:
+  - **Contact Print**: printed straight from the camera negative.
+  - **Release Print (IP / IN)**: duplicated twice on Kodak 2242 intermediate film first, as a
+    theatrical release print is. The toe and shoulder get a little softer and the colour shifts
+    slightly.
+  - **Telecine / Scan**: the print transferred on a telecine, with neutral blacks and highlights and
+    the black set just above the print's D-max.
+
+**Stock Data** (Negative group) and **Print Stock Data** (Print group) are read-only lines that say
+where the selected stock's numbers come from:
+
+- a manufacturer data sheet, fitted rather than measured from film
+- a partial data sheet, with the rest borrowed from a named proxy stock
+- a Celluloid design
+- a style approximation
+
+The full list is in [STOCKS.md](STOCKS.md), section 5c.
 
 ### Bright highlights: zones, contrast, roll-off and dye saturation (Tone group)
 

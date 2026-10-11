@@ -69,6 +69,29 @@ VEC = {
         ('076_fujifilm_motion_picture_film_manual.pdf', 29, 'ETERNA-CP 3513DI characteristic curves (status A)',
          (281.0, 164.0, 421.2, 274.9), dict(x=(0, 4.5), y=(0, 5)), dict(B=9, G=10, R=11), 'hd'),
     ],
+    # v1.3 Kodak sheets with full data
+    'kodak_5294': [
+        ('EKTACHROME-100D-sell-sheet-EN.pdf', 1, 'Sensitometric Curves (camera stops; frame -10 .. 6.64 from the tick spacing)',
+         (63.3, 533.0, 190.6, 634.9), dict(x=(-10, 6.64), y=(0, 4)), dict(G=20, B=21, R=22), 'hd'),
+        ('EKTACHROME-100D-sell-sheet-EN.pdf', 2, 'Spectral-Sensitivity Curves', (60.9, 532.9, 184.8, 638.0),
+         dict(x=(250, 750), y=(-2, 2)), dict(Y=4, M=5, C=6), 'sens'),
+        ('EKTACHROME-100D-sell-sheet-EN.pdf', 2, 'Spectral-Dye-Density Curves (peak-normalised)', (247.5, 532.8, 373.8, 638.1),
+         dict(x=(400, 700), y=(0, 1.5)), dict(a=11, b=13, c=15, neutral=17), 'dye'),
+    ],
+    'kodak_5218': [
+        ('5218.pdf', 2, 'Sensitometric Curves (camera stops)', (236.4, 81.4, 364.3, 154.2), dict(x=(-10, 6), y=(0, 3)),
+         dict(B=27, G=28, R=29), 'hd'),
+        ('5218.pdf', 2, 'Spectral-Sensitivity Curves (x from the labels)', (243.4, 497.9, 356.8, 584.0),
+         dict(x=(248.7, 748.7), y=(-0.01, 4.04)), dict(Y=55, M=56, C=57), 'sens'),
+        ('5218.pdf', 2, 'Spectral-Dye-Density Curves (axes from the labels)', (240.2, 642.4, 358.8, 739.5),
+         dict(x=(300, 801.7), y=(-0.188, 1.806)), dict(a=65, b=66, c=68, neutral=63, dmin=64), 'dye'),
+    ],
+    # v1.3: VISION Color Intermediate 2242 (H-1-5242t, 2008): sensitometric curves (Status M, ECN-2), used for the
+    # release-print duplication chain (negative -> master positive -> duplicate negative -> print)
+    'kodak_2242': [
+        ('2242-TI.pdf', 3, 'Sensitometric Curves (Status M; x ticks -2 .. 4 log H)', (350.6, 84.4, 535.1, 268.9),
+         dict(x=(-2, 4), y=(0, 3)), dict(R=2, G=3, B=4), 'hd'),
+    ],
 }
 
 

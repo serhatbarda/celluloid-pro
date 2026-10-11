@@ -36,6 +36,30 @@ unchanged in a newer one.
 - Changing only Pipeline Stage or Scene Encoding in the plug-in could keep rendering the previously
   prepared look until another colour control changed.
 
+- **Print lab** (Print group, module switch *Enable Print Lab*), on every print stock and made for
+  the data-sheet prints 2383 / 2393 / 3513DI. Physical lab parameters, not a colour twist:
+  - *Projection White*: D65 adapted, Theatre Xenon unadapted, D60 Sim.
+  - *Process Aim* (Nominal / Rich / Soft) and *Print Contrast*: print development changes the gamma,
+    D-max and fog per layer, and the print is re-timed so grey stays put.
+  - *Rendering*: Contact Print; Release Print through interpositive and internegative on Kodak 2242
+    (curves from the data sheet, LAD aims); Telecine / Scan with a D-min / D-max balance and a black
+    set.
+
+  Off or at the defaults the render is unchanged.
+- **Stock provenance**: every stock says where its data comes from (data sheet, partial data sheet +
+  proxy, designed, or style approximation). This shows in the read-only *Stock Data* and *Print Stock
+  Data* lines and in `docs/STOCKS.md` 5c.
+- **More data-sheet stocks** (appended, existing indices unchanged): Kodak Vision2 500T 5218,
+  Ektachrome 100D 5294 (reversal) and Double-X 5222 (B&W).
+
+### Fixed
+
+- **Grey ramps rise into black on every stock pair.** On some pairs (50D on P6, 500T on 2393 or
+  3513DI) the print's layers reach D-max at different rates, so the last stops before black turned
+  bluer and the red display channel fell by up to 3e-5 as the scene got brighter. The neutral ramp is
+  now made to rise from black to grey; nothing changes where it already did (the default look moves
+  by at most 6e-5 below -12 stops).
+
 ## [1.2.0] — unreleased
 
 ### Added

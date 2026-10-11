@@ -271,7 +271,9 @@
      -0.05894,
      -0.00684
     ]
-   ]
+   ],
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "negative",
@@ -482,7 +484,9 @@
      -0.22702,
      0.03943
     ]
-   ]
+   ],
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "negative",
@@ -693,7 +697,9 @@
      -0.00644,
      0.18688
     ]
-   ]
+   ],
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "negative",
@@ -905,7 +911,9 @@
      0.09707,
      -0.07733
     ]
-   ]
+   ],
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "negative",
@@ -1117,7 +1125,9 @@
      -0.19432,
      -0.03142
     ]
-   ]
+   ],
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "negative",
@@ -1329,7 +1339,9 @@
      -0.25986,
      -0.25043
     ]
-   ]
+   ],
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "negative",
@@ -1541,7 +1553,9 @@
      0.3,
      -0.17092
     ]
-   ]
+   ],
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "negative",
@@ -1753,7 +1767,9 @@
      0.18774,
      -0.25244
     ]
-   ]
+   ],
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "reversal",
@@ -1920,7 +1936,9 @@
    "description": "Daylight colour reversal (slide) film: brilliant saturation, high contrast, deep blacks, short latitude.",
    "greyY": 0.105,
    "hueHold": 0.5,
-   "chromaHold": 0.0
+   "chromaHold": 0.0,
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "bw",
@@ -1997,7 +2015,9 @@
      1.0
     ]
    ],
-   "silver": 0.45
+   "silver": 0.45,
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "bw",
@@ -2074,7 +2094,9 @@
      1.0
     ]
    ],
-   "silver": 0.45
+   "silver": 0.45,
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "kind": "negative",
@@ -2341,7 +2363,9 @@
     ]
    ],
    "source": "Kodak H-1-5203 (2022): spectral sensitivity, characteristic curves; VISION3 dye set (H-1-5219t)",
-   "calibration": "interlayer + mask fitted to fv_bal_2383 (reference/fit_look.py calibrate), rms 8.68 -> 5.38"
+   "calibration": "interlayer + mask fitted to fv_bal_2383 (reference/fit_look.py calibrate), rms 8.68 -> 5.38",
+   "provenanceClass": "datasheet",
+   "provenance": "Data sheet: Kodak H-1-5203 (2022): spectral sensitivity, characteristic curves; dyes from H-1-5219t (VISION3 dye set). ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film."
   },
   {
    "kind": "negative",
@@ -2626,7 +2650,9 @@
     ]
    ],
    "source": "Kodak H-1-5207 (2015): spectral sensitivity, characteristic curves; VISION3 dye set (H-1-5219t)",
-   "calibration": "interlayer + mask fitted to fv_250d_2383 (reference/fit_look.py calibrate), rms 7.47 -> 5.29"
+   "calibration": "interlayer + mask fitted to fv_250d_2383 (reference/fit_look.py calibrate), rms 7.47 -> 5.29",
+   "provenanceClass": "datasheet",
+   "provenance": "Data sheet: Kodak H-1-5207 (2015): spectral sensitivity, characteristic curves; dyes from H-1-5219t (VISION3 dye set). ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film."
   },
   {
    "kind": "negative",
@@ -2898,7 +2924,9 @@
     ]
    ],
    "source": "Kodak H-1-5213 (2010, Spanish edition): sensitometry, spectral sensitivity, spectral dye density",
-   "calibration": "interlayer + mask fitted to fv_bal_2383 (reference/fit_look.py calibrate), rms 8.60 -> 4.95"
+   "calibration": "interlayer + mask fitted to fv_bal_2383 (reference/fit_look.py calibrate), rms 8.60 -> 4.95",
+   "provenanceClass": "datasheet",
+   "provenance": "Data sheet: Kodak H-1-5213 (2010): spectral sensitivity, characteristic curves, spectral dye density. ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film."
   },
   {
    "kind": "negative",
@@ -3184,7 +3212,9 @@
     ]
    ],
    "source": "Kodak H-1-5219t (2015): sensitometry, spectral sensitivity, spectral dye density",
-   "calibration": "interlayer + mask fitted to fv_500t_2383 (reference/fit_look.py calibrate), rms 7.12 -> 5.45"
+   "calibration": "interlayer + mask fitted to fv_500t_2383 (reference/fit_look.py calibrate), rms 7.12 -> 5.45",
+   "provenanceClass": "datasheet",
+   "provenance": "Data sheet: Kodak H-1-5219t (2015): spectral sensitivity, characteristic curves, spectral dye density. ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film."
   },
   {
    "kind": "negative",
@@ -3469,7 +3499,9 @@
     ]
    ],
    "source": "Fujifilm KB-0707E p.33: characteristic curves; spectral sensitivities and dyes not published there -> VISION3 250D / dye-set proxies",
-   "calibration": "interlayer + mask fitted to eterna (reference/fit_look.py calibrate), rms 9.73 -> 5.98"
+   "calibration": "interlayer + mask fitted to eterna (reference/fit_look.py calibrate), rms 9.73 -> 5.98",
+   "provenanceClass": "partial",
+   "provenance": "Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral sensitivity and dyes borrowed from VISION3 250D (proxy). Discontinued; modelled as fresh stock."
   },
   {
    "kind": "negative",
@@ -3755,7 +3787,9 @@
     ]
    ],
    "source": "Kodak E-4050 (2016): characteristic curves, spectral sensitivity; dye curves not published -> VISION3 dye set",
-   "calibration": "interlayer + mask fitted to fv_bal_2383 (reference/fit_look.py calibrate), rms 10.62 -> 5.86"
+   "calibration": "interlayer + mask fitted to fv_bal_2383 (reference/fit_look.py calibrate), rms 10.62 -> 5.86",
+   "provenanceClass": "partial",
+   "provenance": "Partial data sheet: Kodak E-4050 (2016): characteristic curves, spectral sensitivity; dyes borrowed from the VISION3 set (proxy; not published). C-41. Fresh stock at the nominal process; fitted to the published curves, not measured from film."
   },
   {
    "kind": "reversal",
@@ -4007,7 +4041,9 @@
    "greyY": 0.105,
    "hueHold": 0.5,
    "chromaHold": 0.0,
-   "source": "Kodak E-4024 (2009, E100G): characteristic curves, spectral sensitivity, spectral dye density"
+   "source": "Kodak E-4024 (2009, E100G): characteristic curves, spectral sensitivity, spectral dye density",
+   "provenanceClass": "datasheet",
+   "provenance": "Data sheet: Kodak E-4024 (2009, E100G): characteristic curves, spectral sensitivity, spectral dye density. E-6. Fresh stock at the nominal process; fitted to the published curves, not measured from film."
   },
   {
    "kind": "reversal",
@@ -4259,7 +4295,626 @@
    "greyY": 0.105,
    "hueHold": 0.5,
    "chromaHold": 0.0,
-   "source": "designed from the Ektachrome E100 data: gamma x1.25, D-max +0.4, cyan dye 25 nm shorter, interlayer x1.4"
+   "source": "designed from the Ektachrome E100 data: gamma x1.25, D-max +0.4, cyan dye 25 nm shorter, interlayer x1.4",
+   "provenanceClass": "style",
+   "provenance": "Style approximation: no public Kodachrome data; designed from the Ektachrome E100 data (higher contrast, deeper D-max, shorter cyan dye). Not measured from Kodachrome."
+  },
+  {
+   "kind": "negative",
+   "balance": {
+    "type": "blackbody",
+    "cct": 3200
+   },
+   "grainSizeScale": 1.3,
+   "halationScale": 0.8,
+   "bloomScale": 1.1,
+   "sensitivity": [
+    [
+     [
+      650.4202,
+      24.7918,
+      4.0,
+      0.3687
+     ],
+     [
+      597.6008,
+      13.7061,
+      20.7888,
+      0.3585
+     ],
+     [
+      560.191,
+      4.0,
+      28.9894,
+      0.056
+     ],
+     [
+      645.3625,
+      17.7435,
+      9.1026,
+      0.6312
+     ]
+    ],
+    [
+     [
+      529.3905,
+      18.8955,
+      9.7502,
+      0.5816
+     ],
+     [
+      567.2411,
+      15.8932,
+      5.6785,
+      0.2866
+     ],
+     [
+      492.1907,
+      11.5625,
+      17.6827,
+      0.1708
+     ],
+     [
+      547.0054,
+      12.1354,
+      16.8107,
+      0.7166
+     ]
+    ],
+    [
+     [
+      414.8368,
+      19.0914,
+      13.2092,
+      0.4685
+     ],
+     [
+      462.6877,
+      58.1699,
+      9.5245,
+      0.7299
+     ],
+     [
+      400.339,
+      5.9174,
+      4.2568,
+      0.0382
+     ],
+     [
+      480.2507,
+      11.3835,
+      14.8451,
+      0.2111
+     ]
+    ]
+   ],
+   "curves": [
+    {
+     "fog": 0.1,
+     "gamma": 0.5389,
+     "k": 6.4208,
+     "x0": -2.1148,
+     "R": 1.6656,
+     "p": 4.978
+    },
+    {
+     "fog": 0.1,
+     "gamma": 0.5846,
+     "k": 6.9076,
+     "x0": -2.1616,
+     "R": 1.6486,
+     "p": 12.0
+    },
+    {
+     "fog": 0.1,
+     "gamma": 0.661,
+     "k": 4.5178,
+     "x0": -2.0487,
+     "R": 1.9244,
+     "p": 4.0783
+    }
+   ],
+   "dyes": [
+    {
+     "primary": [
+      [
+       646.3384,
+       47.1422,
+       50.7978,
+       0.642
+      ],
+      [
+       632.2537,
+       150.0,
+       16.4552,
+       0.0337
+      ],
+      [
+       709.0056,
+       43.5116,
+       50.316,
+       0.5946
+      ]
+     ],
+     "secondary": [
+      [
+       384.3143,
+       6.8056,
+       32.389,
+       0.2004
+      ]
+     ]
+    },
+    {
+     "primary": [
+      [
+       538.6093,
+       24.802,
+       28.6646,
+       0.8463
+      ]
+     ],
+     "secondary": [
+      [
+       496.1327,
+       15.6121,
+       19.4297,
+       0.2472
+      ],
+      [
+       679.6716,
+       105.3169,
+       61.9147,
+       0.3278
+      ]
+     ]
+    },
+    {
+     "primary": [
+      [
+       463.6433,
+       17.8594,
+       21.474,
+       0.7378
+      ],
+      [
+       438.9214,
+       14.1036,
+       14.2049,
+       0.4204
+      ],
+      [
+       415.9405,
+       26.0417,
+       18.9007,
+       0.5513
+      ]
+     ],
+     "secondary": [
+      [
+       515.3753,
+       30.3128,
+       46.7589,
+       0.2446
+      ]
+     ]
+    }
+   ],
+   "mask": [
+    0.5,
+    0.5,
+    0.0
+   ],
+   "base": {
+    "d0": 0.05,
+    "blue": 0.05
+   },
+   "interlayer": [
+    [
+     0.0,
+     0.9228,
+     0.0572
+    ],
+    [
+     0.7272,
+     0.0,
+     0.5195
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "granularity": [
+    0.01449,
+    0.01736,
+    0.02415
+   ],
+   "silver": 0.45,
+   "name": "Kodak Vision2 500T 5218",
+   "description": "VISION2 500T: the 2000s high-speed tungsten negative: a little more grain and less latitude than VISION3, warm, punchy mids.",
+   "scanMatrix": [
+    [
+     0.25324,
+     0.27724,
+     0.23091
+    ],
+    [
+     0.01563,
+     0.57323,
+     0.03622
+    ],
+    [
+     0.07615,
+     0.14321,
+     0.93697
+    ]
+   ],
+   "scanCrossover": 0.7,
+   "scanContrast": 1.0,
+   "scanRoot": [
+    [
+     0.23075,
+     -0.29214,
+     0.3
+    ],
+    [
+     -0.07485,
+     0.3,
+     0.14976
+    ],
+    [
+     -0.17607,
+     0.09707,
+     -0.07733
+    ]
+   ],
+   "source": "Kodak H-1-5218 (2007): sensitometry, spectral sensitivity, spectral dye density",
+   "calibration": "interlayer + mask fitted to fv_bal_2383 (reference/fit_look.py calibrate), rms 5.62 -> 5.17",
+   "provenanceClass": "datasheet",
+   "provenance": "Data sheet: Kodak H-1-5218 (2007): spectral sensitivity, characteristic curves, spectral dye density. ECN-2. Discontinued; modelled as fresh stock."
+  },
+  {
+   "kind": "reversal",
+   "balance": {
+    "type": "daylight",
+    "cct": 5500
+   },
+   "grainSizeScale": 0.8,
+   "halationScale": 0.5,
+   "bloomScale": 0.9,
+   "sensitivity": [
+    [
+     [
+      651.5585,
+      14.7544,
+      4.2484,
+      0.7745
+     ],
+     [
+      616.9837,
+      18.6146,
+      13.1375,
+      0.2916
+     ],
+     [
+      648.5333,
+      14.5736,
+      11.246,
+      0.2216
+     ]
+    ],
+    [
+     [
+      574.0413,
+      28.5103,
+      4.0,
+      0.7418
+     ],
+     [
+      573.966,
+      28.4689,
+      10.1,
+      0.2591
+     ],
+     [
+      503.7326,
+      12.0177,
+      14.7213,
+      0.1547
+     ],
+     [
+      545.128,
+      20.5208,
+      5.5287,
+      0.3476
+     ]
+    ],
+    [
+     [
+      418.5833,
+      11.3636,
+      8.6391,
+      0.8089
+     ],
+     [
+      463.3247,
+      11.4432,
+      5.7396,
+      0.4791
+     ],
+     [
+      429.9832,
+      4.7032,
+      24.4254,
+      0.6266
+     ],
+     [
+      510.5982,
+      24.4922,
+      5.7655,
+      0.0113
+     ]
+    ]
+   ],
+   "curves": [
+    {
+     "fog": 0.15,
+     "gamma": 1.7283,
+     "k": 3.9459,
+     "x0": -0.2296,
+     "R": 2.9853,
+     "p": 10.8097
+    },
+    {
+     "fog": 0.15,
+     "gamma": 2.3506,
+     "k": 3.2469,
+     "x0": -0.5063,
+     "R": 3.4091,
+     "p": 8.8226
+    },
+    {
+     "fog": 0.15,
+     "gamma": 2.5131,
+     "k": 3.1018,
+     "x0": -0.6281,
+     "R": 3.6395,
+     "p": 8.7652
+    }
+   ],
+   "dyes": [
+    {
+     "primary": [
+      [
+       656.0534,
+       51.6406,
+       56.0535,
+       0.8415
+      ],
+      [
+       699.8896,
+       55.4301,
+       10.3357,
+       0.117
+      ]
+     ],
+     "secondary": [
+      [
+       599.4538,
+       71.6061,
+       29.9969,
+       0.0931
+      ],
+      [
+       340.0,
+       143.7075,
+       55.5064,
+       0.2533
+      ]
+     ]
+    },
+    {
+     "primary": [
+      [
+       546.2059,
+       37.0994,
+       38.0017,
+       0.6715
+      ],
+      [
+       560.8668,
+       49.9917,
+       19.6963,
+       0.2695
+      ],
+      [
+       587.2038,
+       8.9504,
+       47.7515,
+       0.0722
+      ]
+     ],
+     "secondary": [
+      [
+       457.6979,
+       21.9713,
+       23.7471,
+       0.0642
+      ],
+      [
+       431.3056,
+       39.1606,
+       11.2087,
+       0.0911
+      ]
+     ]
+    },
+    {
+     "primary": [
+      [
+       439.6059,
+       16.8402,
+       9.5995,
+       0.1962
+      ],
+      [
+       461.2836,
+       11.7633,
+       16.4258,
+       0.347
+      ],
+      [
+       428.6296,
+       34.7655,
+       37.6109,
+       0.6685
+      ]
+     ],
+     "secondary": [
+      [
+       489.4997,
+       13.2464,
+       21.7244,
+       0.1864
+      ],
+      [
+       527.5295,
+       149.9994,
+       15.0702,
+       0.0133
+      ]
+     ]
+    }
+   ],
+   "mask": [
+    0,
+    0,
+    0
+   ],
+   "base": {
+    "d0": 0.05,
+    "blue": 0.05
+   },
+   "interlayer": [
+    [
+     0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0,
+     0.4003
+    ],
+    [
+     0.0409,
+     0.9,
+     0
+    ]
+   ],
+   "granularity": [
+    0.0101,
+    0.0118,
+    0.0168
+   ],
+   "silver": 0.45,
+   "name": "Kodak Ektachrome 100D 5294",
+   "description": "EKTACHROME 100D: the motion-picture colour reversal: clean, saturated, contrasty, short latitude.",
+   "greyY": 0.105,
+   "hueHold": 0.5,
+   "chromaHold": 0.0,
+   "source": "Kodak EKTACHROME 100D sell sheet (EN): sensitometry, spectral sensitivity, spectral dye density",
+   "provenanceClass": "datasheet",
+   "provenance": "Data sheet: Kodak EKTACHROME 100D sell sheet: spectral sensitivity, characteristic curves, spectral dye density. E-6. Fresh stock at the nominal process; fitted to the published curves, not measured from film.",
+   "calibration": "interlayer + mask taken from Kodak Ektachrome E100 (not fitted)"
+  },
+  {
+   "kind": "bw",
+   "balance": {
+    "type": "daylight",
+    "cct": 5500
+   },
+   "grainSizeScale": 1.35,
+   "halationScale": 0.7,
+   "bloomScale": 1.0,
+   "sensitivity": [
+    [
+     [
+      402.7195,
+      4.0,
+      61.6599,
+      0.9182
+     ],
+     [
+      429.2864,
+      8.4225,
+      34.327,
+      0.1582
+     ],
+     [
+      558.5105,
+      26.3896,
+      25.7002,
+      0.243
+     ],
+     [
+      624.6814,
+      46.7753,
+      13.5145,
+      0.3063
+     ]
+    ]
+   ],
+   "curves": [
+    {
+     "fog": 0.2,
+     "gamma": 0.6556,
+     "k": 6.5908,
+     "x0": -1.8822,
+     "R": 3.0528,
+     "p": 4.0
+    }
+   ],
+   "base": {
+    "d0": 0.05,
+    "blue": 0.05
+   },
+   "interlayer": [
+    [
+     0,
+     0.25,
+     0.1
+    ],
+    [
+     0.2,
+     0,
+     0.15
+    ],
+    [
+     0.08,
+     0.18,
+     0
+    ]
+   ],
+   "granularity": [
+    0.0234
+   ],
+   "name": "Kodak Double-X 5222",
+   "description": "DOUBLE-X 5222: the classic panchromatic B&W negative: open grain, blue-heavy sensitivity, gentle toe.",
+   "silverSpectrum": [
+    [
+     450,
+     300,
+     300,
+     1.0
+    ]
+   ],
+   "silver": 0.45,
+   "provenanceClass": "datasheet",
+   "provenance": "Data sheet: Kodak DOUBLE-X 5222 technical data: characteristic curve (D-96, 6 1/2 min) and spectral sensitivity, traced from the raster figures. Fresh stock at the nominal process; fitted to the published curves, not measured from film.",
+   "source": "Kodak DOUBLEX technical data (EN): characteristic curves (D-96, 6 1/2 min), spectral sensitivity (raster traced)"
   }
  ],
  "prints": [
@@ -4392,7 +5047,9 @@
     1.0
    ],
    "hueHold": 0.5,
-   "chromaHold": 0.0
+   "chromaHold": 0.0,
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "sensitivity": [
@@ -4523,7 +5180,9 @@
     1.0
    ],
    "hueHold": 0.5,
-   "chromaHold": 0.0
+   "chromaHold": 0.0,
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "sensitivity": [
@@ -4654,7 +5313,9 @@
     1.0
    ],
    "hueHold": 0.5,
-   "chromaHold": 0.0
+   "chromaHold": 0.0,
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "sensitivity": [
@@ -4800,7 +5461,9 @@
      30,
      0.04
     ]
-   ]
+   ],
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "sensitivity": [
@@ -4931,7 +5594,9 @@
     1.0
    ],
    "hueHold": 0.5,
-   "chromaHold": 0.0
+   "chromaHold": 0.0,
+   "provenanceClass": "designed",
+   "provenance": "Designed (Celluloid original): parametric spectra and curves, not a real stock."
   },
   {
    "sensitivity": [
@@ -5141,7 +5806,9 @@
    ],
    "hueHold": 0.5,
    "chromaHold": 0.0,
-   "source": "Kodak H-1-2383 (2022): sensitometry (status A), spectral sensitivity, spectral dye density"
+   "source": "Kodak H-1-2383 (2022): sensitometry (status A), spectral sensitivity, spectral dye density",
+   "provenanceClass": "datasheet",
+   "provenance": "Data sheet: Kodak H-1-2383 (2022): spectral sensitivity, Status A curves, spectral dye density. ECP-2 nominal; lab aim, projection and rendering are set in this group. Fresh stock at the nominal process; fitted to the published curves, not measured from film."
   },
   {
    "sensitivity": [
@@ -5345,7 +6012,9 @@
    ],
    "hueHold": 0.5,
    "chromaHold": 0.0,
-   "source": "Kodak H-1-2393 (1998): sensitometry, spectral sensitivity; 2383 dye set (not published for 2393)"
+   "source": "Kodak H-1-2393 (1998): sensitometry, spectral sensitivity; 2383 dye set (not published for 2393)",
+   "provenanceClass": "partial",
+   "provenance": "Data sheet: Kodak H-1-2393 (1998): spectral sensitivity, characteristic curves; dyes from 2383 (not published for 2393). ECP-2 nominal."
   },
   {
    "sensitivity": [
@@ -5555,7 +6224,9 @@
    ],
    "hueHold": 0.5,
    "chromaHold": 0.0,
-   "source": "Fujifilm KB-0707E p.57: characteristic curves; spectral data not published there -> 2383 proxies"
+   "source": "Fujifilm KB-0707E p.57: characteristic curves; spectral data not published there -> 2383 proxies",
+   "provenanceClass": "partial",
+   "provenance": "Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal."
   },
   {
    "sensitivity": [
@@ -5765,7 +6436,79 @@
    ],
    "hueHold": 0.55,
    "chromaHold": -0.25,
-   "source": "designed: Kodak 2383 spectral data (H-1-2383) + tone curves fitted by reference/fit_look.py"
+   "source": "designed: Kodak 2383 spectral data (H-1-2383) + tone curves fitted by reference/fit_look.py",
+   "provenanceClass": "designed",
+   "provenance": "Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the default-look target)."
   }
- ]
+ ],
+ "lab": {
+  "source": "v1.3 print lab model (docs/STOCKS.md 5c.1): projection whites (CIE D65; ACES D60 = x 0.32168 y 0.33767; the projector lamp itself); process aim = development change of the print within a lab tolerance band (our values); duplication on VISION Color Intermediate 2242 (Kodak H-1-5242t, 2008: Status M curves, LAD aims MP 1.15/1.60/1.70, DN 1.00/1.45/1.55); telecine black set.",
+  "whites": [
+   {
+    "adapt": 1,
+    "x": 0.3127,
+    "y": 0.329
+   },
+   {
+    "adapt": 0,
+    "x": 0.0,
+    "y": 0.0
+   },
+   {
+    "adapt": 1,
+    "x": 0.32168,
+    "y": 0.33767
+   }
+  ],
+  "aimStep": [
+   0.0,
+   1.0,
+   -1.0
+  ],
+  "aimGamma": 0.12,
+  "aimDmax": 0.06,
+  "aimFog": 0.01,
+  "aimLayer": [
+   1.0,
+   0.8,
+   1.2
+  ],
+  "mpAim": [
+   1.15,
+   1.6,
+   1.7
+  ],
+  "dnAim": [
+   1.0,
+   1.45,
+   1.55
+  ],
+  "telecineBlack": 0.97,
+  "dupe": [
+   {
+    "fog": 0.0889,
+    "gamma": 0.9642,
+    "k": 7.1513,
+    "x0": -0.0609,
+    "R": 2.3375,
+    "p": 8.8113
+   },
+   {
+    "fog": 0.5797,
+    "gamma": 0.9682,
+    "k": 8.2107,
+    "x0": -0.0456,
+    "R": 2.4598,
+    "p": 9.2471
+   },
+   {
+    "fog": 0.6486,
+    "gamma": 1.0271,
+    "k": 6.448,
+    "x0": 0.0032,
+    "R": 2.696,
+    "p": 7.3775
+   }
+  ]
+ }
 }

@@ -39,12 +39,25 @@ struct Lut { std::vector<float> data; int n = 0; double maxv = 0.0; };
 // cached blocks (immutable once built)
 struct ExposureBake { Lut oct; };                       // octahedral log10 K LUT, N x N x 3
 struct DyeLutBake { Lut lut; };                         // N^3 x 3 log10 exposures / XYZ
-struct ProjBake { Lut lut; /* spectral PJ table K x 7, n = K, maxv = dye domain */ spec::Mat3 cat; double pmin[3]; std::vector<float> pcurve; };   // pcurve: print curves 3 x kNCurve
+struct ProjBake { Lut lut; /* spectral PJ table K x 7, n = K, maxv = dye domain */ spec::Mat3 cat; double pmin[3]; std::vector<float> pcurve;   // pcurve: print curves 3 x kNCurve
+                  spec::Vec3 white = {0.3127 / 0.3290, 1.0, (1.0 - 0.3127 - 0.3290) / 0.3290}; };      // v1.3: display XYZ of the projection white (grey-balance target)
+
+// v1.3 print lab / projection conditions (stocks::LabDef, docs/STOCKS.md 5c.1). Defaults = the v1.2 print path.
+enum RenderKind { kRenderContact = 0, kRenderRelease = 1, kRenderTelecine = 2, kRenderCount };
+struct PrintVariant {
+    int white = 0;          // stocks::LabDef::whites index (0 = D65 adapted)
+    int aim = 0;            // stocks::LabDef::aimStep index (0 = nominal)
+    int render = 0;         // RenderKind (== core::PrintRender)
+    float contrast = 0.f;   // print development in aim units, added to the aim (-1 .. 1)
+};
+stocks::CurveDef printAimCurve(const stocks::CurveDef& c, int layer, double dev);   // process aim / print contrast
+void telecineCurves(std::vector<float>& pc /* 3 x kNCurve */, double black);         // neutral axis + black set
+double dupeLogH(int ch, double logH, double logHRef);                               // release chain: neg -> IP -> IN -> print log H
 
 std::shared_ptr<const ExposureBake> exposureLut(int neg);
-std::shared_ptr<const DyeLutBake> printLut(int neg, int prt);        // printer: neg dyes -> print log H
+std::shared_ptr<const DyeLutBake> printLut(int neg, int prt, int render = kRenderContact);   // printer: neg dyes -> print log H
 std::shared_ptr<const DyeLutBake> scanLut(int neg);                  // scanner: neg dyes -> log10 channel exposure
-std::shared_ptr<const ProjBake> projectionLut(int prt, bool mono);   // print dyes -> spectral projection table
+std::shared_ptr<const ProjBake> projectionLut(int prt, bool mono, const PrintVariant& v = PrintVariant());   // print dyes -> spectral projection table
 std::shared_ptr<const ProjBake> reversalLut(int neg);                // reversal dyes -> spectral projection table
 
 double negLutMax(const stocks::NegDef& n);
@@ -52,7 +65,9 @@ double printLutMax(const stocks::PrintDef& p);
 spec::Mat3 catToD65(const spec::Spectrum& lamp);
 
 // print curves (identical for every call with the same stock) incl. the mono (B&W) variant
-void printCurves(int prt, bool mono, std::vector<float>& out /* 3 x kNCurve */);
+void printCurves(int prt, bool mono, std::vector<float>& out /* 3 x kNCurve */, const PrintVariant& v = PrintVariant());
+// v1.3: projection white (CAT16 matrix lamp -> target white incl. the display fit, and the target white's XYZ)
+void projectionWhite(const spec::Spectrum& lamp, int white, spec::Mat3& cat, spec::Vec3& xyz);
 
 void clearCache();                                      // tests / timing
 

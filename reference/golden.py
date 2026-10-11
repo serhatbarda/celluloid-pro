@@ -45,6 +45,18 @@ def cases(lib):
     C.append(dict(neg=8, output='Rec2100_HLG'))
     for inp in m.INPUTS[1:]:
         C.append(dict(neg=1, input=inp))
+    # v1.3 print lab: projection white, process aim, print contrast, rendering on the data-sheet prints
+    C += [
+        dict(neg=12, prt=5, projectionWhite=1),
+        dict(neg=12, prt=5, projectionWhite=2, printAim=1),
+        dict(neg=12, prt=6, printAim=2, printContrast=0.4),
+        dict(neg=12, prt=5, printRender=1),
+        dict(neg=14, prt=7, printRender=1, printAim=1),
+        dict(neg=12, prt=6, printRender=2),
+        dict(neg=12, prt=7, printRender=2, projectionWhite=1, printContrast=-0.6),
+        dict(neg=9, prt=5, printRender=1, printAim=1),
+        dict(neg=9, prt=5, printRender=2),
+    ]
     return C
 
 
@@ -74,10 +86,11 @@ def main():
         out = P.process(enc, noise if p.grain > 0 else None)
         pr = p.printer
         lines.append('case c%02d neg=%d prt=%d process=%d input=%d output=%d exposure=%r push=%r inter=%r nb=%r neut=%r '
-                     'pr=%r pg=%r pb=%r pe=%r pbl=%r peak=%r unroll=%r grain=%r' % (
+                     'pr=%r pg=%r pb=%r pe=%r pbl=%r peak=%r unroll=%r grain=%r pw=%d pa=%d prd=%d pct=%r' % (
                          ci, p.neg, p.prt, 1 if p.process == 'scan' else 0, m.INPUTS.index(p.input),
                          m.OUTPUTS.index(p.output), p.exposure, p.push, p.interlayer, p.negBleach, p.neutralize,
-                         pr[0], pr[1], pr[2], p.printExposure, p.printBleach, p.hdrPeak, p.hdrUnroll, p.grain))
+                         pr[0], pr[1], pr[2], p.printExposure, p.printBleach, p.hdrPeak, p.hdrUnroll, p.grain,
+                         p.projectionWhite, p.printAim, p.printRender, p.printContrast))
         for e, n, o in zip(enc, noise, out):
             lines.append('px ' + ' '.join('%.9g' % v for v in list(e) + list(n) + list(o)))
         if ci in (0, 1) or 'output' in c:

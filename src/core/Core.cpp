@@ -56,6 +56,7 @@ std::vector<NegativeStockInfo> negativeStocks() {
         s.grainSizeScale = float(n.grainSizeScale);
         s.halationScale = float(n.halationScale);
         s.bloomScale = float(n.bloomScale);
+        s.provenance = n.provenance ? n.provenance : "";
         v.push_back(s);
     }
     return v;
@@ -65,6 +66,15 @@ std::vector<std::string> printStockNames() {
     for (int i = 0; i < st::numPrints(); ++i) v.push_back(st::print(i).name);
     return v;
 }
+// v1.3 print lab (WP-2): provenance and choice labels
+std::vector<std::string> printStockProvenance() {
+    std::vector<std::string> v;
+    for (int i = 0; i < st::numPrints(); ++i) v.push_back(st::print(i).provenance ? st::print(i).provenance : "");
+    return v;
+}
+std::vector<std::string> projectionWhiteNames() { return {"D65 (Adapted)", "Theatre Xenon (Unadapted)", "D60 Sim"}; }
+std::vector<std::string> printAimNames() { return {"Nominal", "Rich", "Soft"}; }
+std::vector<std::string> printRenderNames() { return {"Contact Print", "Release Print (IP / IN)", "Telecine / Scan"}; }
 
 // ------------------------------------------------------------------------- pipeline
 static std::atomic<uint64_t> gStateVersion{0};   // process-wide: versions never collide between instances
@@ -89,6 +99,8 @@ static bool sameFilm(const LookParams& a, const LookParams& b) {
     return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
            a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.process == b.process &&
            a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover &&
+           a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
+           a.printContrast == b.printContrast &&   // v1.3 print lab
            a.rolloffStart == b.rolloffStart && a.rolloffSoftness == b.rolloffSoftness;   // v1.3: the print curve
 }
 
@@ -110,7 +122,10 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
            a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount && a.cameraEmulation == b.cameraEmulation &&
            a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover && a.stage == b.stage &&
-           a.sceneEncoding == b.sceneEncoding && sameTone(a, b);
+           a.sceneEncoding == b.sceneEncoding &&
+           a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
+           a.printContrast == b.printContrast &&   // v1.3 print lab
+           sameTone(a, b);
 }
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
@@ -143,6 +158,11 @@ static LookParams sanitize(LookParams p) {
     if (p.sceneEncoding < 0 || p.sceneEncoding >= int(SceneEncoding::Count)) p.sceneEncoding = 0;
     if (st::negative(p.negStock).kind == st::kReversal) p.stage = 0;
     if (p.stage != 0) p.process = Process::NegativeToPrint;
+    // v1.3 print lab
+    if (p.projectionWhite < 0 || p.projectionWhite >= int(ProjectionWhite::Count)) p.projectionWhite = 0;
+    if (p.printAim < 0 || p.printAim >= int(PrintAim::Count)) p.printAim = 0;
+    if (p.printRender < 0 || p.printRender >= int(PrintRender::Count)) p.printRender = 0;
+    p.printContrast = std::isfinite(p.printContrast) ? clampf(p.printContrast, -1.f, 1.f) : 0.f;
     // v1.3 Tone: ranges clamped; a neutral control normalises its companions to the defaults, so every neutral
     // setting is the same cache key (and the same, untouched state)
     {
@@ -241,6 +261,53 @@ struct Grey {
         return f.X;
     }
 };
+
+// v1.3 monotone black (reference/model.py bake_black_monotone, ColorState.h NT block). Below grey a print's layers
+// reach their D-max at different rates, so the projected neutral turns bluer / greener in the last stops before
+// black while its luminance hardly rises; a display channel with a negative matrix weight can then fall slightly
+// as the scene gets brighter. The display-linear neutral ramp v = Mout XYZ is made rising from black to grey
+// and (v_mono - v) / Y is stored per reference exposure. Off (BLACK_N = 0, bit-identical output) unless
+// the ramp drops by more than kBlackOn relative.
+void bakeBlackMonotone(float* s, const std::vector<CelF3>& X, float xr0, int off) {
+    constexpr double kBlackOn = 1e-4;
+    const int n = int(X.size());
+    std::vector<double> v(size_t(3) * size_t(n));
+    for (int k = 0; k < n; ++k) {
+        CelF3 r = celc_mat3(s, CEL_CS_MOUT, X[size_t(k)]);
+        v[size_t(3 * k)] = r.x; v[size_t(3 * k + 1)] = r.y; v[size_t(3 * k + 2)] = r.z;
+    }
+    int kg = -1;
+    for (int k = 0; k < n; ++k)
+        if (CEL_HOLD_X0 + (CEL_HOLD_X1 - CEL_HOLD_X0) * double(k) / double(n - 1) <= double(xr0)) kg = k;
+    if (kg < 1) return;
+    double worst = 0.0, run[3] = {v[size_t(3 * kg)], v[size_t(3 * kg + 1)], v[size_t(3 * kg + 2)]};
+    for (int k = kg - 1; k >= 0; --k)
+        for (int c = 0; c < 3; ++c) {
+            run[c] = std::min(run[c], v[size_t(3 * (k + 1) + c)]);
+            double a = v[size_t(3 * k + c)];
+            worst = std::max(worst, (a - run[c]) / std::max(std::fabs(a), 1e-12));
+        }
+    if (worst <= kBlackOn) return;
+    std::vector<double> vm(v);
+    for (int k = std::min(kg, n - 2); k >= 0; --k)
+        for (int c = 0; c < 3; ++c) {
+            // fold the ramp: it falls by |v[k+1] - v[k]| per sample towards black (its own fall, or the mirrored
+            // step where it turns up); the offset stays within twice the reversal, noise in D-max moves it by noise
+            vm[size_t(3 * k + c)] = vm[size_t(3 * (k + 1) + c)] - std::fabs(v[size_t(3 * (k + 1) + c)] - v[size_t(3 * k + c)]);
+        }
+    bool any = false;
+    for (int k = 0; k < n; ++k) {
+        double iy = 1.0 / std::max(double(X[size_t(k)].y), 1e-12);
+        for (int c = 0; c < 3; ++c) {
+            float d = float((vm[size_t(3 * k + c)] - v[size_t(3 * k + c)]) * iy);
+            s[off + c * n + k] = d;
+            any = any || d != 0.f;
+        }
+    }
+    if (!any) return;
+    s[CEL_CS_BLACK_OFF] = float(off);
+    s[CEL_CS_BLACK_N] = float(n);
+}
 }
 
 // Print Crossover (v1.2, SPEC 4.4): the classic print crossover - slightly different contrast of the print's
@@ -383,7 +450,7 @@ static void buildStageAxis(float* s, const LookParams& p, int oNS, int oPL, int 
     s[CEL_CS_MASK_ON] = mono ? 0.f : 1.f;
 }
 
-// ---- v1.3 Tone (SPEC 4.8) ----------------------------------------------------------------------------
+// ---- v1.3 Tone (SPEC 4.9) ----------------------------------------------------------------------------
 // Zones + Filmic Contrast: one table E(x) of the gain in stops over x = log2(Y / 0.18) of the scene luminance.
 // Zone weights are smooth and monotone in log2: Lights / Highlights / Specular w = (1 + tanh((x - R) / F)) / 2
 // (above their range R), Shadows w = (1 - tanh((x - R) / F)) / 2 (below it), F = Falloff. The zoned level
@@ -573,7 +640,12 @@ void Pipeline::prepare(const LookParams& pin) {
     auto exp = exposureLut(ni);
     std::shared_ptr<const DyeLutBake> dye;
     std::shared_ptr<const ProjBake> proj;
-    if (kind == 0) { dye = printLut(ni, pi); proj = projectionLut(pi, mono); }
+    if (kind == 0) {
+        PrintVariant pv;   // v1.3 print lab (WP-2)
+        pv.white = p.projectionWhite; pv.aim = p.printAim; pv.render = p.printRender; pv.contrast = p.printContrast;
+        dye = printLut(ni, pi, pv.render);
+        proj = projectionLut(pi, mono, pv);
+    }
     else if (kind == 1) dye = scanLut(ni);
     else proj = reversalLut(ni);
 
@@ -598,10 +670,13 @@ void Pipeline::prepare(const LookParams& pin) {
     const bool exitStage = p.stage != int(Stage::Full);
     const size_t nNS = exitStage ? size_t(4) * kStageN : 0;
     const size_t oNS = oHN + nHN;
+    // v1.3 monotone black (ColorState.h NT block): with the hue hold's neutral table
+    const size_t nNT = hold ? size_t(3) * kHoldNX : 0;
+    const size_t oNT = oNS + nNS;
     // v1.3 Tone blocks (ColorState.h TN / DN): only when active
     const bool toneOn = toneActive(p), dsatOn = dyeSatActive(p);
     const size_t nTN = toneOn ? size_t(kToneN) : 0, nDN = dsatOn ? size_t(3) * kDsatN : 0;
-    const size_t oTN = oNS + nNS, oDN = oTN + nTN;
+    const size_t oTN = oNT + nNT, oDN = oTN + nTN;
     const size_t total = oDN + nDN;
     const bool sameBlocks = C.valid && C.exp == exp && C.dye == dye && C.proj == proj && m_state.size() == total;
     std::vector<float>& S = m_state;
@@ -781,7 +856,9 @@ void Pipeline::prepare(const LookParams& pin) {
     double off[3] = {0, 0, 0};
     if (kind != 1) {
         const double tY = kind == 0 ? prt.greyY : neg.greyY;
-        const double tgt[3] = {std::log10(0.3127 / 0.3290 * tY), std::log10(tY), std::log10((1.0 - 0.3127 - 0.3290) / 0.3290 * tY)};
+        // target neutral = the projection white (D65 unless a print lab projection white is chosen, v1.3)
+        const spec::Vec3 W = kind == 0 ? proj->white : spec::xyToXYZ(0.3127, 0.3290);
+        const double tgt[3] = {std::log10(W[0] * tY), std::log10(W[1] * tY), std::log10(W[2] * tY)};
         const double dt = -std::log10(tY);
         auto setOff = [&](const double o[3]) { for (int j = 0; j < 3; ++j) s[CEL_CS_OFF + j] = float(o[j]); };
         setOff(off);
@@ -928,12 +1005,15 @@ void Pipeline::prepare(const LookParams& pin) {
     if (dsatOn) buildDyeSat(s, p, kind, int(oDN));
     // ---- hue hold neutral table (with the user's printer points): film neutral XYZ (Y = 1) over
     //      the reference log exposure (reference/model.py bake_hold_neutral)
+    s[CEL_CS_BLACK_N] = 0.f;
     if (hold) {
         const float xr0 = celc_film_xyz(s, cel_f3(0.18f, 0.18f, 0.18f), cel_f3(0, 0, 0), 0).xref;
+        std::vector<CelF3> nx(static_cast<size_t>(kHoldNX));
         for (int k = 0; k < kHoldNX; ++k) {
             double x = CEL_HOLD_X0 + (CEL_HOLD_X1 - CEL_HOLD_X0) * k / (kHoldNX - 1);
             float gv = float(0.18 * std::pow(10.0, x - double(xr0)));
             CelF3 X = Grey::film(S, gv);
+            nx[size_t(k)] = X;
             float iy = 1.f / std::max(X.y, 1e-12f);
             s[oHN + k] = X.x * iy;
             s[oHN + kHoldNX + k] = 1.f;
@@ -943,6 +1023,7 @@ void Pipeline::prepare(const LookParams& pin) {
         s[CEL_CS_HOLD_N_N] = float(kHoldNX);
         s[CEL_CS_HOLD] = float(holdStrength);
         s[CEL_CS_HOLD_CHROMA] = float(holdChroma);
+        bakeBlackMonotone(s, nx, xr0, int(oNT));
     }
     if (exitStage) buildStageAxis(s, p, int(oNS), int(oPL), dye->lut.n, float(dye->lut.maxv));
     if (toneOn) buildToneTable(s, p, int(oTN));

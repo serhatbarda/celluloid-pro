@@ -173,6 +173,11 @@ const core::NegativeStockInfo* stockInfo(int idx) {
     return &s[size_t(std::min(std::max(idx, 0), int(s.size()) - 1))];
 }
 
+const std::vector<std::string>& printProvenance() {
+    static const std::vector<std::string> s = core::printStockProvenance();
+    return s;
+}
+
 bool sameLook(const core::LookParams& a, const core::LookParams& b) {
     return a.input == b.input && a.output == b.output && a.exposure == b.exposure && a.negStock == b.negStock &&
            a.pushPull == b.pushPull && a.interlayer == b.interlayer && a.negBleach == b.negBleach &&
@@ -181,6 +186,8 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
            a.cameraEmulation == b.cameraEmulation && a.emulationStrength == b.emulationStrength &&
            a.printCrossover == b.printCrossover &&
+           a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
+           a.printContrast == b.printContrast &&
            a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount &&
            // v1.3: the stage exit (a stage change alone must re-prepare the state) and the Tone fields
            a.stage == b.stage && a.sceneEncoding == b.sceneEncoding && a.zoneShadows == b.zoneShadows &&
@@ -472,6 +479,12 @@ core::LookParams CelluloidEffect::lookAt(double t) const {
         lp.printBleach = float(num(id::printBleach, t));
     }   // else: grey-balanced light at 0 points, normal print processing
     lp.printCrossover = float(num(id::printCrossover, t));   // part of the print stock's rendering (not timing)
+    if (flag(id::printLabEnable, t)) {   // v1.3 print lab; off = contact print, nominal aim, D65 (v1.2)
+        lp.projectionWhite = clampIdx(choice(id::projectionWhite, t), int(core::ProjectionWhite::Count));
+        lp.printAim = clampIdx(choice(id::printAim, t), int(core::PrintAim::Count));
+        lp.printRender = clampIdx(choice(id::printRender, t), int(core::PrintRender::Count));
+        lp.printContrast = float(num(id::printContrast, t));
+    }
     if (flag(id::cameraEmulationEnable, t)) {
         lp.cameraEmulation = 1 + std::min(std::max(choice(id::cameraEmulation, t), 0), int(core::CameraEmulation::Count) - 2);
         lp.emulationStrength = float(num(id::cameraEmulationStrength, t));
@@ -865,7 +878,7 @@ void CelluloidEffect::clearRenderError() {
 void CelluloidEffect::changedParam(const OFX::InstanceChangedArgs& args, const std::string& name) {
     try {
         if (name == id::lookPresetStatus || name == id::licenseStatus || name == id::aboutVersion ||
-            name == id::aboutManual)
+            name == id::aboutManual || name == id::negProvenance || name == id::printProvenance)
             return;   // our own read-only labels
 
         if (name == id::lookPreset) {
@@ -882,7 +895,7 @@ void CelluloidEffect::changedParam(const OFX::InstanceChangedArgs& args, const s
         if (d && d->look && !m_applyingPreset) refreshPresetStatus(args.time);
         if (d && (d->type == PType::Bool || name == id::negStock || name == id::process || name == id::mode ||
                   name == id::pipelineStage ||
-                  name == id::outputSpace))
+                  name == id::outputSpace || name == id::printStock))
             refreshEnabledness(args.time);   // every module switch (and grain/damage sub-switch) is a Bool
     } catch (const OFX::Exception::Suite&) {
         throw;
@@ -970,6 +983,15 @@ void CelluloidEffect::refreshEnabledness(double t) {
     setEnabled(id::printExposure, colour && printOn && !reversal);
     setEnabled(id::printBleach, colour && printOn && !reversal && !scan);
     setEnabled(id::printCrossover, colour && !reversal && !scan && !mono);
+    {   // v1.3 print lab + stock provenance labels
+        const bool labOn = flag(id::printLabEnable, t), printing = colour && !reversal && !scan;
+        setEnabled(id::printLabEnable, printing);
+        for (const char* p : {id::projectionWhite, id::printAim, id::printContrast, id::printRender}) setEnabled(p, printing && labOn);
+        if (st) setStr(id::negProvenance, st->provenance);
+        const std::vector<std::string>& pp = printProvenance();
+        const int pi = choice(id::printStock, t);
+        if (pi >= 0 && pi < int(pp.size())) setStr(id::printProvenance, pp[size_t(pi)]);
+    }
     {
         const core::InputSpace in = core::InputSpace(choice(id::inputSpace, t));
         const bool fuji = in == core::InputSpace::FLog2C || in == core::InputSpace::FLog2 || in == core::InputSpace::FLog;

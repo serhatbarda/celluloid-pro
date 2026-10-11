@@ -1,6 +1,7 @@
 """Write the real (data-sheet) stocks into reference/stocks.json (append-only indices).
 
     python3 reference/datasheets/build_stocks.py && python3 reference/gen_tables.py
+    python3 reference/datasheets/build_stocks.py --v13   # v1.3: append the new stocks only (keeps all calibrations)
 
 Every stock is built from reference/datasheets/fits.json (fit_stocks.py) for the measured parts
 (spectral sensitivities, dye densities, characteristic curves) and from the closest designed
@@ -151,5 +152,58 @@ def main():
     print('prints:', [p['name'] for p in J['prints']])
 
 
+# v1.3 WP-2: appended stocks. Template = the closest real stock already in stocks.json (its calibrated interlayer /
+# mask are the start point of fit_look.py calibrate), or the designed B&W stock for Double-X.
+NEG13 = [
+    ('Kodak Vision2 500T 5218', 'kodak_5218', 'Kodak Vision3 500T 5219', ('blackbody', 3200), 1.3, 0.8, 1.1, 1.15,
+     'VISION2 500T: the 2000s high-speed tungsten negative: a little more grain and less latitude than VISION3, warm, punchy mids.',
+     'Kodak H-1-5218 (2007): sensitometry, spectral sensitivity, spectral dye density'),
+    ('Kodak Ektachrome 100D 5294', 'kodak_5294', 'Kodak Ektachrome E100', ('daylight', 5500), 0.8, 0.5, 0.9, 1.0,
+     'EKTACHROME 100D: the motion-picture colour reversal: clean, saturated, contrasty, short latitude.',
+     'Kodak EKTACHROME 100D sell sheet (EN): sensitometry, spectral sensitivity, spectral dye density'),
+    ('Kodak Double-X 5222', 'kodak_5222', 'BW 400 Panchromatic', ('daylight', 5500), 1.35, 0.7, 1.0, 1.3,
+     'DOUBLE-X 5222: the classic panchromatic B&W negative: open grain, blue-heavy sensitivity, gentle toe.',
+     'Kodak DOUBLEX technical data (EN): characteristic curves (D-96, 6 1/2 min), spectral sensitivity (raster traced)'),
+]
+PRT13 = []
+
+
+def main_v13():
+    """append the v1.3 stocks (by name; existing entries are left alone)"""
+    path = os.path.join(REF, 'stocks.json')
+    J = json.load(open(path))
+    F = json.load(open(os.path.join(HERE, 'fits.json')))
+    byname = {n['name']: n for n in J['negatives']}
+    pbyname = {p['name']: p for p in J['prints']}
+    for name, key, tmpl, bal, gss, hal, blo, gsc, desc, src in NEG13:
+        if name in byname:
+            continue
+        e = copy.deepcopy(byname[tmpl])
+        f = F[key]
+        e.update(name=name, description=desc, source=src, balance={'type': bal[0], 'cct': bal[1]},
+                 grainSizeScale=gss, halationScale=hal, bloomScale=blo)
+        e['granularity'] = [round(g * gsc, 5) for g in e['granularity']]
+        if e['kind'] == 'bw':
+            e['sensitivity'] = [lobes(f['sens']['G']['lobes'])]
+            c = {k: f['curves']['G'][k] for k in ('fog', 'gamma', 'k', 'x0', 'R', 'p')}
+            e['curves'] = [c]
+        else:
+            e['sensitivity'] = sens(f)
+            e['dyes'] = dyes(f)
+            e['curves'] = curves(f, fog=0.15 if e['kind'] == 'reversal' else 0.1)
+            e['calibration'] = 'interlayer + mask taken from %s (not fitted)' % tmpl
+        put(J['negatives'], e)
+    for name, key, tmpl, greyY, desc, src in PRT13:
+        # prints carry no calibration: an existing entry is rebuilt in place (same index)
+        t = copy.deepcopy(pbyname[tmpl])
+        f = F[key]
+        t.update(name=name, description=desc, source=src, greyY=greyY, sensitivity=sens(f), dyes=dyes(f), curves=curves(f))
+        put(J['prints'], t)
+    json.dump(J, open(path, 'w'), indent=1)
+    print('negatives:', len(J['negatives']), [n['name'] for n in J['negatives']][19:])
+    print('prints:', len(J['prints']), [p['name'] for p in J['prints']][9:])
+
+
 if __name__ == '__main__':
-    main()
+    import sys
+    main_v13() if '--v13' in sys.argv else main()

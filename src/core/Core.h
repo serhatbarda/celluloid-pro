@@ -88,9 +88,14 @@ struct LookParams {
     // ---- v1.3 WP-1 (appended, SPEC 13): pipeline stage exits; defaults = the full chain (v1.2 render)
     int   stage = 0;             // core::Stage
     int   sceneEncoding = 0;     // core::SceneEncoding (Negative -> Scene output)
+    // ---- v1.3 print lab (appended, SPEC 13; WP-2): defaults = the v1.2 print path, bit-identical
+    int   projectionWhite = 0;   // ProjectionWhite: how the projected print's white is shown on the display
+    int   printAim = 0;          // PrintAim: process aim of the print development
+    int   printRender = 0;       // PrintRender: contact print / release print (IP-IN duplication) / telecine
+    float printContrast = 0.f;   // -1 .. 1: print development in process-aim units, added to printAim
 
     // ---- v1.3 Tone (appended, SPEC 13): defaults = neutral, bit-identical to the render without them
-    // Zones (HDR-palette style) + Filmic Contrast: scene-linear, after Exposure, before the negative (SPEC 4.8).
+    // Zones (HDR-palette style) + Filmic Contrast: scene-linear, after Exposure, before the negative (SPEC 4.9).
     // Exposure offsets in stops; ranges = zone positions in stops relative to 18 % grey of the scene luminance.
     float zoneShadows = 0.f, zoneShadowsRange = -2.f;       // acts BELOW its range
     float zoneLights = 0.f, zoneLightsRange = 1.f;          // acts ABOVE its range (as Highlights / Specular)
@@ -106,6 +111,26 @@ struct LookParams {
     float dyeSaturation = 1.f;   // 0 .. 2, 1 = the stock
     float dyeRichness = 0.25f;   // 0 .. 1: how much more saturation adds dye (0 = same luminance, more = darker, denser colour)
     float dyeSatBalance = 0.f;   // -1 (shadows) .. +1 (highlights): where the saturation change acts most
+};
+
+// v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 5c.1
+enum class ProjectionWhite : int {
+    D65 = 0,             // projector white adapted to D65 (CAT16), the v1.2 rendering (default)
+    TheatreXenon,        // unadapted: the xenon projector's own white, as measured off the screen
+    D60Sim,              // adapted to the ACES D60 white (grade-room simulation), display-fitted
+    Count
+};
+enum class PrintAim : int {
+    Nominal = 0,         // print developed at the process aim (default)
+    Rich,                // high in the lab's tolerance: more contrast and D-max
+    Soft,                // low in the lab's tolerance: less contrast and D-max
+    Count
+};
+enum class PrintRender : int {
+    ContactPrint = 0,    // printed from the camera negative, projected (default)
+    ReleasePrint,        // printed from a duplicate negative (negative -> IP -> IN -> print), projected
+    Telecine,            // the print transferred on a telecine / scanner: neutral axis, black at D-max
+    Count
 };
 
 // v1.3 WP-1: where the colour chain starts and stops (ORDER = append only). Reversal stocks have no
@@ -143,12 +168,17 @@ struct NegativeStockInfo {
     float grainSizeScale;      // relative grain size (1 = 200-speed 35mm reference)
     float halationScale;       // 1 = normal anti-halation backing, >1 = weak/no backing
     float bloomScale;
+    std::string provenance;    // v1.3: data source (data sheet + year / designed / style approximation), for the UI
 };
 
 std::vector<std::string> inputSpaceNames();      // UI labels, same order as InputSpace
 std::vector<std::string> outputSpaceNames();     // same order as OutputSpace
 std::vector<NegativeStockInfo> negativeStocks(); // order = negStock index
 std::vector<std::string> printStockNames();      // order = printStock index
+std::vector<std::string> printStockProvenance(); // v1.3: same order, data source of each print stock
+std::vector<std::string> projectionWhiteNames(); // v1.3: same order as ProjectionWhite
+std::vector<std::string> printAimNames();        // v1.3: same order as PrintAim
+std::vector<std::string> printRenderNames();     // v1.3: same order as PrintRender
 
 class Pipeline {
 public:

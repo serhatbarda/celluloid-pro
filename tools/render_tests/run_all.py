@@ -101,7 +101,7 @@ MODULES = [
      {"dustAmount": 0.0, "scratchAmount": 0.0, "hairAmount": 0.0}, "texture", "display"),
     ("filmBlurEnable", {"filmBlurFrequency": 1.0, "filmBlurBreathing": 1.0, "filmBlurRadius": 12.0},
      {"filmBlurFrequency": 0.0, "filmBlurBreathing": 0.0, "filmBlurRadius": 12.0}, "full", "natural"),
-    # v1.3 Tone (SPEC 4.8): zones + filmic contrast, film roll-off, dye saturation
+    # v1.3 Tone (SPEC 4.9): zones + filmic contrast, film roll-off, dye saturation
     ("toneEnable", {"zoneHighlights": -1.5, "zoneShadows": 0.5, "filmContrast": 1.3},
      {"zoneHighlights": 0.0, "zoneShadows": 0.0, "filmContrast": 1.0}, "full", "highlights"),
     ("rolloffEnable", {"rolloffSoftness": 0.8, "rolloffStart": 2.0}, {"rolloffSoftness": 0.0, "rolloffStart": 2.0}, "full", "highlights"),

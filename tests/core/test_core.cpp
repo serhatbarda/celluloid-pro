@@ -452,6 +452,10 @@ static void testGolden(const std::string& path) {
             lp.hdrPeakNits = float(kv["peak"]);
             lp.hdrUnroll = float(kv["unroll"]);
             lp.grainAmount = float(kv["grain"]);
+            lp.projectionWhite = int(kv["pw"]);
+            lp.printAim = int(kv["pa"]);
+            lp.printRender = int(kv["prd"]);
+            lp.printContrast = float(kv["pct"]);
             P.prepare(lp);
             LookParams lt = lp;
             lt.grainAmount = 1.f;
@@ -886,10 +890,91 @@ static void testBehaviour() {
     // name lists
     CHECK(inputSpaceNames().size() == size_t(InputSpace::Count), "input names");
     CHECK(outputSpaceNames().size() == size_t(OutputSpace::Count), "output names");
-    CHECK(negativeStocks().size() == 19 && printStockNames().size() == 9, "stock counts");
+    CHECK(negativeStocks().size() == 22 && printStockNames().size() == 9, "stock counts");
     // v1.2 appended the data-sheet stocks; the shipped-default look is 250D 5207 + P6
     CHECK(negativeStocks()[12].name == "Kodak Vision3 250D 5207" && printStockNames()[8] == "P6 Modern Print", "v1.2 stocks appended");
+    CHECK(negativeStocks()[19].name == "Kodak Vision2 500T 5218" && negativeStocks()[21].name == "Kodak Double-X 5222",
+          "v1.3 stocks appended");
     CHECK(negativeStocks()[1].name == "CN 200T Studio Tungsten" && printStockNames()[0] == "P1 Standard Projection", "defaults");
+}
+
+// ----------------------------------------------------------------------- v1.3 print lab
+// projection white / process aim / print contrast / rendering on the data-sheet prints (2383, 2393, 3513DI):
+// monotonic ramps, SDR <= 1, grey on the projection white, aim ordering, the default path unchanged
+static void testPrintLab() {
+    std::printf("[print lab: projection white x aim x contrast x rendering on 2383 / 2393 / 3513DI]\n");
+    auto pn = printStockNames();
+    int combos = 0, bad = 0;
+    double worstGrey = 0;
+    auto slopeAt = [](const Pipeline& P) { return (outGrey(P, 0.36f).g - outGrey(P, 0.09f).g) / 2.f; };
+    for (int prt : {5, 6, 7}) {
+        CHECK(prt < int(pn.size()), "print %d missing", prt);
+        for (int neg : {12, 14, 9})
+            for (int w = 0; w < int(ProjectionWhite::Count); ++w)
+                for (int a = 0; a < int(PrintAim::Count); ++a)
+                    for (int r = 0; r < int(PrintRender::Count); ++r)
+                        for (float c : {-1.f, 0.f, 0.7f}) {
+                            if (c != 0.f && (a != 0 || w != 0)) continue;
+                            LookParams lp = lpFor(neg, prt, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+                            lp.projectionWhite = w;
+                            lp.printAim = a;
+                            lp.printRender = r;
+                            lp.printContrast = c;
+                            Pipeline P;
+                            P.prepare(lp);
+                            ++combos;
+                            Float3 prev = outGrey(P, 0.18f * std::pow(2.f, -10.f));
+                            float mx = 0;
+                            for (int k = 1; k <= 400; ++k) {
+                                Float3 v = outGrey(P, 0.18f * std::pow(2.f, -10.f + 20.f * k / 400.f));
+                                bool ok = finite3(v) && v.r >= prev.r - 5e-6f && v.g >= prev.g - 5e-6f && v.b >= prev.b - 5e-6f;
+                                if (!ok) {
+                                    ++bad;
+                                    CHECK(ok, "print lab non-monotonic neg %d prt %d w %d a %d r %d c %.1f at step %d", neg, prt, w, a, r, c, k);
+                                    break;
+                                }
+                                mx = std::max({mx, v.r, v.g, v.b});
+                                prev = v;
+                            }
+                            CHECK(mx <= 1.0f, "print lab SDR > 1 (%f) neg %d prt %d w %d a %d r %d", mx, neg, prt, w, a, r);
+                            Float3 g = outGrey(P, 0.18f);
+                            if (w == 0 && neg != 9) {
+                                double sp = std::max({g.r, g.g, g.b}) - std::min({g.r, g.g, g.b});
+                                worstGrey = std::max(worstGrey, sp);
+                                CHECK(sp <= 0.005, "print lab grey not neutral (%.4f) neg %d prt %d a %d r %d c %.1f", sp, neg, prt, a, r, c);
+                            }
+                            if (w != 0 && neg != 9) CHECK(g.r > g.b + 0.005f, "theatre / D60 white not warmer than D65 neg %d prt %d", neg, prt);
+                        }
+        // ordering: rich > nominal > soft, print contrast likewise; release softens, telecine sets a deeper black
+        auto make = [&](int a, float c, int r) {
+            LookParams lp = lpFor(12, prt, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+            lp.printAim = a;
+            lp.printContrast = c;
+            lp.printRender = r;
+            Pipeline P;
+            P.prepare(lp);
+            return P;
+        };
+        Pipeline N = make(0, 0.f, 0), R = make(1, 0.f, 0), S = make(2, 0.f, 0), Cp = make(0, 0.5f, 0), Rl = make(0, 0.f, 1),
+                 Tc = make(0, 0.f, 2);
+        CHECK(slopeAt(R) > slopeAt(N) + 1e-3f && slopeAt(N) > slopeAt(S) + 1e-3f, "aim ordering prt %d: %.4f %.4f %.4f", prt, slopeAt(R),
+              slopeAt(N), slopeAt(S));
+        CHECK(slopeAt(Cp) > slopeAt(N), "print contrast prt %d", prt);
+        CHECK(outGrey(R, 0.18f / 256.f).g < outGrey(N, 0.18f / 256.f).g, "rich aim black prt %d", prt);
+        CHECK(slopeAt(Rl) < slopeAt(N), "release print softer prt %d", prt);
+        CHECK(outGrey(Tc, 0.18f / 256.f).g < outGrey(N, 0.18f / 256.f).g, "telecine black prt %d", prt);
+        // default values are the v1.2 path exactly
+        LookParams d = lpFor(12, prt, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+        Pipeline D;
+        D.prepare(d);
+        Float3 x = outGrey(D, 0.5f), y = outGrey(N, 0.5f);
+        CHECK(x.r == y.r && x.g == y.g && x.b == y.b, "print lab default not identical prt %d", prt);
+    }
+    CHECK(projectionWhiteNames().size() == size_t(ProjectionWhite::Count) && printAimNames().size() == size_t(PrintAim::Count) &&
+              printRenderNames().size() == size_t(PrintRender::Count), "print lab names");
+    for (const auto& n : negativeStocks()) CHECK(!n.provenance.empty(), "no provenance for %s", n.name.c_str());
+    for (const auto& s : printStockProvenance()) CHECK(!s.empty(), "no print provenance");
+    std::printf("  %d combinations, %d non-monotonic, worst D65 grey spread %.5f\n", combos, bad, worstGrey);
 }
 
 // v1.3 WP-1: pipeline stage exits (SPEC 4.7)
@@ -983,7 +1068,7 @@ static void testStages() {
     }
 }
 
-// v1.3 Tone (SPEC 4.8): Zones, Filmic Contrast, Film Roll-off, Dye Saturation
+// v1.3 Tone (SPEC 4.9): Zones, Filmic Contrast, Film Roll-off, Dye Saturation
 static void testTone(bool quick) {
     std::printf("[tone: zones, filmic contrast, film roll-off, dye saturation]\n");
     // 1. neutral values (whatever the companions are) leave the state and the render bit-identical
@@ -1131,6 +1216,7 @@ int main(int argc, char** argv) {
     testHDR();
     testBehaviour();
     testStages();
+    testPrintLab();
     testTone(quick);
     testGolden(golden);
     testCube(tmp);

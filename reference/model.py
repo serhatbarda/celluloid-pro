@@ -51,6 +51,7 @@ HOLD_X0, HOLD_X1 = -6.0, 4.0
 HOLD_W = (0.3127 / 0.3290, 1.0, (1.0 - 0.3127 - 0.3290) / 0.3290)   # D65 white XYZ
 HOLD_C0 = 0.20                      # chroma-hold roll-off (CIELAB C* / 200)
 HOLD_K = 1.3                        # hold weight 1 - exp(-HOLD_K stops^2) away from grey
+BLACK_ON = 1e-4                     # v1.3 monotone black: applied only when the neutral ramp drops by more than this (relative)
 
 INPUTS = ['FLog2C', 'FLog2', 'FLog', 'DaVinciIntermediate', 'ArriLogC3', 'ArriLogC4',
           'SLog3SGamut3Cine', 'VLog', 'CanonLog3', 'BMDFilmGen5', 'ACEScct', 'LinearRec2020']
@@ -360,10 +361,65 @@ def build_neg_curves(neg, push, neutralize):
     return d, gam
 
 
-def build_print_curves(prt):
+def print_aim_curve(lab, c, layer, devu):
+    """v1.3 process aim / print contrast (== Bake.cpp printAimCurve): print development changed by devu units"""
+    if devu == 0.0:
+        return c
+    w = lab['aimLayer'][layer] * devu
+    c = dict(c)
+    c['gamma'] = c['gamma'] * max(0.5, 1.0 + lab['aimGamma'] * w)
+    c['R'] = c['R'] * max(0.5, 1.0 + lab['aimDmax'] * w)
+    c['fog'] = c['fog'] + lab['aimFog'] * max(w, 0.0)
+    return c
+
+
+def telecine_curves(pc, black):
+    """v1.3 telecine / scan of the print (== Bake.cpp telecineCurves): every layer balanced between D-min and
+    D-max onto the green layer's, black set just above D-max (float32 table in, float32 out)"""
+    lo1, hi1 = float(pc[1, 0]), float(pc[1, -1])
+    Tb = 10.0 ** (-(hi1 - lo1))
+    out = np.empty_like(pc)
+    for j in range(3):
+        t = pc[j].astype(np.float64)
+        lo, hi = float(t[0]), float(t[-1])
+        d1 = lo1 + (t - lo) * (hi1 - lo1) / (hi - lo) if hi - lo > 1e-9 else t
+        T = 10.0 ** (-(d1 - lo1))
+        out[j] = lo1 - np.log10((T - black * Tb) / (1.0 - black * Tb))
+    return f32(out)
+
+
+def build_print_curves(prt, lab=None, aim=0, contrast=0.0, render=0):
     cs = print_curve_params(prt)
+    if lab is not None:
+        devu = lab['aimStep'][aim] + float(np.float32(contrast))
+        layers = [1, 1, 1] if prt.get('_mono') else [0, 1, 2]
+        cs = [print_aim_curve(lab, c, l, devu) for c, l in zip(cs, layers)]
     u = np.linspace(PRT_U0, PRT_U1, N_CURVE)
-    return np.stack([c['fog'] + dev(u - c['x0'], c['gamma'], c['k'], c['R'], c['p']) for c in cs])
+    pc = np.stack([c['fog'] + dev(u - c['x0'], c['gamma'], c['k'], c['R'], c['p']) for c in cs])
+    if lab is not None and render == 2:
+        pc = telecine_curves(f32(pc), lab['telecineBlack'])
+    return pc
+
+
+def dupe_x0(c, aim):
+    lo, hi = -8.0, 8.0
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        if float(neg_curve_eval(c, np.array(mid))) < aim:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def dupe_log_h(lab, ch, logH, ref):
+    """v1.3 release print (== Bake.cpp dupeLogH): negative -> master positive -> duplicate negative -> print,
+    each generation on the VISION Color Intermediate 2242 curve with the grey on its LAD aim"""
+    c = lab['dupe'][ch]
+    xmp, xdn = dupe_x0(c, lab['mpAim'][ch]), dupe_x0(c, lab['dnAim'][ch])
+    dmp = neg_curve_eval(c, xmp + (logH - ref))
+    ddn = neg_curve_eval(c, xdn - (dmp - lab['mpAim'][ch]))
+    return ref - (ddn - lab['dnAim'][ch])
 
 
 # =========================================================================== LUT helpers (== kernel)
@@ -583,7 +639,7 @@ def bake_dye_lut(Fs, base, weights):
     return np.log10(np.maximum(out, 1e-30))
 
 
-def bake_print_lut(lib, neg, prt):
+def bake_print_lut(lib, neg, prt, render=0):
     N = N_LUT3
     dmax = dmax_neg(neg)
     g = np.linspace(0.0, dmax, N)
@@ -593,7 +649,22 @@ def bake_print_lut(lib, neg, prt):
     S = print_sens(prt)
     w = S * L[None, :]
     w = w / w.sum(1, keepdims=True)            # clear (T=1) film -> H = 1
-    return bake_dye_lut(Fs, base, w), dmax
+    lut = bake_dye_lut(Fs, base, w)
+    if render == 1:
+        # v1.3 release print: reference = the negative's 18 % grey at normal development (== Bake.cpp printLut)
+        eps, sec = neg_dyes_scaled(lib, neg)
+        masks = np.array(neg.get('mask', [0, 0, 0]), dtype=float) if neg['kind'] != 'bw' else np.zeros(3)
+        cs = neg['curves'] if neg['kind'] != 'bw' else [neg['curves'][0]] * 3
+        dsat = np.array([c['fog'] + c['R'] for c in cs])
+        dg = np.array([float(neg_curve_eval(c, np.array(LOG10_018))) for c in cs])
+        dens = base + dg @ eps + (masks * np.maximum(dsat - dg, 0.0)) @ sec
+        ref = np.log10(w @ (10.0 ** (-dens)))
+        lut = f32(lut)
+        out = np.empty_like(lut)
+        for j in range(3):
+            out[..., j] = dupe_log_h(lib.j['lab'], 1 if prt.get('_mono') else j, lut[..., j], ref[j])
+        lut = out
+    return lut, dmax
 
 
 def dmax_print(prt):
@@ -634,6 +705,21 @@ def cat_to_d65(lamp):
     return sp.cat_matrix(Xw, sp.xy_to_XYZ(sp.WHITE_D65), sp.CAT16)
 
 
+def projection_white_cat(lib, lamp, white):
+    """v1.3 projection white (== Bake.cpp projectionWhite): (matrix, target white XYZ). 0 = CAT16 to D65 (v1.2),
+    1 = unadapted lamp white, 2 = CAT16 to ACES D60; non-D65 whites are fitted to a D65 display (max Rec.709 = 1)"""
+    if white == 0:
+        return cat_to_d65(lamp), sp.xy_to_XYZ(sp.WHITE_D65)
+    w = lib.j['lab']['whites'][white]
+    Xw = sp.XYZ_of(lamp)
+    Xw = Xw / Xw[1]
+    Wt = sp.xy_to_XYZ((w['x'], w['y'])) if w['adapt'] else Xw
+    M = sp.cat_matrix(Xw, Wt, sp.CAT16) if w['adapt'] else np.eye(3)
+    rgb = np.linalg.inv(sp.npm(*sp.PRIMARIES['rec709'])) @ Wt
+    sc = 1.0 / rgb.max() if rgb.max() > 1.0 else 1.0
+    return M * sc, Wt * sc
+
+
 def bake_scan_lut(lib, neg):
     N = N_LUT3
     dmax = dmax_neg(neg)
@@ -668,6 +754,10 @@ class Params:
         self.cameraEmulation = 0          # v1.2: 0 off, 1 Fujifilm X-Trans -> ARRI ALEXA
         self.emulationStrength = 1.0
         self.printCrossover = 0.0
+        self.projectionWhite = 0          # v1.3 print lab: 0 D65, 1 Theatre Xenon, 2 D60 Sim
+        self.printAim = 0                 # 0 nominal, 1 rich, 2 soft
+        self.printRender = 0              # 0 contact print, 1 release print (IP/IN), 2 telecine
+        self.printContrast = 0.0          # print development in aim units, -1 .. 1
         for k, v in kw.items():
             if not hasattr(self, k):
                 raise KeyError(k)
@@ -760,10 +850,10 @@ class Pipeline:
         self.txg = f32(2.5 * self.gsig.mean())
         lamp_proj = lib.lamps['projector']
         if self.kind == 'print':
-            lut, dmax = bake_print_lut(lib, neg, prt)
+            lut, dmax = bake_print_lut(lib, neg, prt, p.printRender)
             self.plut = f32(lut)
             self.plut_max = dmax
-            self.pcurve = f32(build_print_curves(prt))
+            self.pcurve = f32(build_print_curves(prt, lib.j['lab'], p.printAim, p.printContrast, p.printRender))
             if p.printCrossover != 0 and not self.mono:
                 self.pcurve = print_crossover(self.pcurve, float(np.float32(p.printCrossover)))
             self.pmin = self.pcurve[:, 0].copy()
@@ -773,8 +863,11 @@ class Pipeline:
                 eps = eps * visual_end_scale(eps, base, lamp_proj)[:, None]
             eps = eps * print_fade(prt)[:, None]
             self.pdmax = dmax_print(prt)
+            if p.printAim != 0 or p.printContrast != 0 or p.printRender == 2:   # rich aim / telecine black reach higher
+                pc0 = f32(build_print_curves(prt, lib.j['lab'], p.printAim, p.printContrast, p.printRender))
+                self.pdmax = max(self.pdmax, float(pc0.max()) + 0.05)
             self.jlut = f32(bake_projection_lut(lib, eps, base, self.pdmax, lamp_proj, self.pmin))
-            self.Mcat = cat_to_d65(lamp_proj)
+            self.Mcat, self.white = projection_white_cat(lib, lamp_proj, p.projectionWhite)
             s_stock = prt.get('silver', 0.0)
             self.pb = f32((1.0 - (1.0 - p.printBleach) * (1.0 - s_stock)) * prt.get('silverDensity', 0.9))
             self.off = np.zeros(3)
@@ -798,6 +891,7 @@ class Pipeline:
         # grey balance (points 0, exposure 0), then user offsets
         self.solve_balance()
         self.calibrate_hdr()
+        self.black_d = None
         self.hold = 0.0 if self.mono else float(self.hold_strength())
         self.hold_chroma = 0.0 if self.mono else float(self.hold_strength('chromaHold'))
         if self.hold > 0:
@@ -863,6 +957,35 @@ class Pipeline:
         gs = 0.18 * 10.0 ** (xs - xr0[0])
         X, _ = self.film_xyz(np.repeat(gs[:, None], 3, 1), None, self.off_user)
         self.hold_n = f32((X / np.maximum(X[:, 1:2], 1e-12)).T)          # (3, NX)
+        self.bake_black_monotone(xs, X, float(xr0[0]))
+
+    def bake_black_monotone(self, xs, X, xr0):
+        """v1.3 (== Core.cpp, ColorState.h NT block): below grey, a print's layers approach their D-max at
+        different rates, so the projected neutral turns bluer / greener in the last stops before black while
+        its luminance hardly rises; a display channel with a negative matrix weight (Rec.709 R = 3.24 X -
+        1.54 Y - 0.50 Z) can then fall by up to 3e-5 as the scene gets brighter. The display-linear neutral
+        ramp v(x) = Mout XYZ is made rising from black to grey (see the loop below) and the
+        difference per unit luminance, (v_mono - v) / Y, is added to every pixel at its reference exposure.
+        Zero (bit-identical output) wherever the ramp is already monotonic."""
+        v = X @ self.Mout.T
+        kg = int(np.searchsorted(xs, xr0, side='right')) - 1
+        # off unless the ramp really turns down (relative drop > BLACK_ON; float noise of ~1e-9 stays untouched)
+        run = v[kg].copy()
+        worst = 0.0
+        for k in range(kg - 1, -1, -1):
+            run = np.minimum(run, v[k + 1])
+            worst = max(worst, float(np.max((v[k] - run) / np.maximum(np.abs(v[k]), 1e-12))))
+        if worst <= BLACK_ON:
+            self.black_d = None
+            return
+        vm = v.copy()
+        for k in range(min(kg, len(xs) - 2), -1, -1):
+            # fold the ramp: it falls by |v[k+1] - v[k]| per sample towards black, its own fall where it falls
+            # and the mirrored step where it turns up. The offset vm - v stays twice the reversal at most and
+            # float noise in a flat D-max only moves it by noise
+            vm[k] = vm[k + 1] - np.abs(v[k + 1] - v[k])
+        d = (vm - v) / np.maximum(X[:, 1:2], 1e-12)
+        self.black_d = f32(d.T) if np.any(d != 0) else None              # (3, NX) or off
 
     def apply_hold(self, XYZ, xref, rgb_scene):
         """Hue hold on display XYZ (D65 adapted, 1 = white), in CIELAB-like coordinates
@@ -1053,7 +1176,8 @@ class Pipeline:
         neg = self.negd
         tY = (self.prtd if self.kind == 'print' else neg)['greyY']
         grey = np.full((1, 3), 0.18)
-        target = np.log10(sp.xy_to_XYZ(sp.WHITE_D65, tY))
+        W = self.white if self.kind == 'print' else sp.xy_to_XYZ(sp.WHITE_D65)   # v1.3: the projection white
+        target = np.log10(W * tY)
         if self.mono and self.kind == 'print':
             # neutral silver image: tint = base tint; only the density is solved
             pass
@@ -1153,7 +1277,7 @@ class Pipeline:
         if not self.hdr:
             if rgb_scene is not None:
                 XYZ = self.apply_hold(XYZ, xref, rgb_scene)
-            rgb = XYZ @ self.Mout.T
+            rgb = XYZ @ self.Mout.T + self.black_fix(XYZ, xref)
             rgb = self.gamut_compress(rgb, lum)
             rgb = self.limit(rgb, SDR_KNEE, 1.0)
             return self.encode_sdr(rgb)
@@ -1162,12 +1286,18 @@ class Pipeline:
         G = self.Gmax * t * t / (1.0 + t * t)
         if rgb_scene is not None:
             XYZ = self.apply_hold(XYZ, xref, rgb_scene)
-        rgb = (XYZ @ self.Mout.T) * (self.Lref * 10.0 ** (self.p.hdrUnroll * G))[:, None]
+        rgb = (XYZ @ self.Mout.T + self.black_fix(XYZ, xref)) * (self.Lref * 10.0 ** (self.p.hdrUnroll * G))[:, None]
         rgb = self.gamut_compress(rgb, lum)
         rgb = self.limit(rgb, HDR_KNEE * self.peak, self.peak)
         if self.out == 'Rec2100_PQ':
             return pq_encode(rgb)
         return self.hlg_encode(rgb)
+
+    def black_fix(self, XYZ, xref):
+        if getattr(self, 'black_d', None) is None:
+            return 0.0
+        d = np.stack([lut1d(self.black_d[c], HOLD_X0, HOLD_X1, xref) for c in range(3)], 1)
+        return XYZ[:, 1:2] * d
 
     def Mout_lum(self):
         return np.linalg.inv(self.Mout)[1]

@@ -84,7 +84,8 @@ def neg_entry(n, scan_xover=0.0):
         '  {' + ', '.join(fnum(v) for v in gran) + '},',
         f'  {fnum(n.get("silver", 0.9))}, {1 if "silverSpectrum" in n else 0}, {lobeset(n.get("silverSpectrum"))},',
         f'  {fnum(n.get("greyY", 0.10))}, {mat3(scanM)}, {mat3(n.get("scanRoot", [[0, 0, 0]] * 3))}, {fnum(n.get("scanCrossover", scan_xover))}, {fnum(n.get("scanContrast", 1.0))},'
-        f' {fnum(n.get("hueHold", 0.0))}, {fnum(n.get("chromaHold", 0.0))}',
+        f' {fnum(n.get("hueHold", 0.0))}, {fnum(n.get("chromaHold", 0.0))},',
+        f'  {cstr(n.get("provenance", ""))}',
         '}',
     ]
     return '\n'.join(lines)
@@ -99,8 +100,18 @@ def print_entry(p):
         '  {' + ', '.join(curve(c) for c in p['curves']) + '},',
         f'  {base(p["base"])}, {fnum(p["greyY"])}, {fnum(p.get("silver", 0.0))}, {fnum(p.get("silverDensity", 0.9))},',
         '  {' + ', '.join(fnum(v) for v in p.get('fade', [1.0, 1.0, 1.0])) + '},',
-        f'  {fnum(p.get("hueHold", 0.0))}, {fnum(p.get("chromaHold", 0.0))}, {lobeset(p.get("monoTone"))}',
+        f'  {fnum(p.get("hueHold", 0.0))}, {fnum(p.get("chromaHold", 0.0))}, {lobeset(p.get("monoTone"))},',
+        f'  {cstr(p.get("provenance", ""))}',
         '}'])
+
+
+def lab_entry(L):
+    """v1.3 print lab model (stocks.json "lab")"""
+    v3 = lambda a: '{' + ', '.join(fnum(x) for x in a) + '}'
+    whites = '{' + ', '.join('{%d, %s, %s}' % (w['adapt'], fnum(w['x']), fnum(w['y'])) for w in L['whites']) + '}'
+    return ('static const LabDef kLab = {%s, %s, %s, %s, %s, %s, {%s}, %s, %s, %s};\n' % (
+        whites, v3(L['aimStep']), fnum(L['aimGamma']), fnum(L['aimDmax']), fnum(L['aimFog']), v3(L['aimLayer']),
+        ', '.join(curve(c) for c in L['dupe']), v3(L['mpAim']), v3(L['dnAim']), fnum(L['telecineBlack'])))
 
 
 def stock_hash(j):
@@ -127,6 +138,7 @@ def main():
         f.write(f'#define CEL_STOCK_HASH "{stock_hash(j)}"\n')
         L = j['lamps']
         f.write(f'static const LampSet kLamps = {{{illum(L["printer"])}, {illum(L["projector"])}, {illum(L["scanner"])}}};\n')
+        f.write(lab_entry(j['lab']))
         sc = j['scanner']
         cv = sc['curve']
         f.write('static const ScannerDef kScanner = {{%s}, %s, %s, %s, %s, %s, %s, %s};\n' % (

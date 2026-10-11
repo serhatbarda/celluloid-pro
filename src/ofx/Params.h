@@ -185,6 +185,14 @@ constexpr const char* integrate = "integrate";
 // ---- v1.3 WP-1: modular pipeline (stage exits) --------------------------------------------------
 constexpr const char* pipelineStage = "pipelineStage";          // [Look]
 constexpr const char* sceneEncoding = "sceneEncoding";          // [Output]
+// ---- v1.3 print lab (WP-2): projection, process aim, rendering, stock provenance ---------------
+constexpr const char* printLabEnable = "printLabEnable";        // [Print] module switch of the lab block
+constexpr const char* projectionWhite = "projectionWhite";
+constexpr const char* printAim = "printAim";
+constexpr const char* printContrast = "printContrast";
+constexpr const char* printRender = "printRender";
+constexpr const char* negProvenance = "negProvenance";          // read-only label [Negative]
+constexpr const char* printProvenance = "printProvenance";      // read-only label [Print]
 // ---- v1.3 Tone: Zones (HDR-palette style), Filmic Contrast, Film Roll-off, Dye Saturation -------
 constexpr const char* gTone = "groupTone";
 constexpr const char* toneEnable = "toneEnable";                // Zones + Filmic Contrast

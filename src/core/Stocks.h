@@ -37,6 +37,7 @@ struct NegDef {
     double scanCrossover;             // Lab Scan: share of the negative's own crossover kept (0 = neutral)
     double scanContrast;              // Lab Scan: stock profile contrast (1 = G-layer grey gamma)
     double hueHold, chromaHold;       // reversal: hue hold (see ColorKernels.h celc_hold)
+    const char* provenance;           // v1.3: where the data comes from (data sheet / designed / style), shown in the UI
 };
 
 struct PrintDef {
@@ -52,10 +53,24 @@ struct PrintDef {
     double fade[3];                   // dye fading factors (archive look)
     double hueHold, chromaHold;       // hue hold strength / chroma hold (ColorKernels.h celc_hold)
     LobeSet monoTone;                 // B&W image tone on this print: flat + these lobes (unit mean)
+    const char* provenance;           // v1.3: where the data comes from (data sheet / designed / style), shown in the UI
 };
 
 struct ScannerDef { LobeSet sens[3]; double gamma, k, R, p; double greyY; double hueHold, chromaHold; };
 struct LampSet { IllumDef printer, projector, scanner; };
+
+// v1.3 lab / projection conditions of the print path (stocks.json "lab", docs/STOCKS.md section 3.1). The same
+// physical model applies to every print stock (Kodak 2383 / 2393, Fujifilm 3513DI and the designed prints).
+struct WhiteDef { int adapt; double x, y; };      // projection white: adapt 1 = CAT16 to (x, y), 0 = unadapted (lamp white)
+struct LabDef {
+    WhiteDef whites[3];               // order = ProjectionWhite choice
+    double aimStep[3];                // process-aim position per PrintAim choice (development units)
+    double aimGamma, aimDmax, aimFog; // per development unit: relative gamma, relative D-max span, fog (+ only)
+    double aimLayer[3];               // development sensitivity of the cyan (R), magenta (G), yellow (B) layer
+    CurveDef dupe[3];                 // duplicating stock (VISION Color Intermediate 2242, Status M) R, G, B
+    double mpAim[3], dnAim[3];        // LAD aims of the master positive / duplicate negative (Status M)
+    double telecineBlack;             // telecine black set: share of the print's D-max transmission removed
+};
 
 int numNegatives();
 int numPrints();
@@ -63,6 +78,7 @@ const NegDef& negative(int i);       // clamped index
 const PrintDef& print(int i);
 const ScannerDef& scanner();
 const LampSet& lamps();
+const LabDef& lab();                 // v1.3
 const char* libraryHash();           // hash of stocks.json the tables were generated from
 
 }}} // namespace cel::core::stocks

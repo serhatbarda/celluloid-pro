@@ -299,6 +299,10 @@ std::vector<ParamDef> build() {
           "Removes the stock's per-layer curve differences (the subtle colour crossover between shadows and "
           "highlights). 0 = the stock's natural character, 1 = perfectly neutral greys from black to white.",
           true);
+    b.label(id::negProvenance, "Stock Data", negs.empty() ? std::string() : negs[size_t(std::max(negDefault, 0))].provenance,
+            "Where the selected film stock's data comes from (v1.3): a manufacturer data sheet (fitted, not measured "
+            "from film), partly borrowed from a named proxy stock, a Celluloid design, or a style approximation.")
+        .persistent = false;   // derived from Film Stock, recomputed when the instance is created
 
     // ---------------------------------------------------------------- [Print]
     const std::vector<std::string> prints = core::printStockNames();
@@ -347,6 +351,46 @@ std::vector<ParamDef> build() {
           "shadows, growing from the middle of the scale outward, while middle grey stays neutral. Negative values "
           "reverse it (cool highlights, warm shadows). 0 = the print stock exactly as designed. Print process only.",
           true);
+
+    // v1.3 print lab (WP-2): how the print is made and shown. Physical lab parameters, not a colour twist.
+    {
+        const std::vector<std::string> pprov = core::printStockProvenance();
+        b.label(id::printProvenance, "Print Stock Data", pprov.empty() ? std::string() : pprov[size_t(std::max(printDefault, 0))],
+                "Where the selected print stock's data comes from: a manufacturer data sheet (fitted, not measured "
+                "from film), partly borrowed from a named proxy stock, a Celluloid design, or a style approximation.")
+            .persistent = false;   // derived from Print Stock, recomputed when the instance is created
+        b.boolean(id::printLabEnable, "Enable Print Lab", true,
+                  "Switches the print lab controls below (Projection White, Process Aim, Print Contrast, Rendering) on "
+                  "or off without losing their values. Off = a contact print at the nominal process aim, adapted to "
+                  "D65 - exactly the v1.2 print.",
+                  true);
+        b.choice(id::projectionWhite, "Projection White", core::projectionWhiteNames(), 0,
+                 "The white the projected print is shown at.\nD65 (Adapted): the eye adapted to the projector "
+                 "lamp, mapped to the D65 white of a video display (the classic film-out preview).\nTheatre Xenon "
+                 "(Unadapted): the print as a colorimeter reads it off a xenon-lit screen - the clear print base and "
+                 "the lamp give a warmer, slightly yellow white.\nD60 Sim: adapted to the ACES D60 white and "
+                 "shown on a D65 display (a slightly warm white, as in DCI / ACES D60 sim mastering).",
+                 true);
+        b.choice(id::printAim, "Process Aim", core::printAimNames(), 0,
+                 "Where the lab runs its print process within its tolerance band (ECP-2 development).\nNominal: the "
+                 "data-sheet aim.\nRich: one unit more development - higher print gamma, deeper D-max, slightly "
+                 "more fog; denser blacks and more saturated colour.\nSoft: one unit less - lower gamma and D-max, "
+                 "lifted blacks, gentler colour. The lab re-times the print, so middle grey stays put.",
+                 true);
+        b.dbl(id::printContrast, "Print Contrast", 0.0, -1.0, 1.0, 0.01, 2,
+              "Fine control of print development in the same units as Process Aim (added to it): + raises the print's "
+              "gamma and D-max (more contrast, deeper blacks), - lowers them. Each layer reacts by its own "
+              "development sensitivity (the bottom yellow layer most). Middle grey stays at the print's aim.",
+              true);
+        b.choice(id::printRender, "Rendering", core::printRenderNames(), 0,
+                 "How the print is made and viewed.\nContact Print: the camera negative printed directly (answer / "
+                 "show print).\nRelease Print (IP / IN): the negative is duplicated twice on VISION Color "
+                 "Intermediate 2242 (interpositive, internegative) at the lab aims before printing - slightly "
+                 "softer toe and shoulder and a subtle colour shift, as in a theatrical release print.\nTelecine / "
+                 "Scan: the print scanned on a telecine; every layer is balanced between print D-min and D-max and "
+                 "the black is set just above D-max - neutral blacks and highlights.",
+                 true);
+    }
 
     // ---------------------------------------------------------------- [Halation]
     b.beginGroup(id::gHalation, "Halation", true, "Red-orange glow around bright light sources.");
