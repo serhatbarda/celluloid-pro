@@ -318,6 +318,13 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Kodak Portra 400* — PORTRA 400: portrait colour negative: warm, low-chroma skin, very wide latitude.
   - *Kodak Ektachrome E100* — EKTACHROME E100: daylight reversal: clean neutral greys, crisp, saturated colour, short latitude.
   - *Kodachrome 64 Style* — Kodachrome-style reversal (designed, no data sheet): dense, contrasty, warm reds, deep blue skies.
+  - *Kodak Vision2 500T 5218* — VISION2 500T: the 2000s high-speed tungsten negative: a little more grain and less latitude than VISION3, warm, punchy mids.
+  - *Kodak Vision2 Expression 500T 5229* — VISION2 Expression 500T: low-contrast VISION2 tungsten negative for a soft, flat scan with lifted shadows.
+  - *Kodak Ektachrome 100D 5294* — EKTACHROME 100D: the motion-picture colour reversal: clean, saturated, contrasty, short latitude.
+  - *Fujifilm Eterna Vivid 160 8543* — ETERNA Vivid 160: tungsten negative with more saturation and contrast than ETERNA (Fujifilm curves; spectral proxies).
+  - *Fujifilm Eterna 500 8573* — ETERNA 500: high-speed tungsten negative with calm, low-saturation ETERNA colour (Fujifilm curves; spectral proxies).
+  - *Fujifilm Reala 500D 8592* — REALA 500D: high-speed daylight negative (Fujifilm curves; spectral proxies, the fourth colour layer is not modelled).
+  - *Kodak Double-X 5222* — DOUBLE-X 5222: the classic panchromatic B&W negative: open grain, blue-heavy sensitivity, gentle toe.
 - **Enable Development** (`developmentEnable`; default on) — Switches the development controls below (Push / Pull, Color Density, Neg Bleach Bypass, Neutralize) on or off without losing their values. Off = the stock's standard development: no push or pull, nominal colour density, normal bleach, the stock's own curves. The film stock itself always stays active - it is the look.
 - **Push / Pull** (`pushPull`; -2 … 3; default 0; keyframable) — Development in stops. Push (+) raises contrast and effective speed, lifts fog and makes the grain coarser (about x1.25 per stop); pull (-) gives a softer, lower-contrast, finer-grained negative. Unlike Exposure this changes the curve shape, not the position on it.
 - **Color Density** (`interlayer`; 0 … 2; default 1; keyframable) — Interlayer (DIR) effect: how strongly the dye layers inhibit each other. 1 = the stock's nominal colour density; higher values give denser, more separated colours, 0 a flatter, purer-channel rendering. Neutrals stay neutral at any setting.
@@ -334,7 +341,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Lab Scan* — the negative is scanned and inverted by a lab scanner - a flatter, more neutral rendering that keeps the negative's character without print-stock contrast.
   - Reversal (slide) stocks are direct positives and ignore this setting.
 - **Print Stock** (`printStock`; default: P6 Modern Print) — The print film the negative is printed on (Process = Print). It sets print contrast, black density, highlight roll-off and the colour of the projected image.
-  - Options: P1 Standard Projection · P2 Low Contrast · P3 Rich Contrast · P4 Faded Archive · P5 Silver Retention · Kodak Vision 2383 · Kodak Vision Premier 2393 · Fujifilm Eterna-CP 3513DI · P6 Modern Print
+  - Options: P1 Standard Projection · P2 Low Contrast · P3 Rich Contrast · P4 Faded Archive · P5 Silver Retention · Kodak Vision 2383 · Kodak Vision Premier 2393 · Fujifilm Eterna-CP 3513DI · P6 Modern Print · Fujifilm Eterna-CP 3521XD
 - **Enable Print Timing** (`printEnable`; default on) — Switches the lab timing controls below (Printer Red / Green / Blue, Print Density, Print Bleach Bypass) on or off without losing their values. Off = the automatically grey-balanced light at 0 points and normal print processing. Process and Print Stock always stay active - they are the look.
 - **Printer Red** (`printerR`; -12 … 12; default 0; keyframable) — Red printer light. More red light (+) adds cyan to the print: the image gets LESS red / more cyan. Fewer points (-) warm it towards red. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Printer Green** (`printerG`; -12 … 12; default 0; keyframable) — Green printer light. More green light (+) adds magenta to the print: the image gets LESS green / more magenta. Fewer points (-) push it towards green. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.

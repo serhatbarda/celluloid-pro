@@ -35,6 +35,22 @@ NEG = {
                          'borrowed from the VISION3 set (proxy; not published). C-41. ' + FRESH),
     'Kodak Ektachrome E100': ('datasheet', 'Data sheet: Kodak E-4024 (2009, E100G): characteristic curves, spectral '
                               'sensitivity, spectral dye density. E-6. ' + FRESH),
+    # v1.3 additions
+    'Kodak Vision2 500T 5218': ('datasheet', 'Data sheet: Kodak H-1-5218 (2007): spectral sensitivity, characteristic curves, '
+                                'spectral dye density. ECN-2. Discontinued; modelled as fresh stock.'),
+    'Kodak Vision2 Expression 500T 5229': ('datasheet', 'Data sheet: Kodak H-1-5229 (2007): spectral sensitivity, '
+                                           'characteristic curves, spectral dye density. ECN-2. Discontinued; modelled as fresh stock.'),
+    'Kodak Ektachrome 100D 5294': ('datasheet', 'Data sheet: Kodak EKTACHROME 100D sell sheet: spectral sensitivity, '
+                                   'characteristic curves, spectral dye density. E-6. ' + FRESH),
+    'Fujifilm Eterna Vivid 160 8543': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
+                                       'sensitivity and dyes borrowed from VISION3 200T (proxy). Discontinued; modelled as fresh stock.'),
+    'Fujifilm Eterna 500 8573': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
+                                 'sensitivity and dyes borrowed from VISION3 500T (proxy). Discontinued; modelled as fresh stock.'),
+    'Fujifilm Reala 500D 8592': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
+                                 'sensitivity and dyes borrowed from VISION3 250D (proxy); the fourth (cyan-sensitive) layer is not '
+                                 'modelled. Discontinued; modelled as fresh stock.'),
+    'Kodak Double-X 5222': ('datasheet', 'Data sheet: Kodak DOUBLE-X 5222 technical data: characteristic curve (D-96, 6 1/2 min) '
+                            'and spectral sensitivity, traced from the raster figures. ' + FRESH),
     'Kodachrome 64 Style': ('style', 'Style approximation: no public Kodachrome data; designed from the Ektachrome E100 data '
                             '(higher contrast, deeper D-max, shorter cyan dye). Not measured from Kodachrome.'),
 }
@@ -44,6 +60,8 @@ PRT = {
     'Kodak Vision Premier 2393': ('partial', 'Data sheet: Kodak H-1-2393 (1998): spectral sensitivity, characteristic curves; '
                                   'dyes from 2383 (not published for 2393). ECP-2 nominal.'),
     'Fujifilm Eterna-CP 3513DI': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
+                                  'data borrowed from Kodak 2383 (proxy). ECP-2 nominal.'),
+    'Fujifilm Eterna-CP 3521XD': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral '
                                   'data borrowed from Kodak 2383 (proxy). ECP-2 nominal.'),
     'P6 Modern Print': ('designed', 'Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the '
                         'default-look target).'),

@@ -206,8 +206,8 @@ int main() {
     check(count("negStock") == int(core::negativeStocks().size()), "negStock options != negativeStocks()");
     check(count("printStock") == int(core::printStockNames().size()), "printStock options != printStockNames()");
     check(count("lookPreset") == int(lookPresets().size()) + 1, "lookPreset options != presets + Custom");
-    check(count("negStock") == 19, "SPEC §4.6: 19 negative stocks (v1.2: 11 designed + 8 data-sheet)");
-    check(count("printStock") == 9, "SPEC §4.6: 9 print stocks (v1.2: 6 designed + 3 data-sheet)");
+    check(count("negStock") == 26, "SPEC §4.6: 26 negative stocks (v1.3: 11 designed + 15 data-sheet / style)");
+    check(count("printStock") == 10, "SPEC §4.6: 10 print stocks (v1.3: 6 designed + 4 data-sheet)");
     check(count("cameraEmulation") == int(core::CameraEmulation::Count) - 1, "cameraEmulation options != CameraEmulation::Count - 1");
 
     // every group of SPEC §7 exists
