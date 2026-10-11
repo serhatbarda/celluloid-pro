@@ -261,7 +261,18 @@ def main():
     # against the published curves rises from 0.052 / 0.040 D to 0.082 / 0.062 D (R / B), almost
     # all of it in the shoulder above D 4, where the data sheet itself is least certain.
     F['fuji_3513'] = fit_print('fuji_3513', lambda x: x - 2.0, 'kodak_2383', sens_from='kodak_2383', pmax=6.0)
+    # v1.3: VISION Color Intermediate 2242 (Status M, relative log H): the duplicating curve of the release-print
+    # chain (master positive and duplicate negative are both printed on it); curves only, D-min kept as the fog
+    F['kodak_2242'] = dict(stock='kodak_2242', curves={})
+    for L in ('R', 'G', 'B'):
+        x, d = load(f'kodak_2242_hd_{L}')
+        dmin = float(d[:3].mean())
+        c, rms = fit_curve(x, np.maximum(d - dmin, 0), fog=round(dmin, 4), p0=[1.0, 4.0, -0.5, 2.5, 3.0])
+        F['kodak_2242']['curves'][L] = dict(c, rms=rms, dmin=dmin)
     for k, v in F.items():
+        if 'sens' not in v:
+            print(k, 'curve rms', {l: round(s['rms'], 4) for l, s in v['curves'].items()})
+            continue
         print(k, 'sens rms', {l: round(s['rms'], 4) for l, s in v['sens'].items()}, 'dye rms', {l: round(s['rms'], 4) for l, s in v['dyes'].items()},
               'curve rms', {l: round(s['rms'], 4) for l, s in v['curves'].items()})
     json.dump(F, open(os.path.join(HERE, 'fits.json'), 'w'), indent=1)

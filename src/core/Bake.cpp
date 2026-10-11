@@ -6,6 +6,7 @@
 #include <functional>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -252,19 +253,19 @@ spec::Mat3 catToD65(const Spectrum& lamp) {
 // ------------------------------------------------------------------------- cache
 namespace {
 std::mutex gMutex;
-std::map<std::tuple<int, int, int>, std::shared_ptr<const void>> gCache;   // (kind, a, b)
+std::map<std::tuple<int, int, int, int>, std::shared_ptr<const void>> gCache;   // (kind, a, b, c)
 
-template <class T, class F> std::shared_ptr<const T> cached(int kind, int a, int b, F make) {
+template <class T, class F> std::shared_ptr<const T> cached(int kind, int a, int b, int c, F make) {
     {
         std::lock_guard<std::mutex> lk(gMutex);
-        auto it = gCache.find({kind, a, b});
+        auto it = gCache.find({kind, a, b, c});
         if (it != gCache.end()) return std::static_pointer_cast<const T>(it->second);
     }
     std::shared_ptr<const T> v = make();       // bake outside the lock (other bakes may run concurrently)
     std::lock_guard<std::mutex> lk(gMutex);
-    auto it = gCache.find({kind, a, b});
+    auto it = gCache.find({kind, a, b, c});
     if (it != gCache.end()) return std::static_pointer_cast<const T>(it->second);
-    gCache[{kind, a, b}] = v;
+    gCache[{kind, a, b, c}] = v;
     return v;
 }
 
@@ -290,7 +291,7 @@ const std::vector<double>& upsampleR() {
 void clearCache() { std::lock_guard<std::mutex> lk(gMutex); gCache.clear(); }
 
 std::shared_ptr<const ExposureBake> exposureLut(int neg) {
-    return cached<ExposureBake>(0, neg, 0, [neg] {
+    return cached<ExposureBake>(0, neg, 0, 0, [neg] {
         const stocks::NegDef& n = stocks::negative(neg);
         Spectrum S[3];
         negSens(n, S);
@@ -364,8 +365,9 @@ std::shared_ptr<const ExposureBake> exposureLut(int neg) {
     });
 }
 
-std::shared_ptr<const DyeLutBake> printLut(int neg, int prt) {
-    return cached<DyeLutBake>(1, neg, prt, [neg, prt] {
+std::shared_ptr<const DyeLutBake> printLut(int neg, int prt, int render) {
+    const bool dupe = render == kRenderRelease;   // the other renderings act on the print curves / projection only
+    return cached<DyeLutBake>(1, neg, prt, dupe ? 1 : 0, [neg, prt, dupe] {
         const stocks::NegDef& n = stocks::negative(neg);
         const stocks::PrintDef& p = stocks::print(prt);
         bool mono = n.kind == stocks::kBW;
@@ -385,12 +387,32 @@ std::shared_ptr<const DyeLutBake> printLut(int neg, int prt) {
         }
         auto b = std::make_shared<DyeLutBake>();
         b->lut = dyeLut(F, D.base, w, dmax);
+        if (dupe) {
+            // release print (v1.3): the camera negative is duplicated twice on intermediate film before printing
+            // (master positive, then duplicate negative). Reference: the negative's 18 % grey at normal development,
+            // timed onto the LAD aims of each generation (Kodak H-1-5242t). == reference/model.py bake_print_lut
+            double ref[3], dg[3], T[NWL];
+            for (int i = 0; i < 3; ++i) dg[i] = curveEval(negCurveDef(n, i), kLog10Grey, false);
+            for (int l = 0; l < NWL; ++l) {
+                double dens = D.base[size_t(l)];
+                for (int i = 0; i < 3; ++i)
+                    dens += dg[i] * D.eps[i][size_t(l)] + D.mask[i] * std::max(D.dsat[i] - dg[i], 0.0) * D.sec[i][size_t(l)];
+                T[l] = std::pow(10.0, -dens);
+            }
+            for (int j = 0; j < 3; ++j) { double a = 0; for (int l = 0; l < NWL; ++l) a += w[j][l] * T[l]; ref[j] = std::log10(a); }
+            const size_t n3 = b->lut.data.size() / 3;
+            for (size_t e = 0; e < n3; ++e)
+                for (int j = 0; j < 3; ++j) {
+                    float& v = b->lut.data[e * 3 + size_t(j)];
+                    v = float(dupeLogH(mono ? 1 : j, double(v), ref[j]));
+                }
+        }
         return std::shared_ptr<const DyeLutBake>(b);
     });
 }
 
 std::shared_ptr<const DyeLutBake> scanLut(int neg) {
-    return cached<DyeLutBake>(2, neg, 0, [neg] {
+    return cached<DyeLutBake>(2, neg, 0, 0, [neg] {
         const stocks::NegDef& n = stocks::negative(neg);
         NegDyes D = negDyes(n);
         double dmax = negLutMax(n);
@@ -409,16 +431,97 @@ std::shared_ptr<const DyeLutBake> scanLut(int neg) {
     });
 }
 
-void printCurves(int prt, bool mono, std::vector<float>& out) {
+// ------------------------------------------------------------------------- v1.3 print lab model
+// Process aim / print contrast: a change of print development (time, temperature, activity) by `devu` units
+// scales each layer's straight-line gamma by (1 + aimGamma w), its density span (D-max - fog) by (1 + aimDmax w)
+// and, when forced, raises its fog by aimFog w; w = devu x the layer's development sensitivity (bottom yellow
+// layer most, top magenta layer least). The lab re-times the print (automatic grey balance), so mid grey stays
+// at the print's aim. == reference/model.py print_aim_curve
+stocks::CurveDef printAimCurve(const stocks::CurveDef& c0, int layer, double devu) {
+    const stocks::LabDef& L = stocks::lab();
+    stocks::CurveDef c = c0;
+    if (devu == 0.0) return c;
+    const double w = L.aimLayer[std::min(std::max(layer, 0), 2)] * devu;
+    c.gamma *= std::max(0.5, 1.0 + L.aimGamma * w);
+    c.R *= std::max(0.5, 1.0 + L.aimDmax * w);
+    c.fog += L.aimFog * std::max(w, 0.0);
+    return c;
+}
+
+// Telecine / scan of the print: the transfer's lift and gain balance every layer between its D-min and D-max onto
+// the green layer's (neutral grey axis at both ends of the scale) and the black is set just above the print's
+// D-max (a share `black` of the D-max transmission is removed). Per layer, in equivalent neutral density:
+//   D1 = Dmin_G + (D - Dmin_j) (Dmax_G - Dmin_G) / (Dmax_j - Dmin_j),  T = 10^-(D1 - Dmin_G),  Tb = 10^-(Dmax_G - Dmin_G)
+//   D2 = Dmin_G - log10((T - black Tb) / (1 - black Tb))          strictly increasing. == model.py telecine_curves
+void telecineCurves(std::vector<float>& pc, double black) {
+    const double lo1 = pc[size_t(kNCurve)], hi1 = pc[size_t(2 * kNCurve - 1)];
+    const double Tb = std::pow(10.0, -(hi1 - lo1));
+    for (int j = 0; j < 3; ++j) {
+        float* t = &pc[size_t(j) * kNCurve];
+        const double lo = t[0], hi = t[kNCurve - 1], span = hi - lo;
+        for (int i = 0; i < kNCurve; ++i) {
+            const double d1 = span > 1e-9 ? lo1 + (double(t[i]) - lo) * (hi1 - lo1) / span : double(t[i]);
+            const double T = std::pow(10.0, -(d1 - lo1));
+            t[i] = float(lo1 - std::log10((T - black * Tb) / (1.0 - black * Tb)));
+        }
+    }
+}
+
+// Release chain on one channel's print log exposure: the printing density relative to the reference grey is
+// duplicated onto the master positive (2242 curve, grey on the MP LAD aim), from it onto the duplicate negative
+// (grey on the DN aim), and the duplicate negative is printed: logH' = ref - (D_DN - aim_DN).
+// == reference/model.py dupe_log_h
+static double dupeX0(const stocks::CurveDef& c, double aim) {
+    double lo = -8.0, hi = 8.0;
+    for (int it = 0; it < 80; ++it) {
+        const double mid = 0.5 * (lo + hi);
+        if (curveEval(c, mid, false) < aim) lo = mid; else hi = mid;
+    }
+    return 0.5 * (lo + hi);
+}
+double dupeLogH(int ch, double logH, double logHRef) {
+    const stocks::LabDef& L = stocks::lab();
+    const int j = std::min(std::max(ch, 0), 2);
+    const stocks::CurveDef& c = L.dupe[j];
+    static const std::array<std::array<double, 2>, 3> x0 = [] {
+        std::array<std::array<double, 2>, 3> r{};
+        for (int k = 0; k < 3; ++k) r[size_t(k)] = {dupeX0(stocks::lab().dupe[k], stocks::lab().mpAim[k]), dupeX0(stocks::lab().dupe[k], stocks::lab().dnAim[k])};
+        return r;
+    }();
+    const double dMP = curveEval(c, x0[size_t(j)][0] + (logH - logHRef), false);
+    const double dDN = curveEval(c, x0[size_t(j)][1] - (dMP - L.mpAim[j]), false);
+    return logHRef - (dDN - L.dnAim[j]);
+}
+
+// Projection white: 0 = CAT16 from the projector lamp to D65 (v1.2), 1 = unadapted (the lamp's own white, as a
+// colorimeter reads the theatre screen), 2 = CAT16 to the ACES D60 white. A white other than D65 is shown on a D65
+// display: it is scaled so that its largest Rec.709 channel is 1 (like a D60 sim). == model.py projection_white_cat
+void projectionWhite(const Spectrum& lamp, int white, spec::Mat3& cat, spec::Vec3& xyz) {
+    if (white <= 0 || white > 2) { cat = catToD65(lamp); xyz = spec::xyToXYZ(0.3127, 0.3290); return; }   // v1.2 path
+    const stocks::WhiteDef& w = stocks::lab().whites[white];
+    const spec::Vec3 X = spec::XYZof(lamp);
+    const spec::Vec3 Xw = {X[0] / X[1], 1.0, X[2] / X[1]};
+    const spec::Vec3 Wt = w.adapt ? spec::xyToXYZ(w.x, w.y) : Xw;
+    const spec::Mat3 M = w.adapt ? spec::catMatrix(Xw, Wt, true) : spec::Mat3();
+    const spec::Vec3 rgb = spec::npm(spec::Gamut::Rec709).inverse() * Wt;
+    const double mx = std::max({rgb[0], rgb[1], rgb[2]}), sc = mx > 1.0 ? 1.0 / mx : 1.0;
+    cat = spec::Mat3::diag(sc, sc, sc) * M;
+    xyz = {Wt[0] * sc, Wt[1] * sc, Wt[2] * sc};
+}
+
+void printCurves(int prt, bool mono, std::vector<float>& out, const PrintVariant& v) {
     const stocks::PrintDef& p = stocks::print(prt);
+    const stocks::LabDef& L = stocks::lab();
+    const double devu = L.aimStep[std::min(std::max(v.aim, 0), 2)] + double(v.contrast);
     out.resize(size_t(3) * kNCurve);
     for (int j = 0; j < 3; ++j) {
-        const stocks::CurveDef& c = mono ? p.curves[1] : p.curves[j];
+        const stocks::CurveDef c = printAimCurve(mono ? p.curves[1] : p.curves[j], mono ? 1 : j, devu);
         for (int i = 0; i < kNCurve; ++i) {
             double u = kPrtU0 + (kPrtU1 - kPrtU0) * i / (kNCurve - 1);
             out[size_t(j) * kNCurve + i] = float(c.fog + dev(u - c.x0, c.gamma, c.k, c.R, c.p));
         }
     }
+    if (v.render == kRenderTelecine) telecineCurves(out, L.telecineBlack);
 }
 
 // spectral projection table (ColorState.h PJ block): per 10 nm sample (every other sample of the
@@ -450,8 +553,17 @@ static Lut projection(const Spectrum eps[3], const Spectrum& base, double dmax, 
     return L;
 }
 
-std::shared_ptr<const ProjBake> projectionLut(int prt, bool mono) {
-    return cached<ProjBake>(3, prt, mono ? 1 : 0, [prt, mono] {
+std::shared_ptr<const ProjBake> projectionLut(int prt, bool mono, const PrintVariant& v0) {
+    PrintVariant v = v0;
+    v.white = std::min(std::max(v.white, 0), 2);
+    v.aim = std::min(std::max(v.aim, 0), 2);
+    v.render = std::min(std::max(v.render, 0), int(kRenderCount) - 1);
+    if (!std::isfinite(v.contrast)) v.contrast = 0.f;
+    int cbits = 0;                                                    // the exact float is part of the key
+    static_assert(sizeof(float) == sizeof(int), "float key");
+    std::memcpy(&cbits, &v.contrast, sizeof(int));
+    const int key = (mono ? 1 : 0) + 2 * (v.white + 3 * (v.aim + 3 * v.render));
+    return cached<ProjBake>(3, prt, key, cbits, [prt, mono, v] {
         const stocks::PrintDef& p = stocks::print(prt);
         Spectrum lamp = projectorLamp();
         Spectrum base = baseDensity(p.base);
@@ -474,18 +586,20 @@ std::shared_ptr<const ProjBake> projectionLut(int prt, bool mono) {
         }
         auto b = std::make_shared<ProjBake>();
         std::vector<float> pc;
-        printCurves(prt, mono, pc);
-        double fog[3];
+        printCurves(prt, mono, pc, v);
+        double fog[3], dmx = printLutMax(p);
         for (int j = 0; j < 3; ++j) { fog[j] = pc[size_t(j) * kNCurve]; b->pmin[j] = fog[j]; }
-        b->lut = projection(eps, base, printLutMax(p), lamp, fog);
-        b->cat = catToD65(lamp);
+        if (v.aim != 0 || v.contrast != 0.f || v.render == kRenderTelecine)
+            for (float d : pc) dmx = std::max(dmx, double(d) + 0.05);   // rich aim / telecine black reach higher
+        b->lut = projection(eps, base, dmx, lamp, fog);
+        projectionWhite(lamp, v.white, b->cat, b->white);
         b->pcurve = std::move(pc);
         return std::shared_ptr<const ProjBake>(b);
     });
 }
 
 std::shared_ptr<const ProjBake> reversalLut(int neg) {
-    return cached<ProjBake>(4, neg, 0, [neg] {
+    return cached<ProjBake>(4, neg, 0, 0, [neg] {
         const stocks::NegDef& n = stocks::negative(neg);
         NegDyes D = negDyes(n);
         Spectrum lamp = projectorLamp();

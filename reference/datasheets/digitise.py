@@ -69,6 +69,12 @@ VEC = {
         ('076_fujifilm_motion_picture_film_manual.pdf', 29, 'ETERNA-CP 3513DI characteristic curves (status A)',
          (281.0, 164.0, 421.2, 274.9), dict(x=(0, 4.5), y=(0, 5)), dict(B=9, G=10, R=11), 'hd'),
     ],
+    # v1.3: VISION Color Intermediate 2242 (H-1-5242t, 2008): sensitometric curves (Status M, ECN-2), used for the
+    # release-print duplication chain (negative -> master positive -> duplicate negative -> print)
+    'kodak_2242': [
+        ('2242-TI.pdf', 3, 'Sensitometric Curves (Status M; x ticks -2 .. 4 log H)', (350.6, 84.4, 535.1, 268.9),
+         dict(x=(-2, 4), y=(0, 3)), dict(R=2, G=3, B=4), 'hd'),
+    ],
 }
 
 

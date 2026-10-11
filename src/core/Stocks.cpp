@@ -15,6 +15,7 @@ const NegDef& negative(int i) { return kNegatives[std::min(std::max(i, 0), kNumN
 const PrintDef& print(int i) { return kPrints[std::min(std::max(i, 0), kNumPrints - 1)]; }
 const ScannerDef& scanner() { return kScanner; }
 const LampSet& lamps() { return kLamps; }
+const LabDef& lab() { return kLab; }
 const char* libraryHash() { return CEL_STOCK_HASH; }
 
 }}} // namespace cel::core::stocks

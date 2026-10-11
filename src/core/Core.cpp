@@ -49,6 +49,7 @@ std::vector<NegativeStockInfo> negativeStocks() {
         s.grainSizeScale = float(n.grainSizeScale);
         s.halationScale = float(n.halationScale);
         s.bloomScale = float(n.bloomScale);
+        s.provenance = n.provenance ? n.provenance : "";
         v.push_back(s);
     }
     return v;
@@ -58,6 +59,15 @@ std::vector<std::string> printStockNames() {
     for (int i = 0; i < st::numPrints(); ++i) v.push_back(st::print(i).name);
     return v;
 }
+// v1.3 print lab (WP-2): provenance and choice labels
+std::vector<std::string> printStockProvenance() {
+    std::vector<std::string> v;
+    for (int i = 0; i < st::numPrints(); ++i) v.push_back(st::print(i).provenance ? st::print(i).provenance : "");
+    return v;
+}
+std::vector<std::string> projectionWhiteNames() { return {"D65 (Adapted)", "Theatre Xenon (Unadapted)", "D60 Sim"}; }
+std::vector<std::string> printAimNames() { return {"Nominal", "Rich", "Soft"}; }
+std::vector<std::string> printRenderNames() { return {"Contact Print", "Release Print (IP / IN)", "Telecine / Scan"}; }
 
 // ------------------------------------------------------------------------- pipeline
 static std::atomic<uint64_t> gStateVersion{0};   // process-wide: versions never collide between instances
@@ -81,7 +91,9 @@ static constexpr size_t kHoldCacheEntries = 8;
 static bool sameFilm(const LookParams& a, const LookParams& b) {
     return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
            a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.process == b.process &&
-           a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover;
+           a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover &&
+           a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
+           a.printContrast == b.printContrast;   // v1.3 print lab
 }
 
 static bool sameParams(const LookParams& a, const LookParams& b) {
@@ -91,7 +103,9 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
            a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount && a.cameraEmulation == b.cameraEmulation &&
-           a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover;
+           a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover &&
+           a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
+           a.printContrast == b.printContrast;   // v1.3 print lab
 }
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
@@ -118,6 +132,11 @@ static LookParams sanitize(LookParams p) {
     if (p.cameraEmulation < 0 || p.cameraEmulation >= int(CameraEmulation::Count)) p.cameraEmulation = 0;
     p.emulationStrength = clampf(p.emulationStrength, 0.f, 1.f);
     p.printCrossover = std::isfinite(p.printCrossover) ? clampf(p.printCrossover, -1.f, 1.f) : 0.f;
+    // v1.3 print lab
+    if (p.projectionWhite < 0 || p.projectionWhite >= int(ProjectionWhite::Count)) p.projectionWhite = 0;
+    if (p.printAim < 0 || p.printAim >= int(PrintAim::Count)) p.printAim = 0;
+    if (p.printRender < 0 || p.printRender >= int(PrintRender::Count)) p.printRender = 0;
+    p.printContrast = std::isfinite(p.printContrast) ? clampf(p.printContrast, -1.f, 1.f) : 0.f;
     return p;
 }
 
@@ -231,7 +250,12 @@ void Pipeline::prepare(const LookParams& pin) {
     auto exp = exposureLut(ni);
     std::shared_ptr<const DyeLutBake> dye;
     std::shared_ptr<const ProjBake> proj;
-    if (kind == 0) { dye = printLut(ni, pi); proj = projectionLut(pi, mono); }
+    if (kind == 0) {
+        PrintVariant pv;   // v1.3 print lab (WP-2)
+        pv.white = p.projectionWhite; pv.aim = p.printAim; pv.render = p.printRender; pv.contrast = p.printContrast;
+        dye = printLut(ni, pi, pv.render);
+        proj = projectionLut(pi, mono, pv);
+    }
     else if (kind == 1) dye = scanLut(ni);
     else proj = reversalLut(ni);
 
@@ -431,7 +455,9 @@ void Pipeline::prepare(const LookParams& pin) {
     double off[3] = {0, 0, 0};
     if (kind != 1) {
         const double tY = kind == 0 ? prt.greyY : neg.greyY;
-        const double tgt[3] = {std::log10(0.3127 / 0.3290 * tY), std::log10(tY), std::log10((1.0 - 0.3127 - 0.3290) / 0.3290 * tY)};
+        // target neutral = the projection white (D65 unless a print lab projection white is chosen, v1.3)
+        const spec::Vec3 W = kind == 0 ? proj->white : spec::xyToXYZ(0.3127, 0.3290);
+        const double tgt[3] = {std::log10(W[0] * tY), std::log10(W[1] * tY), std::log10(W[2] * tY)};
         const double dt = -std::log10(tY);
         auto setOff = [&](const double o[3]) { for (int j = 0; j < 3; ++j) s[CEL_CS_OFF + j] = float(o[j]); };
         setOff(off);

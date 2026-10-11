@@ -84,6 +84,32 @@ struct LookParams {
     int   cameraEmulation = 0;   // CameraEmulation: 0 off, 1 Fujifilm X-Trans -> ARRI ALEXA (scene-linear, before the film)
     float emulationStrength = 1.f; // 0 .. 1 blend of the emulation
     float printCrossover = 0.f;  // -1 .. 1: + = warm highlights / cool shadows on the print (0 = the stock as designed)
+
+    // ---- v1.3 print lab (appended, SPEC 13; WP-2): defaults = the v1.2 print path, bit-identical
+    int   projectionWhite = 0;   // ProjectionWhite: how the projected print's white is shown on the display
+    int   printAim = 0;          // PrintAim: process aim of the print development
+    int   printRender = 0;       // PrintRender: contact print / release print (IP-IN duplication) / telecine
+    float printContrast = 0.f;   // -1 .. 1: print development in process-aim units, added to printAim
+};
+
+// v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 3.1
+enum class ProjectionWhite : int {
+    D65 = 0,             // projector white adapted to D65 (CAT16), the v1.2 rendering (default)
+    TheatreXenon,        // unadapted: the xenon projector's own white, as measured off the screen
+    D60Sim,              // adapted to the ACES D60 white (grade-room simulation), display-fitted
+    Count
+};
+enum class PrintAim : int {
+    Nominal = 0,         // print developed at the process aim (default)
+    Rich,                // high in the lab's tolerance: more contrast and D-max
+    Soft,                // low in the lab's tolerance: less contrast and D-max
+    Count
+};
+enum class PrintRender : int {
+    ContactPrint = 0,    // printed from the camera negative, projected (default)
+    ReleasePrint,        // printed from a duplicate negative (negative -> IP -> IN -> print), projected
+    Telecine,            // the print transferred on a telecine / scanner: neutral axis, black at D-max
+    Count
 };
 
 enum class CameraEmulation : int {
@@ -100,12 +126,17 @@ struct NegativeStockInfo {
     float grainSizeScale;      // relative grain size (1 = 200-speed 35mm reference)
     float halationScale;       // 1 = normal anti-halation backing, >1 = weak/no backing
     float bloomScale;
+    std::string provenance;    // v1.3: data source (data sheet + year / designed / style approximation), for the UI
 };
 
 std::vector<std::string> inputSpaceNames();      // UI labels, same order as InputSpace
 std::vector<std::string> outputSpaceNames();     // same order as OutputSpace
 std::vector<NegativeStockInfo> negativeStocks(); // order = negStock index
 std::vector<std::string> printStockNames();      // order = printStock index
+std::vector<std::string> printStockProvenance(); // v1.3: same order, data source of each print stock
+std::vector<std::string> projectionWhiteNames(); // v1.3: same order as ProjectionWhite
+std::vector<std::string> printAimNames();        // v1.3: same order as PrintAim
+std::vector<std::string> printRenderNames();     // v1.3: same order as PrintRender
 
 class Pipeline {
 public:
