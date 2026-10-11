@@ -211,6 +211,53 @@ struct Grey {
         return f.X;
     }
 };
+
+// v1.3 monotone black (reference/model.py bake_black_monotone, ColorState.h NT block). Below grey a print's layers
+// reach their D-max at different rates, so the projected neutral turns bluer / greener in the last stops before
+// black while its luminance hardly rises; a display channel with a negative matrix weight can then fall slightly
+// as the scene gets brighter. The display-linear neutral ramp v = Mout XYZ is made rising from black to grey
+// and (v_mono - v) / Y is stored per reference exposure. Off (BLACK_N = 0, bit-identical output) unless
+// the ramp drops by more than kBlackOn relative.
+void bakeBlackMonotone(float* s, const std::vector<CelF3>& X, float xr0, int off) {
+    constexpr double kBlackOn = 1e-4;
+    const int n = int(X.size());
+    std::vector<double> v(size_t(3) * size_t(n));
+    for (int k = 0; k < n; ++k) {
+        CelF3 r = celc_mat3(s, CEL_CS_MOUT, X[size_t(k)]);
+        v[size_t(3 * k)] = r.x; v[size_t(3 * k + 1)] = r.y; v[size_t(3 * k + 2)] = r.z;
+    }
+    int kg = -1;
+    for (int k = 0; k < n; ++k)
+        if (CEL_HOLD_X0 + (CEL_HOLD_X1 - CEL_HOLD_X0) * double(k) / double(n - 1) <= double(xr0)) kg = k;
+    if (kg < 1) return;
+    double worst = 0.0, run[3] = {v[size_t(3 * kg)], v[size_t(3 * kg + 1)], v[size_t(3 * kg + 2)]};
+    for (int k = kg - 1; k >= 0; --k)
+        for (int c = 0; c < 3; ++c) {
+            run[c] = std::min(run[c], v[size_t(3 * (k + 1) + c)]);
+            double a = v[size_t(3 * k + c)];
+            worst = std::max(worst, (a - run[c]) / std::max(std::fabs(a), 1e-12));
+        }
+    if (worst <= kBlackOn) return;
+    std::vector<double> vm(v);
+    for (int k = std::min(kg, n - 2); k >= 0; --k)
+        for (int c = 0; c < 3; ++c) {
+            // fold the ramp: it falls by |v[k+1] - v[k]| per sample towards black (its own fall, or the mirrored
+            // step where it turns up); the offset stays within twice the reversal, noise in D-max moves it by noise
+            vm[size_t(3 * k + c)] = vm[size_t(3 * (k + 1) + c)] - std::fabs(v[size_t(3 * (k + 1) + c)] - v[size_t(3 * k + c)]);
+        }
+    bool any = false;
+    for (int k = 0; k < n; ++k) {
+        double iy = 1.0 / std::max(double(X[size_t(k)].y), 1e-12);
+        for (int c = 0; c < 3; ++c) {
+            float d = float((vm[size_t(3 * k + c)] - v[size_t(3 * k + c)]) * iy);
+            s[off + c * n + k] = d;
+            any = any || d != 0.f;
+        }
+    }
+    if (!any) return;
+    s[CEL_CS_BLACK_OFF] = float(off);
+    s[CEL_CS_BLACK_N] = float(n);
+}
 }
 
 // Print Crossover (v1.2, SPEC 4.4): the classic print crossover - slightly different contrast of the print's
@@ -400,7 +447,10 @@ void Pipeline::prepare(const LookParams& pin) {
     const bool exitStage = p.stage != int(Stage::Full);
     const size_t nNS = exitStage ? size_t(4) * kStageN : 0;
     const size_t oNS = oHN + nHN;
-    const size_t total = oNS + nNS;
+    // v1.3 monotone black (ColorState.h NT block): with the hue hold's neutral table
+    const size_t nNT = hold ? size_t(3) * kHoldNX : 0;
+    const size_t oNT = oNS + nNS;
+    const size_t total = oNT + nNT;
     const bool sameBlocks = C.valid && C.exp == exp && C.dye == dye && C.proj == proj && m_state.size() == total;
     std::vector<float>& S = m_state;
     if (!sameBlocks) {
@@ -723,12 +773,15 @@ void Pipeline::prepare(const LookParams& pin) {
     }
     // ---- hue hold neutral table (with the user's printer points): film neutral XYZ (Y = 1) over
     //      the reference log exposure (reference/model.py bake_hold_neutral)
+    s[CEL_CS_BLACK_N] = 0.f;
     if (hold) {
         const float xr0 = celc_film_xyz(s, cel_f3(0.18f, 0.18f, 0.18f), cel_f3(0, 0, 0), 0).xref;
+        std::vector<CelF3> nx(static_cast<size_t>(kHoldNX));
         for (int k = 0; k < kHoldNX; ++k) {
             double x = CEL_HOLD_X0 + (CEL_HOLD_X1 - CEL_HOLD_X0) * k / (kHoldNX - 1);
             float gv = float(0.18 * std::pow(10.0, x - double(xr0)));
             CelF3 X = Grey::film(S, gv);
+            nx[size_t(k)] = X;
             float iy = 1.f / std::max(X.y, 1e-12f);
             s[oHN + k] = X.x * iy;
             s[oHN + kHoldNX + k] = 1.f;
@@ -738,6 +791,7 @@ void Pipeline::prepare(const LookParams& pin) {
         s[CEL_CS_HOLD_N_N] = float(kHoldNX);
         s[CEL_CS_HOLD] = float(holdStrength);
         s[CEL_CS_HOLD_CHROMA] = float(holdChroma);
+        bakeBlackMonotone(s, nx, xr0, int(oNT));
     }
     if (exitStage) buildStageAxis(s, p, int(oNS), int(oPL), dye->lut.n, float(dye->lut.maxv));
     s[CEL_CS_GAIN] = gain;

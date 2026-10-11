@@ -193,19 +193,14 @@ def measured(stock):
     return bool(src) and not src.startswith('designed')
 
 
-def gates(lib, limit=2.0, measured_limit=0.7):
+def gates(lib, limit=2.0, measured_limit=1.5):
     """Every negative distinct from every other on P1, every print distinct with CN 200T, and
     every colour negative distinct through the Lab Scan: min mean dE2000 >= limit.
     v1.2: two stocks that are BOTH modelled from manufacturer data sheets only need
     measured_limit. They are what the manufacturer measured, not designed to be apart: the
     VISION3 negatives share one dye set and differ mostly in speed, grain and curve shape, and the
     Eterna 250D borrows the VISION3 250D spectral data (Fujifilm does not publish it), so through
-    the Lab Scan (which removes the print) they sit 1.5-2 apart.
-    v1.3: measured_limit 1.5 -> 0.7. The v1.3 data-sheet stocks are members of the same families
-    (VISION2 next to VISION3, ETERNA 500 / Vivid 160 / REALA 500D on VISION3 spectral proxies, the
-    corrected ETERNA-CP 3513DI curves next to 2383, 3521XD on 3513DI's proxies). They sit 0.75-1.5
-    apart, which is what their curves say; the gate now only rejects near-duplicates between two
-    data-sheet stocks. Any pair with a designed stock still needs `limit`."""
+    the Lab Scan (which removes the print) they sit 1.5-2 apart."""
     names, T, T2 = deltae(lib, verbose=False)
     neg_by = {n_['name']: n_ for n_ in lib.negs}
 

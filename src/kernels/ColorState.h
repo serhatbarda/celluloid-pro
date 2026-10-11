@@ -100,11 +100,15 @@
 #define CEL_CS_HOLD_N0      115  /* 115..117 XYZ (Y = 1) of the film's neutral at 18 % grey, points 0 (info) */
 #define CEL_CS_MSCAN2       118  /* 118..126 scan root-polynomial terms: e += M2 * (sqrt(rg), sqrt(gb), sqrt(rb)) */
 /* 127 reserved */
-/* ---- v1.2 colour (stream A): camera emulation + hue-hold onset (indices 128..147; 148..159 free) */
+/* ---- v1.2 colour (stream A): camera emulation + hue-hold onset (indices 128..147; 148..149 v1.3 NT, 150..159 free) */
 #define CEL_CS_EMU_ON       128  /* 1 = camera emulation active (scene-linear, in decode) */
 #define CEL_CS_EMU_A        129  /* 129..137 linear part (already blended with the strength: I + s (A - I)) */
 #define CEL_CS_EMU_B        138  /* 138..146 root-polynomial part x strength: + B (sqrt(rg), sqrt(gb), sqrt(rb)) */
 #define CEL_CS_HOLD_ONSET   147  /* hue hold acts beyond this many stops from grey (celc_hold) */
+/* ---- v1.3 WP-2: monotone black (NT block, 3 x N over [CEL_HOLD_X0, CEL_HOLD_X1] of the reference log exposure:
+ * display-linear correction per unit luminance, added after the hue hold; see Core.cpp bakeBlackMonotone) */
+#define CEL_CS_BLACK_OFF    148
+#define CEL_CS_BLACK_N      149  /* 0 = off (the neutral ramp is already monotonic): bit-identical output */
 
 /* ---- v1.3 WP-1: pipeline stage exits (indices 160..207). 0 / unset = Full chain (bit-identical to v1.2) */
 #define CEL_CS_STAGE        160  /* 0 full, 1 negative -> log scan, 2 negative -> scene, 3 print only (core::Stage) */

@@ -73,7 +73,7 @@ PRT = [
      'Kodak H-1-2393 (1998): sensitometry, spectral sensitivity; 2383 dye set (not published for 2393)'),
     ('Fujifilm Eterna-CP 3513DI', 'fuji_3513', 'P2 Low Contrast', 0.112,
      'ETERNA-CP 3513DI: Fujifilm print for digital intermediates: neutral, gentle highlights, clean colour.',
-     'Fujifilm KB-0707E p.52-53: characteristic curves; spectral data not published there -> 2383 proxies'),
+     'Fujifilm KB-0707E p.57: characteristic curves; spectral data not published there -> 2383 proxies'),
 ]
 
 
@@ -158,43 +158,23 @@ NEG13 = [
     ('Kodak Vision2 500T 5218', 'kodak_5218', 'Kodak Vision3 500T 5219', ('blackbody', 3200), 1.3, 0.8, 1.1, 1.15,
      'VISION2 500T: the 2000s high-speed tungsten negative: a little more grain and less latitude than VISION3, warm, punchy mids.',
      'Kodak H-1-5218 (2007): sensitometry, spectral sensitivity, spectral dye density'),
-    ('Kodak Vision2 Expression 500T 5229', 'kodak_5229', 'Kodak Vision3 500T 5219', ('blackbody', 3200), 1.25, 0.8, 1.1, 1.1,
-     'VISION2 Expression 500T: low-contrast VISION2 tungsten negative for a soft, flat scan with lifted shadows.',
-     'Kodak H-1-5229 (2007): sensitometry, spectral sensitivity, spectral dye density'),
     ('Kodak Ektachrome 100D 5294', 'kodak_5294', 'Kodak Ektachrome E100', ('daylight', 5500), 0.8, 0.5, 0.9, 1.0,
      'EKTACHROME 100D: the motion-picture colour reversal: clean, saturated, contrasty, short latitude.',
      'Kodak EKTACHROME 100D sell sheet (EN): sensitometry, spectral sensitivity, spectral dye density'),
-    ('Fujifilm Eterna Vivid 160 8543', 'fuji_8543', 'Kodak Vision3 200T 5213', ('blackbody', 3200), 0.95, 0.6, 1.0, 1.0,
-     'ETERNA Vivid 160: tungsten negative with more saturation and contrast than ETERNA (Fujifilm curves; spectral proxies).',
-     'Fujifilm KB-0707E p.12-13: characteristic curves; spectral sensitivities and dyes not published there -> VISION3 200T proxies'),
-    ('Fujifilm Eterna 500 8573', 'fuji_8573', 'Kodak Vision3 500T 5219', ('blackbody', 3200), 1.2, 0.75, 1.1, 1.0,
-     'ETERNA 500: high-speed tungsten negative with calm, low-saturation ETERNA colour (Fujifilm curves; spectral proxies).',
-     'Fujifilm KB-0707E p.24-25: characteristic curves; spectral sensitivities and dyes not published there -> VISION3 500T proxies'),
-    ('Fujifilm Reala 500D 8592', 'fuji_8592', 'Kodak Vision3 250D 5207', ('daylight', 5500), 1.15, 0.7, 1.05, 1.05,
-     'REALA 500D: high-speed daylight negative (Fujifilm curves; spectral proxies, the fourth colour layer is not modelled).',
-     'Fujifilm KB-0707E p.36-37: characteristic curves; spectral sensitivities and dyes not published there -> VISION3 250D proxies'),
     ('Kodak Double-X 5222', 'kodak_5222', 'BW 400 Panchromatic', ('daylight', 5500), 1.35, 0.7, 1.0, 1.3,
      'DOUBLE-X 5222: the classic panchromatic B&W negative: open grain, blue-heavy sensitivity, gentle toe.',
      'Kodak DOUBLEX technical data (EN): characteristic curves (D-96, 6 1/2 min), spectral sensitivity (raster traced)'),
 ]
-PRT13 = [
-    ('Fujifilm Eterna-CP 3521XD', 'fuji_3521', 'Fujifilm Eterna-CP 3513DI', 0.110,
-     'ETERNA-CP 3521XD: Fujifilm high-D-max print: deeper blacks and richer contrast than 3513DI.',
-     'Fujifilm KB-0707E p.56-57: characteristic curves; spectral data not published there -> 2383 proxies'),
-]
+PRT13 = []
 
 
 def main_v13():
-    """append the v1.3 stocks (by name; existing entries are left alone, except the 3513DI curves and source,
-    corrected in v1.3: v1.2 had digitised the 3521XD figure)"""
+    """append the v1.3 stocks (by name; existing entries are left alone)"""
     path = os.path.join(REF, 'stocks.json')
     J = json.load(open(path))
     F = json.load(open(os.path.join(HERE, 'fits.json')))
     byname = {n['name']: n for n in J['negatives']}
     pbyname = {p['name']: p for p in J['prints']}
-    p = pbyname['Fujifilm Eterna-CP 3513DI']
-    p['curves'] = curves(F['fuji_3513'])
-    p['source'] = 'Fujifilm KB-0707E p.52-53: characteristic curves; spectral data not published there -> 2383 proxies'
     for name, key, tmpl, bal, gss, hal, blo, gsc, desc, src in NEG13:
         if name in byname:
             continue

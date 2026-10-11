@@ -890,11 +890,11 @@ static void testBehaviour() {
     // name lists
     CHECK(inputSpaceNames().size() == size_t(InputSpace::Count), "input names");
     CHECK(outputSpaceNames().size() == size_t(OutputSpace::Count), "output names");
-    CHECK(negativeStocks().size() == 26 && printStockNames().size() == 10, "stock counts");
+    CHECK(negativeStocks().size() == 22 && printStockNames().size() == 9, "stock counts");
     // v1.2 appended the data-sheet stocks; the shipped-default look is 250D 5207 + P6
     CHECK(negativeStocks()[12].name == "Kodak Vision3 250D 5207" && printStockNames()[8] == "P6 Modern Print", "v1.2 stocks appended");
-    CHECK(negativeStocks()[19].name == "Kodak Vision2 500T 5218" && negativeStocks()[25].name == "Kodak Double-X 5222" &&
-              printStockNames()[9] == "Fujifilm Eterna-CP 3521XD", "v1.3 stocks appended");
+    CHECK(negativeStocks()[19].name == "Kodak Vision2 500T 5218" && negativeStocks()[21].name == "Kodak Double-X 5222",
+          "v1.3 stocks appended");
     CHECK(negativeStocks()[1].name == "CN 200T Studio Tungsten" && printStockNames()[0] == "P1 Standard Projection", "defaults");
 }
 

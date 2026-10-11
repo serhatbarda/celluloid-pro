@@ -51,6 +51,7 @@ HOLD_X0, HOLD_X1 = -6.0, 4.0
 HOLD_W = (0.3127 / 0.3290, 1.0, (1.0 - 0.3127 - 0.3290) / 0.3290)   # D65 white XYZ
 HOLD_C0 = 0.20                      # chroma-hold roll-off (CIELAB C* / 200)
 HOLD_K = 1.3                        # hold weight 1 - exp(-HOLD_K stops^2) away from grey
+BLACK_ON = 1e-4                     # v1.3 monotone black: applied only when the neutral ramp drops by more than this (relative)
 
 INPUTS = ['FLog2C', 'FLog2', 'FLog', 'DaVinciIntermediate', 'ArriLogC3', 'ArriLogC4',
           'SLog3SGamut3Cine', 'VLog', 'CanonLog3', 'BMDFilmGen5', 'ACEScct', 'LinearRec2020']
@@ -890,6 +891,7 @@ class Pipeline:
         # grey balance (points 0, exposure 0), then user offsets
         self.solve_balance()
         self.calibrate_hdr()
+        self.black_d = None
         self.hold = 0.0 if self.mono else float(self.hold_strength())
         self.hold_chroma = 0.0 if self.mono else float(self.hold_strength('chromaHold'))
         if self.hold > 0:
@@ -955,6 +957,35 @@ class Pipeline:
         gs = 0.18 * 10.0 ** (xs - xr0[0])
         X, _ = self.film_xyz(np.repeat(gs[:, None], 3, 1), None, self.off_user)
         self.hold_n = f32((X / np.maximum(X[:, 1:2], 1e-12)).T)          # (3, NX)
+        self.bake_black_monotone(xs, X, float(xr0[0]))
+
+    def bake_black_monotone(self, xs, X, xr0):
+        """v1.3 (== Core.cpp, ColorState.h NT block): below grey, a print's layers approach their D-max at
+        different rates, so the projected neutral turns bluer / greener in the last stops before black while
+        its luminance hardly rises; a display channel with a negative matrix weight (Rec.709 R = 3.24 X -
+        1.54 Y - 0.50 Z) can then fall by up to 3e-5 as the scene gets brighter. The display-linear neutral
+        ramp v(x) = Mout XYZ is made rising from black to grey (see the loop below) and the
+        difference per unit luminance, (v_mono - v) / Y, is added to every pixel at its reference exposure.
+        Zero (bit-identical output) wherever the ramp is already monotonic."""
+        v = X @ self.Mout.T
+        kg = int(np.searchsorted(xs, xr0, side='right')) - 1
+        # off unless the ramp really turns down (relative drop > BLACK_ON; float noise of ~1e-9 stays untouched)
+        run = v[kg].copy()
+        worst = 0.0
+        for k in range(kg - 1, -1, -1):
+            run = np.minimum(run, v[k + 1])
+            worst = max(worst, float(np.max((v[k] - run) / np.maximum(np.abs(v[k]), 1e-12))))
+        if worst <= BLACK_ON:
+            self.black_d = None
+            return
+        vm = v.copy()
+        for k in range(min(kg, len(xs) - 2), -1, -1):
+            # fold the ramp: it falls by |v[k+1] - v[k]| per sample towards black, its own fall where it falls
+            # and the mirrored step where it turns up. The offset vm - v stays twice the reversal at most and
+            # float noise in a flat D-max only moves it by noise
+            vm[k] = vm[k + 1] - np.abs(v[k + 1] - v[k])
+        d = (vm - v) / np.maximum(X[:, 1:2], 1e-12)
+        self.black_d = f32(d.T) if np.any(d != 0) else None              # (3, NX) or off
 
     def apply_hold(self, XYZ, xref, rgb_scene):
         """Hue hold on display XYZ (D65 adapted, 1 = white), in CIELAB-like coordinates
@@ -1246,7 +1277,7 @@ class Pipeline:
         if not self.hdr:
             if rgb_scene is not None:
                 XYZ = self.apply_hold(XYZ, xref, rgb_scene)
-            rgb = XYZ @ self.Mout.T
+            rgb = XYZ @ self.Mout.T + self.black_fix(XYZ, xref)
             rgb = self.gamut_compress(rgb, lum)
             rgb = self.limit(rgb, SDR_KNEE, 1.0)
             return self.encode_sdr(rgb)
@@ -1255,12 +1286,18 @@ class Pipeline:
         G = self.Gmax * t * t / (1.0 + t * t)
         if rgb_scene is not None:
             XYZ = self.apply_hold(XYZ, xref, rgb_scene)
-        rgb = (XYZ @ self.Mout.T) * (self.Lref * 10.0 ** (self.p.hdrUnroll * G))[:, None]
+        rgb = (XYZ @ self.Mout.T + self.black_fix(XYZ, xref)) * (self.Lref * 10.0 ** (self.p.hdrUnroll * G))[:, None]
         rgb = self.gamut_compress(rgb, lum)
         rgb = self.limit(rgb, HDR_KNEE * self.peak, self.peak)
         if self.out == 'Rec2100_PQ':
             return pq_encode(rgb)
         return self.hlg_encode(rgb)
+
+    def black_fix(self, XYZ, xref):
+        if getattr(self, 'black_d', None) is None:
+            return 0.0
+        d = np.stack([lut1d(self.black_d[c], HOLD_X0, HOLD_X1, xref) for c in range(3)], 1)
+        return XYZ[:, 1:2] * d
 
     def Mout_lum(self):
         return np.linalg.inv(self.Mout)[1]

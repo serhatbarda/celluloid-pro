@@ -501,8 +501,13 @@ CEL_DEVICE CelF3 celc_output_k(CEL_GLOBAL const float* s, CelF3 XYZ, float xref,
     int out = celc_i(s, CEL_CS_OUTPUT);
     int hdr = celc_i(s, CEL_CS_HDR);
     XYZ = celc_hold_k(s, XYZ, xref, scene, holdScale);
+    /* v1.3 monotone black: display-linear correction x luminance (NT block; off = 0, nothing added) */
+    CelF3 bfix = cel_f3(0.0f, 0.0f, 0.0f);
+    int bn = celc_i(s, CEL_CS_BLACK_N);
+    if (bn > 0) bfix = celc_scale(celc_lut1_3(s, celc_i(s, CEL_CS_BLACK_OFF), bn, CEL_HOLD_X0, CEL_HOLD_X1, cel_f3(xref, xref, xref)), XYZ.y);
     if (hdr == 0) {
         CelF3 rgb = celc_mat3(s, CEL_CS_MOUT, XYZ);
+        if (bn > 0) rgb = cel_f3(rgb.x + bfix.x, rgb.y + bfix.y, rgb.z + bfix.z);
         rgb = celc_gamut_compress(s, rgb);
         rgb = celc_limit(rgb, CEL_SDR_KNEE, 1.0f);
         return celc_encode_sdr(out, rgb);
@@ -512,6 +517,7 @@ CEL_DEVICE CelF3 celc_output_k(CEL_GLOBAL const float* s, CelF3 XYZ, float xref,
     float G = s[CEL_CS_HDR_GMAX] * t * t / (1.0f + t * t);
     float gain = s[CEL_CS_HDR_LREF] * celc_pow10(s[CEL_CS_HDR_UNROLL] * G);
     CelF3 rgb = celc_mat3(s, CEL_CS_MOUT, celc_scale(XYZ, gain));
+    if (bn > 0) rgb = cel_f3(rgb.x + bfix.x * gain, rgb.y + bfix.y * gain, rgb.z + bfix.z * gain);
     rgb = celc_gamut_compress(s, rgb);
     float peak = s[CEL_CS_HDR_PEAK];
     rgb = celc_limit(rgb, CEL_HDR_KNEE * peak, peak);

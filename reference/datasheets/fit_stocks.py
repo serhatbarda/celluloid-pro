@@ -2,7 +2,7 @@
 
     python3 reference/datasheets/fit_stocks.py            # fit all, print residuals, write fits.json
     python3 reference/datasheets/fit_stocks.py --plots D   # + overlay plots (data vs fit) into folder D
-    python3 reference/datasheets/fit_stocks.py --v13       # refit only the v1.3 additions (+ corrected 3513DI)
+    python3 reference/datasheets/fit_stocks.py --v13       # refit only the v1.3 additions
 
 What is fitted (reference/datasheets/data/*.csv -> reference/datasheets/fits.json):
   spectral sensitivity  log sensitivity -> relative linear sensitivity (peak 1), fitted by up to 6
@@ -226,11 +226,9 @@ def fit_print(stock, xmap, dyes_from, fog=0.05, sens_from=None, pmax=12.0):
 def main():
     plots = sys.argv[sys.argv.index('--plots') + 1] if '--plots' in sys.argv else None
     if '--v13' in sys.argv:
-        # refit only what v1.3 added or corrected (3513DI), keep every other entry of fits.json as it is
+        # refit only what v1.3 added, keep every other entry of fits.json as it is
         F = json.load(open(os.path.join(HERE, 'fits.json')))
-        x5, d5 = load('kodak_5219_hd_G')
-        F['fuji_3513'] = fit_print('fuji_3513', lambda x: x - 2.0, 'kodak_2383', sens_from='kodak_2383', pmax=6.0)
-        fit_v13(F, float(np.interp(0.0, x5, d5) - d5[:8].mean()))
+        fit_v13(F)
         json.dump(F, open(os.path.join(HERE, 'fits.json'), 'w'), indent=1)
         return
     F = {}
@@ -278,7 +276,7 @@ def main():
         dmin = float(d[:3].mean())
         c, rms = fit_curve(x, np.maximum(d - dmin, 0), fog=round(dmin, 4), p0=[1.0, 4.0, -0.5, 2.5, 3.0])
         F['kodak_2242']['curves'][L] = dict(c, rms=rms, dmin=dmin)
-    fit_v13(F, ref)
+    fit_v13(F)
     for k, v in F.items():
         if 'sens' not in v:
             print(k, 'curve rms', {l: round(s['rms'], 4) for l, s in v['curves'].items()})
@@ -290,33 +288,12 @@ def main():
         plot_all(F, plots)
 
 
-def curves_only(key, xmap, proxy, sens_from, dyes_from):
-    """Fujifilm negatives of KB-0707E: characteristic curves only; spectral data from a named VISION3 proxy"""
-    out = dict(stock=key, sens=proxy['sens'], dyes=proxy['dyes'], sens_from=sens_from + ' (proxy)', dyes_from=dyes_from + ' (proxy)', curves={})
-    for L in ('R', 'G', 'B'):
-        x, d = load(f'{key}_hd_{L}')
-        dmin = float(d[np.argsort(x)][:3].mean())
-        c, rms = fit_curve(xmap(x), np.maximum(d - dmin, 0))
-        out['curves'][L] = dict(c, rms=rms, dmin=dmin)
-    return out
-
-
-def fit_v13(F, ref):
+def fit_v13(F):
     """v1.3 WP-2 additions (append-only stocks; the fits above are unchanged)"""
-    # VISION2 500T 5218 / VISION2 Expression 500T 5229: full Kodak data (camera stops)
+    # VISION2 500T 5218: full Kodak data (camera stops)
     F['kodak_5218'] = fit_negative('kodak_5218', stops)
-    F['kodak_5229'] = fit_negative('kodak_5229', stops)
     # EKTACHROME 100D 5294 (reversal, camera stops; 0 = normal exposure)
     F['kodak_5294'] = fit_negative('kodak_5294', stops, reversal=True, fog=0.15)
-    # Fujifilm ETERNA Vivid 160 8543 (tungsten) / ETERNA 500 8573 (tungsten): camera stops; REALA 500D 8592
-    # (daylight): relative log H, grey where G has the 500T's density above D-min at 0 stops
-    F['fuji_8543'] = curves_only('fuji_8543', stops, F['kodak_5213'], 'kodak_5213', 'kodak_5213')
-    F['fuji_8573'] = curves_only('fuji_8573', stops, F['kodak_5219'], 'kodak_5219', 'kodak_5219')
-    xg = neg_grey_from_density('fuji_8592', ref)
-    F['fuji_8592'] = curves_only('fuji_8592', (lambda xg: lambda x: L18 + (x - xg))(xg), F['kodak_5207'], 'kodak_5207', 'kodak_5219')
-    F['fuji_8592']['grey_logH'] = xg
-    # ETERNA-CP 3521XD (Status A, relative log H like the corrected 3513DI); spectral data -> 2383 proxies
-    F['fuji_3521'] = fit_print('fuji_3521', lambda x: x - 2.0, 'kodak_2383', sens_from='kodak_2383', pmax=4.0)
     # EASTMAN DOUBLE-X 5222 (B&W, D-96 6 1/2 min). Axis: log H in lux-seconds. Grey = the ISO speed point
     # (0.1 above fog at EI 250 daylight: H = 0.8 / 250) + 1.0 log H, the usual 18 % card placement.
     # The traced 6 1/2 min curve ends at D 1.66; R >= 2.4 keeps the extrapolated shoulder near the longer

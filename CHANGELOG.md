@@ -29,16 +29,16 @@ unchanged in a newer one.
 - **Stock provenance**: every stock says where its data comes from (data sheet, partial data sheet +
   proxy, designed, or style approximation). This shows in the read-only *Stock Data* and *Print Stock
   Data* lines and in `docs/STOCKS.md` 5c.
-- **More data-sheet stocks** (appended, existing indices unchanged). Negatives: Kodak Vision2 500T 5218,
-  Vision2 Expression 500T 5229, Ektachrome 100D 5294 (reversal), Fujifilm Eterna Vivid 160 8543, Eterna 500
-  8573, Reala 500D 8592 (Fujifilm curves on VISION3 spectral proxies), Kodak Double-X 5222 (B&W). Print:
-  Fujifilm Eterna-CP 3521XD.
+- **More data-sheet stocks** (appended, existing indices unchanged): Kodak Vision2 500T 5218,
+  Ektachrome 100D 5294 (reversal) and Double-X 5222 (B&W).
 
 ### Fixed
 
-- **Fujifilm Eterna-CP 3513DI** now uses the 3513DI characteristic curves. v1.2 had digitised the
-  3521XD figure of the same Fujifilm manual (and read its log H axis 10 % short). Projects that use
-  3513DI render a little differently (closer to 2383, as the data sheet says).
+- **Grey ramps rise into black on every stock pair.** On some pairs (50D on P6, 500T on 2393 or
+  3513DI) the print's layers reach D-max at different rates, so the last stops before black turned
+  bluer and the red display channel fell by up to 3e-5 as the scene got brighter. The neutral ramp is
+  now made to rise from black to grey; nothing changes where it already did (the default look moves
+  by at most 6e-5 below -12 stops).
 
 ## [1.2.0] — unreleased
 
