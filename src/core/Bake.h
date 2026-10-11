@@ -23,6 +23,10 @@ constexpr double kPoint = 0.025;
 constexpr double kHdrGreyNits = 15.0;
 constexpr int kHoldN = 49;                         // hue-hold anchor grid (octahedral)
 constexpr int kHoldNX = 512;                       // hue-hold neutral table
+// v1.2 (== reference/model.py): hue-hold onset (stops from grey before the hold acts) and the Print Crossover
+constexpr double kHoldOnset = 1.0;
+constexpr double kPrintXoverGamma = 0.08;          // per-layer print contrast change per unit crossover
+constexpr double kPrintXoverDm = 1.0;              // mid density the layers pivot about
 
 double dev(double y, double gamma, double k, double R, double p);
 stocks::CurveDef pushCurve(const stocks::CurveDef& c, double push, bool reversal);

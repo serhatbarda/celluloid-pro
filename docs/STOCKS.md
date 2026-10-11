@@ -393,6 +393,50 @@ before it was changed; numbers are before → after.
   further, so pushPull 1 → 0.5 and negBleach 0.25 → 0.15 were used instead).
 
 
+## 5b. Data-sheet stocks and the v1.2 default look
+
+v1.2 appends real stocks modelled from the manufacturers' published technical data (negatives 11-18,
+prints 5-8; the designed stocks keep their indices):
+
+| # | Stock | Data | Notes |
+|---|---|---|---|
+| 11 | Kodak Vision3 50D 5203 | H-1-5203: sensitivity, curves; VISION3 dye set | |
+| 12 | Kodak Vision3 250D 5207 | H-1-5207: sensitivity, curves; VISION3 dye set | **default** |
+| 13 | Kodak Vision3 200T 5213 | H-1-5213 | |
+| 14 | Kodak Vision3 500T 5219 | H-1-5219: sensitivity, curves, dyes | |
+| 15 | Fujifilm Eterna 250D 8563 | KB-0707E: curves; spectral data = VISION3 250D proxies | |
+| 16 | Kodak Portra 400 | E-4050: curves, sensitivity; VISION3 dye set | |
+| 17 | Kodak Ektachrome E100 | E-4024: curves, sensitivity, dyes | reversal |
+| 18 | Kodachrome 64 Style | designed from the E100 data: gamma x1.25, D-max +0.4, cyan dye 25 nm shorter, interlayer x1.4 | reversal |
+| P5 | Kodak Vision 2383 | H-1-2383: sensitivity, curves, dyes | |
+| P6 | Kodak Vision Premier 2393 | H-1-2393: sensitivity, curves; 2383 dyes | |
+| P7 | Fujifilm Eterna-CP 3513DI | KB-0707E: curves; 2383 spectral proxies; shoulder p <= 6 (below) | |
+| P8 | P6 Modern Print | 2383 spectral data, tone curves fitted to the default-look target | **default** |
+
+Pipeline: `reference/datasheets/fit_stocks.py` fits lobes / curves to the digitised data
+(`reference/datasheets/data/*.csv`, writes `fits.json`), `build_stocks.py` writes the stocks into
+`reference/stocks.json`, `reference/fit_look.py calibrate` fits only the interlayer matrix and the mask
+couplers per stock against the owner's reference chains (weighted rms of the look metrics, e.g. 250D
+7.5 -> 5.3, 500T 7.1 -> 5.5, Eterna 9.7 -> 6.0), and `fit_look.py p6` fits the P6 tone scale to the
+default-look target (ARRI LogC3 -> Rec.709 x 0.6 + Referent x 0.4; `reference/targets/look_targets.json`).
+The 3513DI fit is capped at a shoulder exponent p <= 6: the free fit hit the bound (p = 12) on R and B,
+the layers then left D-max at different rates and a grey ramp lost up to 6e-5 of red in the last stops
+before black. The cap raises the curve rms from 0.052 / 0.040 to 0.082 / 0.062 D (R / B), in the shoulder.
+
+Hue hold (look-dev C1): prints, scanner and reversal stocks use hueHold 0.5 and chromaHold 0; the hold
+acts only beyond one stop from grey. Highlight colours now desaturate and turn like film and like the
+references, so the look aims (`reference/aims.py`) are taken from the references (1.1 x the worst of the
+ARRI, Referent and ETERNA renderings; e.g. sky dh <= 25.6, skin +1..+3 dh <= 18.9, red +2..+4 dh <= 16.8).
+CN 50D Fine Daylight is reported, not gated: its reds turn 10-24 deg toward magenta at +2..+4 stops on P1.
+Two data-sheet stocks only need 1.5 mean dE2000 between them (`design.py gates`): the VISION3 negatives
+share one dye set (250D vs 500T: 1.71 on P1) and the Eterna borrows the 250D spectral data (1.57 through
+the Lab Scan).
+
+Default look (250D + P6, emulation on) on the look-dev probe: grey 0.389, slope 0.149 / stop, -4 stops
+0.066, +4 stops 0.900, C(+2)/C(0) 0.94, C(-2)/C(0) 0.55, medium skin C* 20.3 at 58 deg. Still outside
+the target ranges: hue shifts of green / cyan / magenta (about +20 deg on the VISION3 stocks), the
+skin hue rise from -2 to +2 stops (+16 deg, target 3-10) and the largest dL of the C*30 colours.
+
 ## 6. Editing the stocks
 
 The single source of truth is `reference/stocks.json`. After editing it:

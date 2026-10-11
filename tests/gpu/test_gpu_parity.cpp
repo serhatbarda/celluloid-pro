@@ -231,6 +231,16 @@ std::vector<Case> makeCases(bool all) {
         c.fs.look.hdrPeakNits = 300.0f; c.fs.look.exposure = 4.0f; });
     add("HLG unroll 0.5, push +2", [](Case& c) { fullTexture(c.fs); c.fs.look.output = OS::Rec2100_HLG;
         c.fs.look.hdrUnroll = 0.5f; c.fs.look.pushPull = 2.0f; });
+    // ---- v1.2 colour: camera emulation (kernel path), print crossover (baked), the v1.2 default look
+    add("camera emulation X-H2S -> ALEXA, strength 1", [](Case& c) { fullTexture(c.fs); c.fs.look.cameraEmulation = 1; });
+    add("camera emulation strength 0.5, F-Log2, PQ", [](Case& c) { c.fs.look.cameraEmulation = 1; c.fs.look.emulationStrength = 0.5f;
+        c.fs.look.input = core::InputSpace::FLog2; c.fs.look.output = OS::Rec2100_PQ; });
+    add("camera emulation, torture", [](Case& c) { c.fs.look.cameraEmulation = 1; c.scene = Scene::Torture; });
+    add("print crossover +1, Vision 2383", [](Case& c) { fullTexture(c.fs); c.fs.look.printCrossover = 1.0f; c.fs.look.printStock = 5; });
+    add("print crossover -1, lab scan ignores it", [](Case& c) { c.fs.look.printCrossover = -1.0f;
+        c.fs.look.process = core::Process::NegativeScan; });
+    add("v1.2 default: Vision3 250D 5207 / P6, emulation on", [](Case& c) { fullTexture(c.fs);
+        c.fs.look.negStock = 12; c.fs.look.printStock = 8; c.fs.look.cameraEmulation = 1; });
     // ---- hostile inputs
     add("torture, full all texture", [](Case& c) { fullTexture(c.fs); c.scene = Scene::Torture; });
     add("torture, full PQ + watermark", [](Case& c) { fullTexture(c.fs); c.fs.look.output = OS::Rec2100_PQ;

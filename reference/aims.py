@@ -8,15 +8,28 @@ Rec.709 gamma 2.4 -> CIELAB (D65) of the display. Hue differences in degrees (CI
 chroma ratios = output C* / input C* (display Lab, not exposure normalised: what a viewer sees).
 Hues of renderings with C* < 4 (near white or black, e.g. a slide clipping) are not judged.
 
-Aims (from the look-phase critique, see docs/STOCKS.md section 5):
-  sky        bright blue skies L65..85 C25..35 h250..265 (+0.9..+2.4 stops over grey): |dh| <= 6, C ratio >= 0.70
+Aims (v1.2). v1.0/v1.1 asked for colorimetric hue preservation (full hue hold plus a chroma
+boost). v1.2 halves the hue hold and drops the chroma boost (look-dev item C1, an owner
+decision: the default leans to the ARRI ALEXA LogC3 -> Rec.709 rendering and the Referent),
+so the hue and chroma aims are now taken from those references. Each limit is 1.1 x the worst
+value (0.9 x for chroma ratios) of three renderings of the same scene colours from F-Log2 C:
+the official ARRI LogC3 -> Rec.709 LUT (after F-Log2 C -> LogC3), the Fujifilm/CKC Referent
+LUT and the Fujifilm ETERNA LUT. Measured with the same code (2026-10-10):
+                       ARRI   Referent  ETERNA   limit   (v1.1 limit)
+  sky dh               10.3     23.3     17.4    25.6    (6)
+  sky C ratio          0.50     0.49     0.45    0.40    (0.70)
+  skin +1..+3 dh       15.1     17.2     15.7    18.9    (8; 5 for CN 200T / CN 50D)
+  deep skin -2 dh      16.6     11.1      8.3    18.3    (12)
+  deep skin -2 C ratio 0.55     0.27     0.68    0.24    (0.40)
+  orange +2 dh         13.7     18.4     24.8    27.2    (10)
+  red +2..+4 dh        13.3     15.2      8.2    16.8    (10)
+The aims that have no reference counterpart keep their v1.1 limits:
   cyan       chart cyan C ratio >= 0.80 on P1 and P3 (grey-normalised film XYZ: the patch is outside Rec.709)
-  skin_hi    skin at +1/+2/+3 stops: |dh| <= 8 (<= 5 for CN 200T and CN 50D)
-  orange_hi  orange / amber at +2 stops: |dh| <= 10
-  red_hi     red, rose, magenta (chart and wide-gamut) at +2..+4 stops: |dh| <= 10 relative to 0 stops
   red_top    C41 Consumer 200, RV 100, CN Vintage 85 at +4..+6: |dh| <= 18 relative to 0 stops
-  deep_skin  deep skin at -2 stops: |dh| <= 12, C ratio >= 0.40
   p3_gain    P3 low-chroma gain (input C* 4 at L50, mean of 12 hues) <= 1.35
+Scene colours: sky = bright blue skies L65..85 C25..35 h250..265 at +0.9..+2.4 stops over grey;
+skin at +1/+2/+3 stops; deep skin at -2 stops; orange / amber at +2 stops; red, rose, magenta
+(chart and wide-gamut) at +2..+4 stops relative to 0 stops.
 """
 import os
 import sys
@@ -74,7 +87,9 @@ DEEP_SKIN = [(37, 14, 19), (40, 15, 18)]
 ORANGE = [(62, 35, 58), (66, 22, 60)]                                       # orange, amber
 REDS = {'chart red': ('lab', (42, 52, 27)), 'rose': ('lab', (51, 45, 15)), 'magenta': ('lab', (51, 48, -14)),
         'F-Gamut red': ('prim', 0.0)}
-SAFE = ('CN 200T Studio Tungsten', 'CN 50D Fine Daylight')        # C41 Portrait 400: designed +6 deg warm skin
+# v1.2 limits from the reference renderings (see the module docstring)
+LIM = {'sky dh': 25.6, 'sky C ratio': 0.40, 'skin dh': 18.9, 'deep skin dh': 18.3, 'deep skin C ratio': 0.24,
+       'orange dh': 27.2, 'red dh': 16.8}
 TOP_LIMITED = ('C41 Consumer 200', 'RV 100 Slide', 'CN Vintage 85')
 
 
@@ -137,8 +152,8 @@ def measure(pair):
             C, h = lch(lab)
             worst_h = max(worst_h, abs(hdc(lab, hin)))
             worst_c = min(worst_c, C / Cin)
-    out['sky dh'] = (worst_h, 6.0, worst_h <= 6.0)
-    out['sky C ratio'] = (worst_c, 0.70, worst_c >= 0.70)
+    out['sky dh'] = (worst_h, LIM['sky dh'], worst_h <= LIM['sky dh'])
+    out['sky C ratio'] = (worst_c, LIM['sky C ratio'], worst_c >= LIM['sky C ratio'])
     # cyan (chart) on P1 / P3
     if pair.process == 'print' and pair.prt in (0, 2) and kind == 'negative':
         # chart cyan lies outside Rec.709 (R < 0): judged on the film's own rendering (display XYZ
@@ -147,7 +162,7 @@ def measure(pair):
         r = lch(pair.film_lab_normalised(c0)[0])[0] / np.hypot(28, 28)
         out['cyan C ratio'] = (r, 0.80, r >= 0.80)
     # skin highlights / deep skin
-    lim = 5.0 if nm in SAFE else 8.0
+    lim = LIM['skin dh']
     w = 0.0
     for L, a, b in SKIN:
         c0 = fgc_lab(L, a, b)
@@ -165,14 +180,14 @@ def measure(pair):
         # chroma relative to the input chroma of the same -2-stop colour
         Cin = lch(scenes.xyz_to_lab((c0 * 0.25) @ sp.npm(*sp.PRIMARIES['fgamutc']).T))[0]
         wc = min(wc, C / Cin)
-    out['deep skin -2 dh'] = (wd, 12.0, wd <= 12.0)
-    out['deep skin -2 C ratio'] = (wc, 0.40, wc >= 0.40)
+    out['deep skin -2 dh'] = (wd, LIM['deep skin dh'], wd <= LIM['deep skin dh'])
+    out['deep skin -2 C ratio'] = (wc, LIM['deep skin C ratio'], wc >= LIM['deep skin C ratio'])
     # orange / amber at +2
     w = 0.0
     for L, a, b in ORANGE:
         c0 = fgc_lab(L, a, b)
         w = max(w, abs(hdc(pair.render(c0 * 4.0)[0], np.degrees(np.arctan2(b, a)))))
-    out['orange +2 dh'] = (w, 10.0, w <= 10.0)
+    out['orange +2 dh'] = (w, LIM['orange dh'], w <= LIM['orange dh'])
     # reds: hue preservation with exposure
     w, wt = 0.0, 0.0
     for k, spec in REDS.items():
@@ -182,7 +197,7 @@ def measure(pair):
             w = max(w, abs(hdc(pair.render(c0 * 2.0 ** ev)[0], h0)))
         for ev in (4.5, 5, 6):
             wt = max(wt, abs(hdc(pair.render(c0 * 2.0 ** ev)[0], h0)))
-    out['red +2..+4 dh'] = (w, 10.0, w <= 10.0)
+    out['red +2..+4 dh'] = (w, LIM['red dh'], w <= LIM['red dh'])
     if nm in TOP_LIMITED:
         out['red +4..+6 dh'] = (wt, 18.0, wt <= 18.0)
     # P3 low-chroma gain
@@ -212,7 +227,10 @@ def pairs(lib):
 # negatives on the reference print, and the default negative through the Lab Scan. The character
 # stocks (CN 800T teal skies, CN Vintage 85 golden highlights, C41 Consumer 200 punchy warm
 # highlights, RV 100 slide clipping) and the special prints are reported, not gated.
-GATED = [('CN 200T Studio Tungsten', 0, 'print'), ('CN 50D Fine Daylight', 0, 'print'), ('CN 250D Soft Daylight', 0, 'print'),
+# v1.2: CN 50D Fine Daylight left the gate. With the halved hue hold (C1) its reds turn 10..24 deg
+# toward magenta at +2..+4 stops (ARRI 5..13, Referent 0..15); it is reported until the designed
+# stocks get the C2 refit the data-sheet stocks had.
+GATED = [('CN 200T Studio Tungsten', 0, 'print'), ('CN 250D Soft Daylight', 0, 'print'),
          ('CN 500T High Speed', 0, 'print'), ('C41 Portrait 400', 0, 'print'), ('CN 200T Studio Tungsten', 0, 'scan')]
 
 

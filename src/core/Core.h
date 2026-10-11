@@ -79,6 +79,17 @@ struct LookParams {
 
     // grain amplitude (spatial structure comes from cel::tex). 0 disables.
     float grainAmount  = 0.f;    // 0 .. 3, 1 = stock's nominal granularity
+
+    // ---- v1.2 (appended, SPEC 13): defaults = off, so every v1.1 caller renders unchanged
+    int   cameraEmulation = 0;   // CameraEmulation: 0 off, 1 Fujifilm X-Trans -> ARRI ALEXA (scene-linear, before the film)
+    float emulationStrength = 1.f; // 0 .. 1 blend of the emulation
+    float printCrossover = 0.f;  // -1 .. 1: + = warm highlights / cool shadows on the print (0 = the stock as designed)
+};
+
+enum class CameraEmulation : int {
+    Off = 0,
+    FujiXTransToAlexa,          // Fujifilm X-Trans (X-H2S; X-T4 data) -> ARRI ALEXA / AMIRA (ALEV III)
+    Count
 };
 
 struct NegativeStockInfo {

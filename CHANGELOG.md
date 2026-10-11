@@ -6,7 +6,37 @@ unchanged in a newer one.
 
 ## [1.2.0] — unreleased
 
+### Added
+
+- **Real film stocks from the manufacturers' data sheets** (appended; existing stocks unchanged):
+  Kodak Vision3 50D 5203, 250D 5207, 200T 5213 and 500T 5219, Fujifilm Eterna 250D 8563, Kodak
+  Portra 400, Kodak Ektachrome E100 and a Kodachrome 64 Style reversal (designed from the E100 data);
+  print stocks Kodak Vision 2383, Kodak Vision Premier 2393 and Fujifilm Eterna-CP 3513DI. Spectral
+  sensitivities, characteristic curves and dye densities are digitised from the published Kodak and
+  Fujifilm technical data (sources in `reference/datasheets/`), then the colour coupling (interlayer,
+  masks) is calibrated against the owner's reference renderings.
+- **P6 Modern Print**: 2383 spectral data with a modern tone scale - dense lower mids, true blacks,
+  soft highlight roll-off.
+- **Camera Emulation** (new group, on by default): "Fujifilm X-H2S -> ARRI ALEXA / AMIRA" renders
+  F-Log2 C / F-Log2 / F-Log footage with the colours the ALEXA's ALEV III sensor would have recorded.
+  Fitted from measured camera spectral sensitivities over ~950 reflectances under 13 illuminants: mean
+  colour error to the ALEXA 1.38 -> 1.15 dE2000 (daylight 1.62 -> 1.31, tungsten 1.57 -> 1.25). Greys are
+  untouched; Strength blends it in. Other cameras pass through.
+- **Print Crossover** (Print group): warm highlights / cool shadows the way release prints render
+  them (negative values reverse it). 0 = the print as designed.
+- Presets **Studio Modern** (the new default look), **Soft Cinema** (Eterna 250D on Eterna-CP) and
+  **Warm Print** (Vision3 250D on 2383 with Print Crossover).
+- `tools/look/owner_footage.py`: regression suite on the owner's F-Log2 C shots (metrics, contact
+  sheet, baseline check).
+
 ### Changed
+
+- **New default look**: Kodak Vision3 250D 5207 on P6 Modern Print with camera emulation, tuned toward
+  the ARRI LogC3 -> Rec.709 rendering (weight 0.6) and the Referent density (0.4). On the owner's eight
+  shots the mean colour difference is 2.5 dE2000 to the ARRI rendering and 2.7 to the Referent.
+- Hue hold: half strength, no chroma boost, and only beyond one stop from grey: highlight colours
+  now desaturate and shift like film and the references do (they were held colorimetric before).
+  The designed stocks render slightly differently in strong highlights.
 
 - **Personal build by default.** Celluloid Pro is now built for the owner's personal, non-commercial
   use: no license check, no trial watermark, and LUT export is always available. The License group

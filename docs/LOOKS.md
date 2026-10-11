@@ -189,6 +189,27 @@ index): new looks will be appended.
 
 **Key settings.** Negative CN 250D Soft Daylight, Print P4 Faded Archive, Printer R -1.5 / G +1, Print Density -1.5, Halation 0.8, Hal. Radius 30, Hal. Threshold 3, Hal. Hue 0.25, Bloom 0.35, Bloom Radius 60, Format 16 mm, Grain Amount 1, Grain Softness 0.7, Acutance 0, Gate Weave 1 at Speed 1.2, Vignette 0.4; Film Damage on: Dust 1.4 (Size 1.2, White Dust Mix 0.4), Scratches 1.2 (Persistence 0.4, Emulsion 0.5, White Scratch Mix 0.3), Hair 0.9; Film Blur on: Radius 4, Frequency 0.3, Duration 36, Breathing 0.35, Chromatic 0.5.
 
+## 15. Studio Modern
+
+The v1.2 default look as a preset. Kodak Vision3 250D 5207 on P6 Modern Print: dense lower mids, true
+blacks, a soft ARRI-like highlight roll-off, calm cyan-blue skies and warm, low-chroma skin. Fine Super 35
+grain (0.7), light halation (0.4) and bloom (0.12). Use it as the starting point for modern digital
+footage; with Fujifilm footage the camera emulation (not part of the preset) adds the ALEXA colour.
+
+## 16. Soft Cinema
+
+ETERNA-style softness: Fujifilm Eterna 250D 8563 on Eterna-CP 3513DI. Gentle contrast, restrained colour,
+open shadows, a quiet, slightly cool palette. Softer grain (0.6, softness 0.65), soft bloom. For drama,
+interiors, and anything that should feel calm rather than punchy.
+
+## 17. Warm Print
+
+The photochemical 2383 chain: Kodak Vision3 250D 5207 on Kodak Vision 2383 with Print Crossover 0.5 -
+golden highlights, cool teal-leaning shadows, rich print contrast. Grain 0.9, halation 0.55.
+
+Colour distance (chart + skin, colour only, mean dE2000) to the nearest other preset: Studio Modern 4.6
+(Studio Classic), Soft Cinema 4.3 (Warm Print), Warm Print 4.3 (Soft Cinema); all >= 2 as required.
+
 ## Revision notes (v1.1)
 
 * Halation no longer floods dark edges next to bright skies (new energy model, default threshold 2.5 -> 3.5

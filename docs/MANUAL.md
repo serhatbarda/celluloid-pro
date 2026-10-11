@@ -265,6 +265,9 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Home Movie Super 8* — Reversal film in the Super 8 gauge: bold colour, big soft grain, warm halation, nervous gate weave and heavy vignetting.
   - *Worn Release Print* — A well-run 35 mm release print, timed warm: high-speed negative on the standard print with a few dark specks, the odd white negative speck, a persistent print scratch now and then, gentle gate weave and a rare moment of soft focus.
   - *Found Footage 16* — A forgotten 16 mm reel: daylight negative on the faded print, its cyan dye gone warm-magenta, coarse grain, nervous weave, lots of dust and lint, flickering scratches, hairs in the gate and focus that drifts in and out.
+  - *Studio Modern* — The v1.2 default look as a preset: VISION3 250D on the modern print - dense lower mids, true blacks, soft ARRI-like highlight roll-off, calm skies and warm, low-chroma skin. Fine 35 mm grain.
+  - *Soft Cinema* — ETERNA-style softness: low-contrast daylight negative on the matching Eterna-CP print - gentle contrast, restrained colour, open shadows and a quiet, slightly cool palette.
+  - *Warm Print* — Classic release-print warmth: VISION3 250D printed on 2383 with Print Crossover - golden highlights, cool teal-leaning shadows, rich contrast. The character of a photochemical 2383 chain.
 - **Preset Status** (`lookPresetStatus`; read-only; shows “Custom” until a preset is chosen) — Which look preset the current settings come from. "(modified)" means you have changed at least one look setting since applying it.
 - **Mode** (`mode`; default: Full)
   - *Full* — complete film emulation (colour + halation, bloom, grain, lens and gate effects).
@@ -280,11 +283,20 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Enable Exposure** (`exposureEnable`; default on) — Switches the Exposure trim below on or off without losing its value. Off = the footage reaches the film exactly as it was recorded (0 stops).
 - **Exposure** (`exposure`; -4 … 4; default 0; keyframable) — Camera exposure correction in stops, applied to the scene before it reaches the film. Because it acts before the negative, +/- exposure slides the image along the film's characteristic curve: highlights roll off and shadows build density the way a real over/under-exposed negative does.
 
+### Camera Emulation
+
+*Makes the footage look as if it had been shot on another camera, before it reaches the film.*
+
+- **Enable Camera Emulation** (`cameraEmulationEnable`; default on) — Switches the camera emulation on or off without losing its settings. Off = the camera's own colour as decoded from its log encoding. It only acts on footage of the source camera (Fujifilm F-Log2 C / F-Log2 / F-Log input); other cameras pass through unchanged.
+- **Emulation** (`cameraEmulation`; default: Fujifilm X-H2S -> ARRI ALEXA / AMIRA) — Fujifilm X-H2S -> ARRI ALEXA / AMIRA: renders the colours the ALEXA's ALEV III sensor would have recorded of the same scene. Fitted from measured spectral responsivities (ARRI ALEXA; Fujifilm X-Trans X-T4 as the X-H2S proxy) over about 950 natural and test reflectances under daylight, tungsten, LED and fluorescent light: a smooth, exposure-independent correction in scene-linear light that leaves greys untouched. It changes skin, foliage, skies and saturated light the way the two sensors differ; colours two sensors see identically stay identical (sensor metamerism a 3-channel correction cannot undo).
+  - Options: Fujifilm X-H2S -> ARRI ALEXA / AMIRA
+- **Strength** (`cameraEmulationStrength`; 0 … 1; default 1; keyframable) — Blend between the camera's own colour (0) and the full emulation (1).
+
 ### Negative
 
 *Camera film stock and its development.*
 
-- **Film Stock** (`negStock`; default: CN 200T Studio Tungsten) — The camera negative (or reversal / black & white stock). It defines spectral sensitivity, tone curve, colour crosstalk, grain character and halation behaviour.
+- **Film Stock** (`negStock`; default: Kodak Vision3 250D 5207) — The camera negative (or reversal / black & white stock). It defines spectral sensitivity, tone curve, colour crosstalk, grain character and halation behaviour.
   - *CN 50D Fine Daylight* — Fine-grain daylight negative: clean, crisp and richly saturated with a neutral-cool balance.
   - *CN 200T Studio Tungsten* — Balanced tungsten studio negative: natural skin, dense mids, gently warm highlights. The reference stock.
   - *CN 250D Soft Daylight* — Low-contrast daylight negative: soft pastel colour, wide latitude, open shadows.
@@ -296,6 +308,14 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *RV 100 Slide* — Daylight colour reversal (slide) film: brilliant saturation, high contrast, deep blacks, short latitude.
   - *BW 400 Panchromatic* — Classic panchromatic black & white negative: rich mid-tones, visible grain, natural tonal response to colour.
   - *BW 100 Fine* — Fine-grain black & white negative: crisp, higher contrast, slightly blue-leaning (darker reds) panchromatic response.
+  - *Kodak Vision3 50D 5203* — VISION3 50D: the finest-grain daylight negative, clean and saturated with long highlight latitude.
+  - *Kodak Vision3 250D 5207* — VISION3 250D: medium-speed daylight negative, natural colour and soft, open highlights.
+  - *Kodak Vision3 200T 5213* — VISION3 200T: tungsten negative with fine grain, rich mid-tones and clean shadows.
+  - *Kodak Vision3 500T 5219* — VISION3 500T: the high-speed tungsten workhorse: low shadow grain, warm under tungsten, big latitude.
+  - *Fujifilm Eterna 250D 8563* — ETERNA 250D: soft-contrast daylight negative with restrained, calm colour (Fujifilm curves; spectral proxies).
+  - *Kodak Portra 400* — PORTRA 400: portrait colour negative: warm, low-chroma skin, very wide latitude.
+  - *Kodak Ektachrome E100* — EKTACHROME E100: daylight reversal: clean neutral greys, crisp, saturated colour, short latitude.
+  - *Kodachrome 64 Style* — Kodachrome-style reversal (designed, no data sheet): dense, contrasty, warm reds, deep blue skies.
 - **Enable Development** (`developmentEnable`; default on) — Switches the development controls below (Push / Pull, Color Density, Neg Bleach Bypass, Neutralize) on or off without losing their values. Off = the stock's standard development: no push or pull, nominal colour density, normal bleach, the stock's own curves. The film stock itself always stays active - it is the look.
 - **Push / Pull** (`pushPull`; -2 … 3; default 0; keyframable) — Development in stops. Push (+) raises contrast and effective speed, lifts fog and makes the grain coarser (about x1.25 per stop); pull (-) gives a softer, lower-contrast, finer-grained negative. Unlike Exposure this changes the curve shape, not the position on it.
 - **Color Density** (`interlayer`; 0 … 2; default 1; keyframable) — Interlayer (DIR) effect: how strongly the dye layers inhibit each other. 1 = the stock's nominal colour density; higher values give denser, more separated colours, 0 a flatter, purer-channel rendering. Neutrals stay neutral at any setting.
@@ -310,14 +330,15 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Print* — the negative is printed onto print stock and projected - the classic cinema look with dense blacks and rich colour.
   - *Lab Scan* — the negative is scanned and inverted by a lab scanner - a flatter, more neutral rendering that keeps the negative's character without print-stock contrast.
   - Reversal (slide) stocks are direct positives and ignore this setting.
-- **Print Stock** (`printStock`; default: P1 Standard Projection) — The print film the negative is printed on (Process = Print). It sets print contrast, black density, highlight roll-off and the colour of the projected image.
-  - Options: P1 Standard Projection · P2 Low Contrast · P3 Rich Contrast · P4 Faded Archive · P5 Silver Retention
+- **Print Stock** (`printStock`; default: P6 Modern Print) — The print film the negative is printed on (Process = Print). It sets print contrast, black density, highlight roll-off and the colour of the projected image.
+  - Options: P1 Standard Projection · P2 Low Contrast · P3 Rich Contrast · P4 Faded Archive · P5 Silver Retention · Kodak Vision 2383 · Kodak Vision Premier 2393 · Fujifilm Eterna-CP 3513DI · P6 Modern Print
 - **Enable Print Timing** (`printEnable`; default on) — Switches the lab timing controls below (Printer Red / Green / Blue, Print Density, Print Bleach Bypass) on or off without losing their values. Off = the automatically grey-balanced light at 0 points and normal print processing. Process and Print Stock always stay active - they are the look.
 - **Printer Red** (`printerR`; -12 … 12; default 0; keyframable) — Red printer light. More red light (+) adds cyan to the print: the image gets LESS red / more cyan. Fewer points (-) warm it towards red. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Printer Green** (`printerG`; -12 … 12; default 0; keyframable) — Green printer light. More green light (+) adds magenta to the print: the image gets LESS green / more magenta. Fewer points (-) push it towards green. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Printer Blue** (`printerB`; -12 … 12; default 0; keyframable) — Blue printer light. More blue light (+) adds yellow to the print: the image gets LESS blue / more yellow. Fewer points (-) cool it towards blue. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Print Density** (`printExposure`; -12 … 12; default 0; keyframable) — Overall printer light in points on all three layers. Positive values make the print BRIGHTER (less print density), negative values darker and denser. This is the lab's way to brighten or darken a print: highlights and blacks respond like real print film, not like a gain.
 - **Print Bleach Bypass** (`printBleach`; 0 … 1; default 0; keyframable) — Bleach bypass on the print: retained silver deepens the blacks and shadows, raises contrast and desaturates - the classic gritty, metallic release-print look. 0 = normal processing.
+- **Print Crossover** (`printCrossover`; -1 … 1; default 0; keyframable) — Warm highlights and cool shadows the way many release prints render them (the classic 2383 chain): positive values add yellow and remove cyan in the bright end of the print and do the opposite in the shadows, growing from the middle of the scale outward, while middle grey stays neutral. Negative values reverse it (cool highlights, warm shadows). 0 = the print stock exactly as designed. Print process only.
 
 ### Halation
 

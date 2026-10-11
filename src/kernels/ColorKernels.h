@@ -94,11 +94,23 @@ CEL_DEVICE CelF3 celc_lut3(CEL_GLOBAL const float* s, int off, int n, float mx, 
 }
 
 /* ------------------------------------------------------------------------- input */
+/* Camera Emulation (v1.2): scene-linear Rec.2020 of one camera -> as if shot on another (fitted from measured
+ * spectral responsivities, reference/camera_emulation.py): rgb' = A rgb + B (sqrt(rg), sqrt(gb), sqrt(rb)),
+ * A, B already blended with the strength in prepare(). Degree-2 root polynomial: exposure-invariant (k rgb ->
+ * k rgb'), neutrals unchanged (rows of [A B] sum to 1); the root terms only see the positive part of each
+ * product, so out-of-gamut (negative) inputs stay finite and continuous. */
+CEL_DEVICE CelF3 celc_emulate(CEL_GLOBAL const float* s, CelF3 l) {
+    CelF3 o = celc_mat3(s, CEL_CS_EMU_A, l);
+    CelF3 rp = cel_f3(cel_sqrt(cel_fmax(l.x * l.y, 0.0f)), cel_sqrt(cel_fmax(l.y * l.z, 0.0f)), cel_sqrt(cel_fmax(l.x * l.z, 0.0f)));
+    CelF3 q = celc_mat3(s, CEL_CS_EMU_B, rp);
+    return cel_f3(o.x + q.x, o.y + q.y, o.z + q.z);
+}
 CEL_DEVICE CelF3 celc_decode_px(CEL_GLOBAL const float* s, CelF3 e) {
     int sp = celc_i(s, CEL_CS_INPUT);
     CelF3 l = cel_f3(celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.x))), celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.y))),
                      celc_sanitize(celc_decode_transfer(sp, celc_sanitize(e.z))));
     l = celc_mat3(s, CEL_CS_MIN, l);
+    if (s[CEL_CS_EMU_ON] > 0.5f) l = celc_emulate(s, l);
     float g = s[CEL_CS_GAIN];
     return cel_f3(celc_sanitize(l.x * g), celc_sanitize(l.y * g), celc_sanitize(l.z * g));
 }
@@ -323,7 +335,8 @@ CEL_DEVICE CelF3 celc_hold_k(CEL_GLOBAL const float* s, CelF3 X, float xref, Cel
     float st = cel_log2(Ys / 0.18f);
     /* g: hold strength without the anchor validity weight aw (the chroma hold uses g: aw falls along
      * a saturation ramp toward the gamut edge and would fold the chroma); hue turn t = g * aw */
-    float g = hold * (1.0f - cel_exp(-CEL_HOLD_K * st * st));
+    float so = cel_fmax(cel_fabs(st) - s[CEL_CS_HOLD_ONSET], 0.0f);   /* v1.2: no hold within +-onset stops of grey */
+    float g = hold * (1.0f - cel_exp(-CEL_HOLD_K * so * so));
     int nno = celc_i(s, CEL_CS_HOLD_N_OFF), nnn = celc_i(s, CEL_CS_HOLD_N_N);
     CelF3 nt = celc_lut1_3(s, nno, nnn, CEL_HOLD_X0, CEL_HOLD_X1, cel_f3(xref, xref, xref));
     float cy = celc_labf(X.y);
