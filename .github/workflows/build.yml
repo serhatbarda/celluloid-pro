@@ -8,10 +8,17 @@
 # watermark, LUT export always on) - the owner's own non-commercial build. The licensed variant
 # (-DCEL_LICENSING=ON) is built by a manual run with the "licensing" input switched on.
 #
-# Every push/PR builds both installers and uploads them as workflow artifacts. A tag "v*" (e.g.
-# v1.0.0, must match the project version in CMakeLists.txt) also publishes both installers together
-# from the "release" job; the release licence gate runs only for licensed builds (a personal build
-# has no license keys to check).
+# When it runs:
+#   - push to main: macOS and Windows, but only when the push touches build-relevant paths (code,
+#     CMake, third_party, tests, the test host, bundled resources, installers, this workflow).
+#     Docs, *.md, tools/look, reference/ data that is not compiled in, etc. do not trigger CI.
+#   - tag "v*" (e.g. v1.0.0, must match the project version in CMakeLists.txt): both jobs, then
+#     the "release" job publishes both installers together; the release licence gate runs only
+#     for licensed builds (a personal build has no license keys to check).
+#   - manual run (Run workflow): both jobs; the "licensing" input switches to the licensed variant.
+# There is no pull_request trigger (PRs are not used). A newer run on the same ref cancels an older
+# one (except on tags). macOS uses ccache (actions/cache) to cut compile time; job timeouts are
+# sized to catch hangs (normal runs: macOS a few minutes, Windows about 13 minutes).
 #
 # Signing is optional and switched on by repository secrets:
 #   macOS:   MACOS_CERT_P12 (base64 Developer ID Application .p12), MACOS_CERT_PASSWORD,
@@ -25,7 +32,20 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-  pull_request:
+    # Applies to branch pushes only: GitHub does not evaluate path filters for tag pushes.
+    paths:
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'third_party/**'
+      - 'tests/**'
+      - 'tools/ofxhost/**'
+      - 'tools/licensegen/**'
+      - 'tools/docs/**'
+      - 'resources/**'
+      - 'reference/golden/**'
+      - 'installers/**'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       licensing:
@@ -49,7 +69,7 @@ jobs:
   macos:
     name: macOS universal (Metal)
     runs-on: macos-14
-    timeout-minutes: 120
+    timeout-minutes: 45   # a normal run takes well under that; catches hangs
     env:
       MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
       MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
@@ -76,10 +96,29 @@ jobs:
           fi
           xcrun -sdk macosx metal --version || true
 
+      - name: ccache
+        run: |
+          brew install ccache
+          echo "CCACHE_DIR=$RUNNER_TEMP/ccache" >> "$GITHUB_ENV"
+          echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          echo "CCACHE_COMPRESS=1" >> "$GITHUB_ENV"
+          echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', '**/CMakeLists.txt') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', '**/CMakeLists.txt') }}-
+            ccache-${{ runner.os }}-
+
       - name: Configure
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          -DCMAKE_OBJCXX_COMPILER_LAUNCHER=ccache
           -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
           -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
           -DCEL_ENABLE_METAL=ON
@@ -89,23 +128,12 @@ jobs:
           -DCEL_BUILD_ID=${{ steps.ver.outputs.build_id }}
 
       - name: Build
-        run: cmake --build build --config ${BUILD_TYPE} --parallel 4
-
-      - name: Metal syntax check (offline compile of the flattened MSL)
         run: |
-          cmake --build build --target celgpu_kernel_sources
-          shopt -s nullglob
-          files=(build/src/gpu/generated/*.metal build/tests/gpu/generated/*.metal)
-          [ ${#files[@]} -gt 0 ] || { echo "::error::no flattened .metal sources found"; exit 1; }
-          if [ -f tests/gpu/metal_syntax/check_metal.sh ]; then
-            bash tests/gpu/metal_syntax/check_metal.sh "${files[@]}"
-          else
-            for f in "${files[@]}"; do
-              xcrun -sdk macosx metal -std=macos-metal2.3 -mmacosx-version-min=11.0 -fno-fast-math \
-                -c "$f" -o "$RUNNER_TEMP/$(basename "$f" .metal).air"
-              echo "Metal source compiles: $f"
-            done
-          fi
+          cmake --build build --config ${BUILD_TYPE} --parallel 4
+          ccache --show-stats || true
+
+      # The offline Metal compile of the flattened MSL is the ctest test gpu_metal_xcrun (run with
+      # the unit tests below), so it is not repeated as a separate step.
 
       - name: Verify bundle
         run: bash installers/ci/verify_bundle.sh build/ReafilmPro.ofx.bundle macos
@@ -116,6 +144,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') && env.CEL_LICENSING == 'ON'
         run: bash installers/ci/release_gate.sh build build/ReafilmPro.ofx.bundle
 
+      # Unit tests and GPU device tests are disjoint label sets, so no test runs twice. The long
+      # per-test timeouts only catch hangs; the job timeout caps the total.
       - name: Unit tests
         run: ctest --test-dir build -C ${BUILD_TYPE} --output-on-failure --timeout 900 -LE "gpu-device|linux-only"
 
@@ -211,7 +241,7 @@ jobs:
   windows:
     name: Windows x64 (CUDA, OpenCL)
     runs-on: windows-2022
-    timeout-minutes: 150
+    timeout-minutes: 60   # a normal run takes about 13 minutes
     env:
       WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
       WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}

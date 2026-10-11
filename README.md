@@ -218,9 +218,18 @@ python3 tools/docs/gen_manual_controls.py --bundle build/ReafilmPro.ofx.bundle \
 
 ## CI, releases and signing
 
-`.github/workflows/build.yml` runs on every push to `main`, on pull requests and on tags `v*`. It
-builds the **personal build** by default; a manual run (*Run workflow*) with the `licensing` input
-builds the licensed variant (`-DCEL_LICENSING=ON`):
+`.github/workflows/build.yml` runs:
+
+- on a push to `main` (macOS and Windows), but only when it touches build-relevant paths
+  (`src/`, `CMakeLists.txt`, `cmake/`, `third_party/`, `tests/`, `tools/ofxhost/`,
+  `tools/licensegen/`, `tools/docs/`, `resources/`, `reference/golden/`, `installers/`,
+  `.github/workflows/`). Docs and look-dev tools do not trigger CI;
+- on a tag `v*`: both platforms, then the release is published;
+- on a manual run (*Run workflow*): both platforms.
+
+There is no pull-request trigger. A newer run cancels an older one on the same branch. It builds
+the **personal build** by default; the `licensing` input of a manual run builds the licensed variant
+(`-DCEL_LICENSING=ON`):
 
 | Job | Runner | Does |
 |---|---|---|
@@ -228,7 +237,7 @@ builds the licensed variant (`-DCEL_LICENSING=ON`):
 | Windows x64 (CUDA, OpenCL) | windows-2022 | MSVC + CUDA 12.9 build, bundle verification, unit tests, GPU probes, Inno Setup installer and bundle zip |
 | GitHub Release | ubuntu-latest, tags only | after both jobs succeed, publishes all installers to the release of the tag |
 
-Every run uploads the installers as workflow artifacts
+Every job uploads its installers as workflow artifacts
 (`ReafilmPro-<version>-macOS.{pkg,dmg}`, `ReafilmPro-<version>-Windows-Setup.exe`,
 `ReafilmPro-<version>-Windows-bundle.zip`). There is deliberately no Linux job.
 
