@@ -24,13 +24,18 @@
  *                                                                        reversal dyes); XYZ is integrated per
  *                                                                        pixel (celc_project), dye amounts
  *                                                                        clamped to [0, PJ_MAX]
+ *   NS   (stage axis)  4 x N (v1.3, only when a stage exit is active):  rows 0..2: printing density of each print
+ *                      layer (Log Scan convention, above the clear      layer for a NEUTRAL scene at log10 grey level
+ *                      negative) over X in [NS_X0, NS_X1];              X (strictly increasing); row 3: the scene-
+ *                                                                       referred log10 level Y(X) that density maps
+ *                                                                       back to (Negative -> Scene, Print Only)
  */
 #ifndef CEL_COLOR_STATE_H
 #define CEL_COLOR_STATE_H
 
 #define CEL_CS_MAGIC_VALUE   7341.0f
-#define CEL_CS_LAYOUT_VALUE  5.0f
-#define CEL_CS_HEADER        160   /* v1.2: 128 -> 160 (indices 128..159 below) */
+#define CEL_CS_LAYOUT_VALUE  6.0f
+#define CEL_CS_HEADER        208   /* v1.2: 128 -> 160; v1.3 WP-1: 160 -> 208 (indices 160..207 below) */
 
 /* header indices */
 #define CEL_CS_MAGIC        0
@@ -100,6 +105,25 @@
 #define CEL_CS_EMU_A        129  /* 129..137 linear part (already blended with the strength: I + s (A - I)) */
 #define CEL_CS_EMU_B        138  /* 138..146 root-polynomial part x strength: + B (sqrt(rg), sqrt(gb), sqrt(rb)) */
 #define CEL_CS_HOLD_ONSET   147  /* hue hold acts beyond this many stops from grey (celc_hold) */
+
+/* ---- v1.3 WP-1: pipeline stage exits (indices 160..207). 0 / unset = Full chain (bit-identical to v1.2) */
+#define CEL_CS_STAGE        160  /* 0 full, 1 negative -> log scan, 2 negative -> scene, 3 print only (core::Stage) */
+#define CEL_CS_SCENE_TF     161  /* Negative -> Scene: transfer (CEL_IN_* code of ColorTransfer.h) */
+#define CEL_CS_NS_OFF       162  /* NS block (4 x N, see the table above) */
+#define CEL_CS_NS_N         163
+#define CEL_CS_NS_X0        164
+#define CEL_CS_NS_X1        165
+#define CEL_CS_HCLEAR       166  /* 166..168 log10 print-layer exposure through the clear negative (D-min, no silver) */
+#define CEL_CS_MSCENE       169  /* 169..177 scene-linear Rec.2020 -> Negative -> Scene output gamut */
+#define CEL_CS_MMASK        178  /* 178..186 Negative -> Scene: grey-preserving dye-crosstalk correction (linear) */
+#define CEL_CS_MASK_ON      187  /* 1 = apply MMASK */
+#define CEL_CS_MMASKI       188  /* 188..196 inverse of MMASK (Print Only: scene level -> film layer level) */
+/* 197..207 free */
+
+/* Log Scan code values (Cineon-style printing density): code = (CV0 + PD / STEP) / 1023, PD = printing density
+ * above the clear (D-min) negative, 0.002 density per 10-bit code value, D-min at code 95 */
+#define CEL_LOGSCAN_CV0     95.0f
+#define CEL_LOGSCAN_STEP    0.002f
 
 /* model constants shared by host and kernels (== reference/model.py) */
 #define CEL_LOG10_018      (-0.7447274948966939f)

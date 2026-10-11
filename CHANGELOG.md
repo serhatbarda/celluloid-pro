@@ -4,6 +4,18 @@ All notable changes to Celluloid Pro. Versions follow [Semantic Versioning](http
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.3.0] — unreleased
+
+### Added
+
+- **Pipeline Stage** (Look group): run one part of the film chain per node. *Negative -> Log Scan*
+  writes the developed negative as a Cineon-style printing-density scan, *Print Only* prints such a
+  scan, *Negative -> Scene* gives the negative back as scene light in **Scene Encoding** (ARRI LogC4 /
+  AWG4, LogC3 / AWG3, ACEScct, DaVinci Intermediate, Linear Rec.2020) for your own display transform,
+  *Negative Only (clean)* is that without any texture, *Texture Only* is the existing mode. Grain,
+  halation and damage act in the film layer the stage holds. Default Full Chain: existing projects
+  render unchanged. Identical on CPU, OpenCL, CUDA and Metal.
+
 ## [1.2.0] — unreleased
 
 ### Added
@@ -36,9 +48,13 @@ unchanged in a newer one.
 - **Film Resolution** (new group, on by default): the camera negative's own sharpness for the chosen
   gauge (per colour layer, from the VISION3 MTF curves) and **Integrate**, the print/scan resolution
   that picture and grain share (default 0.5).
-- **Physical halation** (Halation Threshold 0, the new default): no threshold - a fixed share of all
-  the light comes back from the film base as a thin warm ring around every bright edge, added to the
-  film's exposure so the film renders it (never magenta). Thresholds above 0 keep the v1.1 behaviour.
+- **Physical halation** (Halation Threshold 0, the new default): no threshold - light comes back from
+  the film base as a thin warm ring around bright edges, added to the film's exposure so the film
+  renders it (never magenta). A smooth highlight emphasis gives practicals and speculars their full
+  share while a bright overcast sky does not tint the dark window in front of it. Thresholds above 0
+  keep the v1.1 behaviour.
+- Grain follows the pixel's film area: a proxy (render scale 0.5) shows the grain of the downsampled
+  full-resolution frame; 1920 px is the calibration point.
 
 ### Changed
 

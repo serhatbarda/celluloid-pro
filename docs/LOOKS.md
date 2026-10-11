@@ -167,7 +167,7 @@ index): new looks will be appended.
 
 **When to use.** Home-movie inserts, memories, music videos, titles. Combine with a 4:3 crop and frame-rate reduction in Resolve for the full effect.
 
-**Key settings.** Negative RV 100 Slide, Push/Pull 1.5, Color Density 1.6, Halation 0.8, Hal. Radius 30, Hal. Hue 0.3, Bloom 0.45, Bloom Radius 70, Format Super 8, Grain Amount 1.6, Grain Softness 0.6, Acutance -0.15, Gate Weave 1.1, Weave Speed 1.4, Vignette 0.45.
+**Key settings.** Negative RV 100 Slide, Push/Pull 1.5, Color Density 1.9, Halation 0.8, Hal. Radius 30, Hal. Hue 0.3, Bloom 0.45, Bloom Radius 70, Format Super 8, Grain Amount 1.6, Grain Softness 0.6, Acutance -0.15, Gate Weave 1.1, Weave Speed 1.4, Vignette 0.45.
 
 ## 13. Worn Release Print
 
@@ -230,11 +230,21 @@ Colour distance (chart + skin, colour only, mean dE2000) to the nearest other pr
 * Two looks appended for film damage (feature round 1.1): Worn Release Print and Found Footage 16 (above). Every
   other preset switches Film Damage and Film Blur off (presets reset unlisted look parameters to their defaults).
 
+## Revision notes (v1.2)
+
+* Home Movie Super 8: Color Density 1.6 -> 1.9. Under the v1.2 hue hold it had drifted to 1.80 mean
+  dE2000 from Slide Show Brilliance (colour-only chart); it is now 2.32 (>= 2 required).
+* Warm Print: Print Crossover now keeps each print layer's fog and D-max (endpoint-preserving pivot,
+  src/core/Core.cpp printCrossover). The earlier linear scale-and-clamp made the red channel of a grey
+  ramp turn down by ~4e-5 near +5 stops (render test `presets`: monotonic). The look is unchanged near
+  middle grey; the warm/cool split now fades out toward white and black.
+
 ## Revision notes (v1.2, texture)
 
-* Every preset uses the new physical halation (their Hal. Threshold settings are gone: threshold 0 =
-  a thin warm ring around every bright edge in proportion to its brightness, flat bright areas stay
-  clean). Halation amounts, radii and hues are unchanged; the ring radius now follows the gauge
+* Every preset uses the new physical halation (their Hal. Threshold settings are gone, including those
+  of Studio Modern, Soft Cinema and Warm Print: threshold 0 = a thin warm ring around every bright edge,
+  strongest for practicals and speculars; flat bright areas stay clean and a bright overcast sky does
+  not tint the dark objects in front of it). Halation amounts, radii and hues are unchanged; the ring radius now follows the gauge
   (16 mm presets get about 1.4x the Super 35 radius, Super 8 about 2x).
 * Archive 1978: Gate Weave 0.5 -> 0.4 (<= 0.3 px rms at 1920 width). Home Movie Super 8, Worn Release
   Print and Found Footage 16 keep their deliberate weave.

@@ -182,7 +182,15 @@ constexpr const char* printCrossover = "printCrossover";
 constexpr const char* gFilmResolution = "groupFilmResolution";
 constexpr const char* filmResolutionEnable = "filmResolutionEnable";
 constexpr const char* integrate = "integrate";
+// ---- v1.3 WP-1: modular pipeline (stage exits) --------------------------------------------------
+constexpr const char* pipelineStage = "pipelineStage";          // [Look]
+constexpr const char* sceneEncoding = "sceneEncoding";          // [Output]
 } // namespace id
+
+// v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are
+// shortcuts: Texture Only = Mode Texture Only, Negative Only (clean) = Negative -> Scene with every texture
+// module off (as Mode Color Only).
+enum class StageChoice : int { Full = 0, NegativeLogScan, NegativeToScene, PrintOnly, TextureOnly, NegativeClean, Count };
 
 // LUT sizes offered by lutSize, in option order.
 constexpr int kLutSizes[3] = {17, 33, 65};

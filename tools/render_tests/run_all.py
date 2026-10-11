@@ -34,12 +34,13 @@ PARITY_TOL = 2e-4       # SPEC §6: CPU vs OpenCL max abs diff on encoded output
 LUT_TOL = 2e-4          # .cube vs Color Only render at lattice points
 
 # SPEC §7: id, kind, default, min, max  (kind: double/int/bool/choice/string/button)
+# (v1.2 owner decision: default stock pair Kodak Vision3 250D 5207 + P6 Modern Print, SPEC §13)
 SPEC7 = [
     ("lookPreset", "choice", "Custom", None, None), ("mode", "choice", "Full", None, None),
     ("inputSpace", "choice", r"F-?Log2\s*C", None, None), ("exposure", "double", 0.0, -4, 4),
-    ("negStock", "choice", "200T", None, None), ("pushPull", "double", 0.0, -2, 3),
+    ("negStock", "choice", "Vision3 250D 5207", None, None), ("pushPull", "double", 0.0, -2, 3),
     ("interlayer", "double", 1.0, 0, 2), ("negBleach", "double", 0.0, 0, 1), ("neutralize", "double", 0.0, 0, 1),
-    ("process", "choice", "Print", None, None), ("printStock", "choice", "P1", None, None),
+    ("process", "choice", "Print", None, None), ("printStock", "choice", "P6 Modern Print", None, None),
     ("printerR", "double", 0.0, -12, 12), ("printerG", "double", 0.0, -12, 12), ("printerB", "double", 0.0, -12, 12),
     ("printExposure", "double", 0.0, -12, 12), ("printBleach", "double", 0.0, 0, 1),
     ("halationAmount", "double", 0.5, 0, 2), ("halationRadius", "double", 20, 2, 80),

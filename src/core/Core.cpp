@@ -37,6 +37,13 @@ std::vector<std::string> outputSpaceNames() {
     return {"Rec.709 (Gamma 2.4)", "Rec.709 (sRGB)", "P3-D65 (Gamma 2.6)", "DCI-P3 (Gamma 2.6, D65 sim)",
             "Rec.2100 PQ (HDR)", "Rec.2100 HLG (HDR)"};
 }
+std::vector<std::string> stageNames() {
+    return {"Full Chain", "Negative -> Log Scan", "Negative -> Scene", "Print Only"};
+}
+std::vector<std::string> sceneEncodingNames() {
+    return {"ARRI LogC4 / ARRI Wide Gamut 4", "ARRI LogC3 (EI 800) / ARRI Wide Gamut 3", "ACEScct / AP1",
+            "DaVinci Intermediate / DaVinci Wide Gamut", "Linear Rec.2020"};
+}
 std::vector<NegativeStockInfo> negativeStocks() {
     std::vector<NegativeStockInfo> v;
     for (int i = 0; i < st::numNegatives(); ++i) {
@@ -91,7 +98,8 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
            a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount && a.cameraEmulation == b.cameraEmulation &&
-           a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover;
+           a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover && a.stage == b.stage &&
+           a.sceneEncoding == b.sceneEncoding;
 }
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
@@ -118,6 +126,12 @@ static LookParams sanitize(LookParams p) {
     if (p.cameraEmulation < 0 || p.cameraEmulation >= int(CameraEmulation::Count)) p.cameraEmulation = 0;
     p.emulationStrength = clampf(p.emulationStrength, 0.f, 1.f);
     p.printCrossover = std::isfinite(p.printCrossover) ? clampf(p.printCrossover, -1.f, 1.f) : 0.f;
+    // v1.3 stage exits: reversal stocks have no negative stage (full chain); every exit uses the print
+    // path's tables (printing density is defined by the print stock), so Process is normalised to Print
+    if (p.stage < 0 || p.stage >= int(Stage::Count)) p.stage = 0;
+    if (p.sceneEncoding < 0 || p.sceneEncoding >= int(SceneEncoding::Count)) p.sceneEncoding = 0;
+    if (st::negative(p.negStock).kind == st::kReversal) p.stage = 0;
+    if (p.stage != 0) p.process = Process::NegativeToPrint;
     return p;
 }
 
@@ -183,21 +197,141 @@ struct Grey {
 // Print Crossover (v1.2, SPEC 4.4): the classic print crossover - slightly different contrast of the print's
 // layers around the middle of the scale (the trait of the owner's 2383 references: warm highlights, cool
 // shadows). Each layer's density table is scaled about the mid density Dm:
-//   D'(u) = Dm + (D(u) - Dm) (1 + c a_j kPrintXoverGamma),  a = (+1, 0, -1) for the R- (cyan), G-, B- (yellow) layer,
-// clamped to the layer's own fog .. D-max. c > 0: less cyan / more yellow below Dm (scene highlights, warm),
-// more cyan / less yellow above it (shadows, cool). Every layer stays monotonic; the grey balance solved
-// afterwards keeps 18 % grey neutral. c = 0 leaves the table untouched (bit-identical).
+//   g_j = 1 + c a_j kPrintXoverGamma,  a = (+1, 0, -1) for the R- (cyan), G-, B- (yellow) layer,
+//   x = (D - Dm) / (E - Dm) in [0, 1] toward the layer's end E (fog below Dm, D-max above),
+//   D' = Dm + (E - Dm) g x / (1 + (g - 1) x)
+// i.e. slope g at the pivot, the layer's own fog and D-max kept, strictly monotonic for any g > 0. (v1.2 fix:
+// the first version scaled linearly and clamped at fog / D-max; the steeper layer then reached its fog stops
+// earlier than the others, and the display red of a warm grey ramp turned down by ~4e-5 near +5 stops.)
+// c > 0: less cyan / more yellow below Dm (scene highlights, warm), more cyan / less yellow above it (shadows,
+// cool); the effect fades out toward fog and D-max. The grey balance solved afterwards keeps 18 % grey neutral.
+// c = 0 leaves the table untouched (bit-identical).
 // == reference/model.py print_crossover
 static void printCrossover(float* pc, float c, bool mono) {
     if (mono) return;
     static const double a[3] = {1.0, 0.0, -1.0};
     for (int j = 0; j < 3; ++j) {
-        float* t = pc + size_t(j) * kNCurve;
-        const float lo = t[0], hi = t[kNCurve - 1];
         const double g = 1.0 + double(c) * a[j] * kPrintXoverGamma;
-        for (int i = 0; i < kNCurve; ++i)
-            t[i] = std::min(std::max(float(kPrintXoverDm + (double(t[i]) - kPrintXoverDm) * g), lo), hi);
+        if (g == 1.0) continue;
+        float* t = pc + size_t(j) * kNCurve;
+        const double lo = t[0], hi = t[kNCurve - 1], dm = kPrintXoverDm;
+        for (int i = 0; i < kNCurve; ++i) {
+            const double D = t[i];
+            const double end = D < dm ? lo : hi, span = dm - end;
+            double r = D;
+            if (D != dm && std::fabs(span) > 1e-9) {
+                const double x = (dm - D) / span;
+                r = dm - span * (g * x / (1.0 + (g - 1.0) * x));
+            }
+            t[i] = float(std::min(std::max(r, std::min(lo, hi)), std::max(lo, hi)));
+        }
     }
+}
+
+// ---- v1.3 stage exits (SPEC 4.7) --------------------------------------------------------------------
+// The neutral stage axis: for a neutral scene at log10 level X (knots over [grey - 4, grey + 3]) the printing
+// density of each print layer (Log Scan, rows 0..2, made strictly increasing) and the scene-referred level
+// Y(X) it maps back to (row 3). Y follows the scene exactly (Y = X) wherever the G layer still has at least
+// a quarter of its mid-scale gamma and compresses smoothly where the film has lost the information (deep
+// toe, extreme shoulder): dY/dX = r / (1 + r^4)^(1/4), r = slope / (0.25 gamma_mid), floored at 1e-3. Every
+// channel maps through the same Y, so neutrals come back neutral at every level (grey-balanced inverse),
+// finite in the toe, and the film's own colour (layer crosstalk, interlayer, curve differences between the
+// layers away from neutral, grain, halation in exposure) stays in. == the kernel's celc_ns_* lookups.
+static constexpr int kStageN = 1401;               // 0.005 log10 per knot, grey is knot 800
+static constexpr double kStageX0 = kLog10Grey - 4.0, kStageX1 = kLog10Grey + 3.0;
+static constexpr double kStageGammaMin = 0.25;     // share of the mid-scale gamma below which Y compresses
+
+static spec::Gamut sceneGamut(SceneEncoding e) {
+    switch (e) {
+    case SceneEncoding::LogC3_AWG3: return spec::Gamut::AWG3;
+    case SceneEncoding::ACEScct_AP1: return spec::Gamut::AP1;
+    case SceneEncoding::DaVinciIntermediate: return spec::Gamut::DWG;
+    case SceneEncoding::LinearRec2020: return spec::Gamut::Rec2020;
+    default: return spec::Gamut::AWG4;
+    }
+}
+static int sceneTransfer(SceneEncoding e) {
+    switch (e) {
+    case SceneEncoding::LogC3_AWG3: return CEL_IN_LOGC3;
+    case SceneEncoding::ACEScct_AP1: return CEL_IN_ACESCCT;
+    case SceneEncoding::DaVinciIntermediate: return CEL_IN_DAVINCI;
+    case SceneEncoding::LinearRec2020: return CEL_IN_LINEAR;
+    default: return CEL_IN_LOGC4;
+    }
+}
+
+static void buildStageAxis(float* s, const LookParams& p, int oNS, int oPL, int plN, float plMax) {
+    const int N = kStageN;
+    s[CEL_CS_STAGE] = float(p.stage);
+    s[CEL_CS_NS_OFF] = float(oNS);
+    s[CEL_CS_NS_N] = float(N);
+    s[CEL_CS_NS_X0] = float(kStageX0);
+    s[CEL_CS_NS_X1] = float(kStageX1);
+    const CelF3 hc = celc_lut3(s, oPL, plN, plMax, cel_f3(s[CEL_CS_DMIN], s[CEL_CS_DMIN + 1], s[CEL_CS_DMIN + 2]));
+    s[CEL_CS_HCLEAR] = hc.x; s[CEL_CS_HCLEAR + 1] = hc.y; s[CEL_CS_HCLEAR + 2] = hc.z;
+    float* T = s + oNS;
+    const double dx = (kStageX1 - kStageX0) / (N - 1);
+    for (int k = 0; k < N; ++k) {
+        const float g = float(std::pow(10.0, kStageX0 + dx * k));
+        CelcNeg ng = celc_negative(s, cel_f3(g, g, g), cel_f3(0, 0, 0), 0);
+        CelF3 pd = celc_printing_density(s, ng);
+        for (int j = 0; j < 3; ++j) {
+            float v = celc_comp(pd, j);
+            if (k > 0) v = std::max(v, T[j * N + k - 1] + 1e-5f);   // strictly increasing (flat toe / shoulder)
+            T[j * N + k] = v;
+        }
+    }
+    const int kg = int(std::lround((kLog10Grey - kStageX0) / dx));
+    const int k1 = std::min(N - 1, kg + 30), k0 = std::max(0, kg - 30);
+    const double gmid = std::max(1e-3, double(T[N + k1] - T[N + k0]) / ((k1 - k0) * dx));
+    auto slope = [&](int k) {   // dY/dX on the segment k .. k+1 (G layer)
+        const double r = double(T[N + k + 1] - T[N + k]) / dx / (kStageGammaMin * gmid);
+        return std::max(1e-3, r / std::pow(1.0 + r * r * r * r, 0.25));
+    };
+    std::vector<double> Y(static_cast<size_t>(N));
+    Y[size_t(kg)] = kStageX0 + dx * kg;
+    for (int k = kg; k < N - 1; ++k) Y[size_t(k + 1)] = Y[size_t(k)] + dx * slope(k);
+    for (int k = kg; k > 0; --k) Y[size_t(k - 1)] = Y[size_t(k)] - dx * slope(k - 1);
+    for (int k = 0; k < N; ++k) T[3 * N + k] = float(Y[size_t(k)]);
+    for (int k = 1; k < N; ++k) T[3 * N + k] = std::max(T[3 * N + k], T[3 * N + k - 1] + 1e-6f);
+    // Negative -> Scene output encoding
+    const SceneEncoding enc = SceneEncoding(p.sceneEncoding);
+    s[CEL_CS_SCENE_TF] = float(sceneTransfer(enc));
+    putMat(s, CEL_CS_MSCENE, spec::rgbToRgb(spec::Gamut::Rec2020, sceneGamut(enc)));
+    // First-order colour masking: the film layers' own primaries (spectral sensitivities and dye crosstalk)
+    // are taken back to scene colorimetry by the inverse of the log-log Jacobian at 18 % grey of the chain
+    // WITHOUT interlayer effects, rows normalised to 1 (neutrals unchanged). What stays is the film's colour:
+    // interlayer (Color Density) saturation, the non-linear crosstalk of saturated colours, the curve shapes.
+    // Applied to the log10 levels (celc_ns_scene), so it never produces negative light.
+    spec::Mat3 Mm;
+    const bool mono = celc_i(s, CEL_CS_MONO) != 0;
+    s[CEL_CS_MASK_ON] = 0.f;   // the Jacobian is measured unmasked
+    if (!mono) {
+        float inter[9];
+        for (int i = 0; i < 9; ++i) { inter[i] = s[CEL_CS_INTER + i]; s[CEL_CS_INTER + i] = 0.f; }
+        const float d = 0.02f, up = float(std::pow(10.0, double(d))), g = 0.18f;
+        spec::Mat3 J;
+        for (int k = 0; k < 3; ++k) {
+            float a[3] = {g, g, g}, b[3] = {g, g, g};
+            a[k] *= up; b[k] /= up;
+            CelF3 A = celc_ns_scene(s, celc_printing_density(s, celc_negative(s, cel_f3(a[0], a[1], a[2]), cel_f3(0, 0, 0), 0)));
+            CelF3 B = celc_ns_scene(s, celc_printing_density(s, celc_negative(s, cel_f3(b[0], b[1], b[2]), cel_f3(0, 0, 0), 0)));
+            for (int j = 0; j < 3; ++j)
+                J.m[j][k] = std::log10(std::max(double(celc_comp(A, j)), 1e-12) / std::max(double(celc_comp(B, j)), 1e-12)) / (2.0 * double(d));
+        }
+        for (int i = 0; i < 9; ++i) s[CEL_CS_INTER + i] = inter[i];
+        spec::Mat3 Ji = J.inverse();
+        bool ok = true;
+        for (int i = 0; i < 3 && ok; ++i) {
+            const double sum = Ji.m[i][0] + Ji.m[i][1] + Ji.m[i][2];
+            ok = std::isfinite(sum) && std::fabs(sum) > 0.1;
+            if (ok) for (int j = 0; j < 3; ++j) Ji.m[i][j] /= sum;
+        }
+        if (ok) Mm = Ji;
+    }
+    putMat(s, CEL_CS_MMASK, Mm);
+    putMat(s, CEL_CS_MMASKI, Mm.inverse());
+    s[CEL_CS_MASK_ON] = mono ? 0.f : 1.f;
 }
 
 void Pipeline::prepare(const LookParams& pin) {
@@ -238,7 +372,11 @@ void Pipeline::prepare(const LookParams& pin) {
     const bool hold = holdStrength > 0.0;
     const size_t nHA = hold ? size_t(kHoldN) * kHoldN * 4 : 0, nHN = hold ? size_t(3) * kHoldNX : 0;
     const size_t oHA = oPJ + nPJ, oHN = oHA + nHA;
-    const size_t total = oHN + nHN;
+    // v1.3 stage axis (ColorState.h NS block): only when a stage exit is active
+    const bool exitStage = p.stage != int(Stage::Full);
+    const size_t nNS = exitStage ? size_t(4) * kStageN : 0;
+    const size_t oNS = oHN + nHN;
+    const size_t total = oNS + nNS;
     const bool sameBlocks = C.valid && C.exp == exp && C.dye == dye && C.proj == proj && m_state.size() == total;
     std::vector<float>& S = m_state;
     if (!sameBlocks) {
@@ -575,6 +713,7 @@ void Pipeline::prepare(const LookParams& pin) {
         s[CEL_CS_HOLD] = float(holdStrength);
         s[CEL_CS_HOLD_CHROMA] = float(holdChroma);
     }
+    if (exitStage) buildStageAxis(s, p, int(oNS), int(oPL), dye->lut.n, float(dye->lut.maxv));
     s[CEL_CS_GAIN] = gain;
 
     C.exp = exp; C.dye = dye; C.proj = proj;

@@ -245,7 +245,7 @@ const std::vector<LookPreset>& lookPresets() {
             {
                 {"negStock", "RV 100 Slide"},
                 {"pushPull", "1.5"},
-                {"interlayer", "1.6"},
+                {"interlayer", "1.9"},   // v1.2: 1.6 -> 1.9 (keeps it >= 2 dE2000 from Slide Show Brilliance under the v1.2 hue hold)
                 {"halationAmount", "0.8"},
                 {"halationRadius", "30"},
                 {"halationHue", "0.3"},
@@ -349,7 +349,6 @@ const std::vector<LookPreset>& lookPresets() {
                 {"process", "Print"},
                 {"printStock", "P6 Modern Print"},
                 {"halationAmount", "0.4"},
-                {"halationThreshold", "3.5"},
                 {"bloomAmount", "0.12"},
                 {"grainEnable", "true"},
                 {"grainFormat", "Super 35"},
@@ -367,7 +366,6 @@ const std::vector<LookPreset>& lookPresets() {
                 {"process", "Print"},
                 {"printStock", "Fujifilm Eterna-CP 3513DI"},
                 {"halationAmount", "0.3"},
-                {"halationThreshold", "3.6"},
                 {"bloomAmount", "0.2"},
                 {"bloomRadius", "60"},
                 {"grainEnable", "true"},
@@ -387,7 +385,6 @@ const std::vector<LookPreset>& lookPresets() {
                 {"printStock", "Kodak Vision 2383"},
                 {"printCrossover", "0.5"},
                 {"halationAmount", "0.55"},
-                {"halationThreshold", "3.4"},
                 {"bloomAmount", "0.18"},
                 {"grainEnable", "true"},
                 {"grainFormat", "Super 35"},

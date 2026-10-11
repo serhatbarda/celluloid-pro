@@ -84,7 +84,32 @@ struct LookParams {
     int   cameraEmulation = 0;   // CameraEmulation: 0 off, 1 Fujifilm X-Trans -> ARRI ALEXA (scene-linear, before the film)
     float emulationStrength = 1.f; // 0 .. 1 blend of the emulation
     float printCrossover = 0.f;  // -1 .. 1: + = warm highlights / cool shadows on the print (0 = the stock as designed)
+
+    // ---- v1.3 WP-1 (appended, SPEC 13): pipeline stage exits; defaults = the full chain (v1.2 render)
+    int   stage = 0;             // core::Stage
+    int   sceneEncoding = 0;     // core::SceneEncoding (Negative -> Scene output)
 };
+
+// v1.3 WP-1: where the colour chain starts and stops (ORDER = append only). Reversal stocks have no
+// negative stage: every exit renders the full chain for them. Every exit uses the print path's tables
+// (Process is ignored), see SPEC 4.7.
+enum class Stage : int {
+    Full = 0,            // scene -> negative -> print / scan -> display (v1.2)
+    NegativeLogScan,     // scene -> negative -> Cineon-style printing-density code values (Log Scan)
+    NegativeToScene,     // scene -> negative -> re-linearised scene, encoded in SceneEncoding (for an own DRT)
+    PrintOnly,           // input = Log Scan code values -> print -> display (OutputSpace)
+    Count
+};
+enum class SceneEncoding : int {
+    LogC4_AWG4 = 0,      // ARRI LogC4 / ARRI Wide Gamut 4 (default)
+    LogC3_AWG3,          // ARRI LogC3 (EI 800) / ARRI Wide Gamut 3
+    ACEScct_AP1,         // ACEScct / AP1
+    DaVinciIntermediate, // DaVinci Intermediate / DaVinci Wide Gamut
+    LinearRec2020,       // scene-linear Rec.2020
+    Count
+};
+std::vector<std::string> stageNames();           // UI labels, same order as Stage
+std::vector<std::string> sceneEncodingNames();   // same order as SceneEncoding
 
 enum class CameraEmulation : int {
     Off = 0,
