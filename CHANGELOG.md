@@ -51,6 +51,21 @@ unchanged in a newer one.
   Data* lines and in `docs/STOCKS.md` 5c.
 - **More data-sheet stocks** (appended, existing indices unchanged): Kodak Vision2 500T 5218,
   Ektachrome 100D 5294 (reversal) and Double-X 5222 (B&W).
+- **Close data-sheet stocks for variety** (owner decision 2026-10-11): Kodak Vision2 Expression 500T
+  5229, Fujifilm Eterna Vivid 160 8543, Eterna 500 8573 and Reala 500D 8592 (negatives 22-25), and the
+  prints Fujifilm Eterna-CP 3521XD (9) and a corrected Eterna-CP 3513DI (10). Some of them render close
+  to an existing stock (down to 0.9 mean dE2000), which is what their data sheets say. The Fujifilm
+  negatives borrow VISION3 spectral data, because Fujifilm publishes only their curves.
+- The distinctness checks keep 2.0 mean dE2000 for our own designed stocks. Two data-sheet stocks need
+  at least 0.7, so none is a duplicate, and the close pairs are listed in the test report.
+
+### Changed
+
+- **Fujifilm Eterna-CP 3513DI**: the curve used since v1.2 was read from the 3521XD figure of the
+  Fujifilm data sheet, with a 10 % short exposure axis. Print 7 keeps that curve, so saved projects
+  render exactly as before. It is now called *Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)*. The
+  corrected 3513DI is the new print 10 and is close to Kodak 2383, like the real stock. The Soft Cinema
+  preset still uses print 7.
 
 ### Fixed
 

@@ -71,8 +71,11 @@ PRT = [
     ('Kodak Vision Premier 2393', 'kodak_2393', 'P3 Rich Contrast', 0.100,
      'VISION Premier 2393: premium print with higher D-max: denser blacks and more saturated colour than 2383.',
      'Kodak H-1-2393 (1998): sensitometry, spectral sensitivity; 2383 dye set (not published for 2393)'),
-    ('Fujifilm Eterna-CP 3513DI', 'fuji_3513', 'P2 Low Contrast', 0.112,
-     'ETERNA-CP 3513DI: Fujifilm print for digital intermediates: neutral, gentle highlights, clean colour.',
+    # v1.3: renamed (same index 7, same curves). Its v1.2 curves were digitised from the 3521XD figure with a 10 %
+    # short log H axis (docs/STOCKS.md 5c.3); the corrected 3513DI is appended in PRT13.
+    ('Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)', 'fuji_3513', 'P2 Low Contrast', 0.112,
+     'ETERNA-CP 3513DI, v1.2 legacy curve: the curve read in v1.2 (from the 3521XD figure, 10 % short exposure axis). '
+     'Kept so saved projects render unchanged; the corrected 3513DI is a separate entry.',
      'Fujifilm KB-0707E p.57: characteristic curves; spectral data not published there -> 2383 proxies'),
 ]
 
@@ -164,8 +167,30 @@ NEG13 = [
     ('Kodak Double-X 5222', 'kodak_5222', 'BW 400 Panchromatic', ('daylight', 5500), 1.35, 0.7, 1.0, 1.3,
      'DOUBLE-X 5222: the classic panchromatic B&W negative: open grain, blue-heavy sensitivity, gentle toe.',
      'Kodak DOUBLEX technical data (EN): characteristic curves (D-96, 6 1/2 min), spectral sensitivity (raster traced)'),
+    # v1.3 (owner decision 2026-10-11: close data-sheet stocks are wanted for variety): appended 22-25
+    ('Kodak Vision2 Expression 500T 5229', 'kodak_5229', 'Kodak Vision3 500T 5219', ('blackbody', 3200), 1.25, 0.8, 1.1, 1.1,
+     'VISION2 Expression 500T: low-contrast VISION2 tungsten negative for a soft, flat scan with lifted shadows.',
+     'Kodak H-1-5229 (2007): sensitometry, spectral sensitivity, spectral dye density'),
+    ('Fujifilm Eterna Vivid 160 8543', 'fuji_8543', 'Kodak Vision3 200T 5213', ('blackbody', 3200), 0.95, 0.6, 1.0, 1.0,
+     'ETERNA Vivid 160: tungsten negative with more saturation and contrast than ETERNA (Fujifilm curves; spectral proxies).',
+     'Fujifilm KB-0707E p.12-13: characteristic curves; spectral sensitivities and dyes not published there -> VISION3 200T proxies'),
+    ('Fujifilm Eterna 500 8573', 'fuji_8573', 'Kodak Vision3 500T 5219', ('blackbody', 3200), 1.2, 0.75, 1.1, 1.0,
+     'ETERNA 500: high-speed tungsten negative with calm, low-saturation ETERNA colour (Fujifilm curves; spectral proxies).',
+     'Fujifilm KB-0707E p.24-25: characteristic curves; spectral sensitivities and dyes not published there -> VISION3 500T proxies'),
+    ('Fujifilm Reala 500D 8592', 'fuji_8592', 'Kodak Vision3 250D 5207', ('daylight', 5500), 1.15, 0.7, 1.05, 1.05,
+     'REALA 500D: high-speed daylight negative (Fujifilm curves; spectral proxies, the fourth colour layer is not modelled).',
+     'Fujifilm KB-0707E p.36-37: characteristic curves; spectral sensitivities and dyes not published there -> VISION3 250D proxies'),
 ]
-PRT13 = []
+# v1.3 prints, appended 9-10. The corrected 3513DI is read from its own figure (p.52-53, 5.0 log H across the frame).
+LEGACY_3513 = 'Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)'
+PRT13 = [
+    ('Fujifilm Eterna-CP 3521XD', 'fuji_3521', LEGACY_3513, 0.110,
+     'ETERNA-CP 3521XD: Fujifilm high-D-max print: deeper blacks and richer contrast than 3513DI.',
+     'Fujifilm KB-0707E p.56-57: characteristic curves; spectral data not published there -> 2383 proxies'),
+    ('Fujifilm Eterna-CP 3513DI', 'fuji_3513v13', LEGACY_3513, 0.112,
+     'ETERNA-CP 3513DI: Fujifilm print for digital intermediates: neutral, gentle highlights, clean colour.',
+     'Fujifilm KB-0707E p.52-53: characteristic curves; spectral data not published there -> 2383 proxies'),
+]
 
 
 def main_v13():
@@ -193,11 +218,19 @@ def main_v13():
             e['curves'] = curves(f, fog=0.15 if e['kind'] == 'reversal' else 0.1)
             e['calibration'] = 'interlayer + mask taken from %s (not fitted)' % tmpl
         put(J['negatives'], e)
+    for old in J['prints']:
+        if old['name'] == 'Fujifilm Eterna-CP 3513DI' and old['source'].startswith('Fujifilm KB-0707E p.57'):
+            # v1.2 projects: index 7 keeps its curves under an honest name
+            old.update(name=PRT[2][0], description=PRT[2][4])
+            pbyname[old['name']] = old
     for name, key, tmpl, greyY, desc, src in PRT13:
         # prints carry no calibration: an existing entry is rebuilt in place (same index)
         t = copy.deepcopy(pbyname[tmpl])
         f = F[key]
         t.update(name=name, description=desc, source=src, greyY=greyY, sensitivity=sens(f), dyes=dyes(f), curves=curves(f))
+        if key == 'fuji_3513v13':
+            # corrected 3513DI: the legacy entry's spectral data (the 2383 proxies) unchanged, only the curves are new
+            t['sensitivity'], t['dyes'] = pbyname[tmpl]['sensitivity'], pbyname[tmpl]['dyes']
         put(J['prints'], t)
     json.dump(J, open(path, 'w'), indent=1)
     print('negatives:', len(J['negatives']), [n['name'] for n in J['negatives']][19:])

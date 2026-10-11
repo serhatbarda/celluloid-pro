@@ -110,6 +110,21 @@ MODULES = [
 SPEC_NEGS = ["CN 50D Fine Daylight", "CN 200T Studio Tungsten", "CN 250D Soft Daylight", "CN 500T High Speed",
              "CN 800T No-Backing", "CN Vintage 85", "C41 Portrait 400", "C41 Consumer 200", "RV 100 Slide",
              "BW 400 Panchromatic", "BW 100 Fine"]
+# Stocks modelled from manufacturer data sheets (provenance class datasheet / partial in reference/stocks.json).
+# Owner decision 2026-10-11: close data-sheet stocks are kept on purpose (variety); two of them only need
+# DATASHEET_FLOOR mean dE2000, every other pair (any designed / style stock) still needs DISTINCT_MIN.
+DISTINCT_MIN, DATASHEET_FLOOR = 2.0, 0.7
+
+
+def datasheet_stocks():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "reference", "stocks.json")
+    try:
+        J = json.load(open(path))
+    except (OSError, ValueError):
+        return set()
+    return {s["name"] for s in J["negatives"] + J["prints"] if s.get("provenanceClass") in ("datasheet", "partial")}
+
+
 SPEC_PRINTS = ["P1 Standard Projection", "P2 Low Contrast", "P3 Rich Contrast", "P4 Faded Archive", "P5 Silver Retention"]
 GRAIN_FORMATS = [("Super 8", r"8"), ("16 mm", r"16"), ("Super 35", r"35(?!\s*mm\s*St)"), ("65 mm", r"65"),
                  ("35 mm Stills", r"still")]
@@ -507,19 +522,32 @@ class Suite:
                 for n in negs if (n, "print", self.ix["p1"]) in self.pairs}
         names, M = A.de_matrix(labs)
         self.data["de_negatives"] = dict(names=names, matrix=M.tolist())
-        off = M[~np.eye(len(names), dtype=bool)] if len(names) > 1 else np.array([99.0])
-        k = np.unravel_index(int(np.argmin(M + np.eye(len(names)) * 1e9)), M.shape) if len(names) > 1 else (0, 0)
-        self.check(g, "negative stocks clearly distinct (mean dE2000, P1)", off.min() >= 2.0, "min %.2f (%s vs %s)" %
-                   (off.min(), names[k[0]], names[k[1]]), ">= 2.0")
+        self.distinct(g, "negative stocks", "P1", names, M)
         labs = {self.prints[p]: A.chart_labs(self.chart, self.pairs[(self.ix["neg"], "print", p)], self.out709)
                 for p in prints if (self.ix["neg"], "print", p) in self.pairs}
         names, M = A.de_matrix(labs)
         self.data["de_prints"] = dict(names=names, matrix=M.tolist())
         if len(names) > 1:
-            off = M[~np.eye(len(names), dtype=bool)]
-            k = np.unravel_index(int(np.argmin(M + np.eye(len(names)) * 1e9)), M.shape)
-            self.check(g, "print stocks clearly distinct (mean dE2000, CN 200T)", off.min() >= 2.0, "min %.2f (%s vs %s)" %
-                       (off.min(), names[k[0]], names[k[1]]), ">= 2.0")
+            self.distinct(g, "print stocks", "CN 200T", names, M)
+
+    def distinct(self, g, what, on, names, M):
+        """mean dE2000 between every two stocks: >= DISTINCT_MIN when a designed / style stock is involved,
+        >= DATASHEET_FLOOR between two data-sheet stocks (owner decision 2026-10-11); close data-sheet pairs as info"""
+        ds = datasheet_stocks()
+        strict, sheet = [], []
+        for a in range(len(names)):
+            for b in range(a + 1, len(names)):
+                (sheet if names[a] in ds and names[b] in ds else strict).append((float(M[a, b]), names[a], names[b]))
+        v, a, b = min(strict or [(99.0, "-", "-")])
+        self.check(g, "%s clearly distinct (mean dE2000, %s)" % (what, on), v >= DISTINCT_MIN, "min %.2f (%s vs %s)" % (v, a, b),
+                   ">= %.1f" % DISTINCT_MIN, "pairs with a designed stock; data-sheet pairs below")
+        if sheet:
+            v, a, b = min(sheet)
+            self.check(g, "data-sheet %s not duplicates (mean dE2000, %s)" % (what.split()[0], on), v >= DATASHEET_FLOOR,
+                       "min %.2f (%s vs %s)" % (v, a, b), ">= %.1f" % DATASHEET_FLOOR,
+                       "owner decision 2026-10-11: close data-sheet stocks are allowed")
+            for v, a, b in sorted(x for x in sheet if x[0] < DISTINCT_MIN):
+                self.info(g, "close data-sheet pair (%s): %s vs %s" % (on, a, b), "%.2f" % v, "allowed, floor %.1f" % DATASHEET_FLOOR)
 
     # ------------------------------------------------------------------ §6 core
     def g_section6(self):

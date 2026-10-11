@@ -416,7 +416,7 @@ prints 5-8; the designed stocks keep their indices):
 | 18 | Kodachrome 64 Style | designed from the E100 data: gamma x1.25, D-max +0.4, cyan dye 25 nm shorter, interlayer x1.4 | reversal |
 | P5 | Kodak Vision 2383 | H-1-2383: sensitivity, curves, dyes | |
 | P6 | Kodak Vision Premier 2393 | H-1-2393: sensitivity, curves; 2383 dyes | |
-| P7 | Fujifilm Eterna-CP 3513DI | KB-0707E: curves; 2383 spectral proxies; shoulder p <= 6 (below) | figure mix-up, see 5c.3 |
+| P7 | Fujifilm Eterna-CP 3513DI (v1.2 legacy curve) | KB-0707E: curves; 2383 spectral proxies; shoulder p <= 6 (below) | figure mix-up; renamed in v1.3, see 5c.3 |
 | P8 | P6 Modern Print | 2383 spectral data, tone curves fitted to the default-look target | **default** |
 
 Pipeline: `reference/datasheets/fit_stocks.py` fits lobes / curves to the digitised data
@@ -434,7 +434,7 @@ acts only beyond one stop from grey. Highlight colours now desaturate and turn l
 references, so the look aims (`reference/aims.py`) are taken from the references (1.1 x the worst of the
 ARRI, Referent and ETERNA renderings; e.g. sky dh <= 25.6, skin +1..+3 dh <= 18.9, red +2..+4 dh <= 16.8).
 CN 50D Fine Daylight is reported, not gated: its reds turn 10-24 deg toward magenta at +2..+4 stops on P1.
-Two data-sheet stocks only need 1.5 mean dE2000 between them (`design.py gates`): the VISION3 negatives
+Two data-sheet stocks only need 1.5 mean dE2000 between them in v1.2 (`design.py gates`; 0.7 since v1.3, 5c.3): the VISION3 negatives
 share one dye set (250D vs 500T: 1.71 on P1) and the Eterna borrows the 250D spectral data (1.57 through
 the Lab Scan).
 
@@ -541,6 +541,10 @@ Stock Data, and in the table below (`reference/datasheets/build_lab.py`):
 | 19 | Kodak Vision2 500T 5218 | data sheet | Data sheet: Kodak H-1-5218 (2007): spectral sensitivity, characteristic curves, spectral dye density. ECN-2. Discontinued; modelled as fresh stock. |
 | 20 | Kodak Ektachrome 100D 5294 | data sheet | Data sheet: Kodak EKTACHROME 100D sell sheet: spectral sensitivity, characteristic curves, spectral dye density. E-6. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
 | 21 | Kodak Double-X 5222 | data sheet | Data sheet: Kodak DOUBLE-X 5222 technical data: characteristic curve (D-96, 6 1/2 min) and spectral sensitivity, traced from the raster figures. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
+| 22 | Kodak Vision2 Expression 500T 5229 | data sheet | Data sheet: Kodak H-1-5229 (2007): spectral sensitivity, characteristic curves, spectral dye density. ECN-2. Discontinued; modelled as fresh stock. |
+| 23 | Fujifilm Eterna Vivid 160 8543 | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral sensitivity and dyes borrowed from VISION3 200T (proxy). Discontinued; modelled as fresh stock. |
+| 24 | Fujifilm Eterna 500 8573 | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral sensitivity and dyes borrowed from VISION3 500T (proxy). Discontinued; modelled as fresh stock. |
+| 25 | Fujifilm Reala 500D 8592 | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral sensitivity and dyes borrowed from VISION3 250D (proxy); the fourth (cyan-sensitive) layer is not modelled. Discontinued; modelled as fresh stock. |
 
 | # | Print | Class | Provenance |
 |---|---|---|---|
@@ -551,13 +555,15 @@ Stock Data, and in the table below (`reference/datasheets/build_lab.py`):
 | 4 | P5 Silver Retention | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
 | 5 | Kodak Vision 2383 | data sheet | Data sheet: Kodak H-1-2383 (2022): spectral sensitivity, Status A curves, spectral dye density. ECP-2 nominal; lab aim, projection and rendering are set in this group. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
 | 6 | Kodak Vision Premier 2393 | partial data sheet + proxy | Data sheet: Kodak H-1-2393 (1998): spectral sensitivity, characteristic curves; dyes from 2383 (not published for 2393). ECP-2 nominal. |
-| 7 | Fujifilm Eterna-CP 3513DI | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal. |
+| 7 | Fujifilm Eterna-CP 3513DI (v1.2 legacy curve) | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E; v1.2 legacy curve (read from the 3521XD figure with a 10 % short exposure axis, kept so saved projects render unchanged); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal. |
 | 8 | P6 Modern Print | designed | Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the default-look target). |
+| 9 | Fujifilm Eterna-CP 3521XD | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal. |
+| 10 | Fujifilm Eterna-CP 3513DI | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only, corrected in v1.3); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal. |
 
 ### 5c.3 v1.3 data-sheet stocks
 
-v1.3 appends three negatives (19-21); the prints are unchanged. The designed and v1.2 stocks keep
-their indices. The fits are in `reference/datasheets/fit_stocks.py --v13` and the stocks are written by
+v1.3 appends seven negatives (19-25) and two prints (9-10). The designed and v1.2 stocks keep their
+indices. The fits are in `reference/datasheets/fit_stocks.py --v13` and the stocks are written by
 `build_stocks.py --v13`, which appends only and leaves every calibrated entry alone.
 
 | # | Stock | Data | Fit and calibration |
@@ -565,21 +571,48 @@ their indices. The fits are in `reference/datasheets/fit_stocks.py --v13` and th
 | 19 | Kodak Vision2 500T 5218 | H-1-5218: sensitivity, curves, dyes (vector) | interlayer / mask vs fv_bal_2383: 5.62 -> 5.17 |
 | 20 | Kodak Ektachrome 100D 5294 | sell sheet: sensitivity, curves, dyes (vector) | reversal; interlayer / mask from E100 (no reference) |
 | 21 | Kodak Double-X 5222 | technical data: 6 1/2 min D-96 curve, spectral sensitivity (D = 0.3), raster traced | grey = ISO speed point (EI 250) + 1.0 log H; shoulder R >= 2.4 (the trace ends at D 1.66) |
+| 22 | Kodak Vision2 Expression 500T 5229 | H-1-5229: sensitivity, curves, dyes (vector) | interlayer / mask vs fv_bal_2383 |
+| 23 | Fujifilm Eterna Vivid 160 8543 | KB-0707E p.12-13: curves (camera stops); VISION3 200T spectral proxies | interlayer / mask vs Fujifilm's ETERNA simulation on 3513DI |
+| 24 | Fujifilm Eterna 500 8573 | KB-0707E p.24-25: curves (camera stops); VISION3 500T spectral proxies | as 8543 |
+| 25 | Fujifilm Reala 500D 8592 | KB-0707E p.36-37: curves (relative log H, grey from the 500T density); VISION3 250D spectral proxies; the fourth (cyan-sensitive) layer is not modelled | as 8543 |
+| P9 | Fujifilm Eterna-CP 3521XD | KB-0707E p.56-57: curves (Status A, 10 x 0.5 log H); 2383 spectral proxies; shoulder p <= 4 | |
+| P10 | Fujifilm Eterna-CP 3513DI | KB-0707E p.52-53: curves (Status A, 10 x 0.5 log H); 2383 spectral proxies (the same as P7); shoulder p <= 6 | corrected curve, see below |
 
-Each new stock is at least 2.0 mean dE2000 from every other negative on P1 (the render suite's
-bar): 5218 2.27 (closest: Eterna 250D 8563), 5294 2.98 (Ektachrome E100), 5222 5.03 (BW 100 Fine).
+The 5229 / Fujifilm entries were first added and then dropped in the same v1.3 cycle for sitting 0.9-1.5
+mean dE2000 from an existing stock. They are back by owner decision (2026-10-11: "yes i like variety and
+its okay that they are close to eachother"), with the data and calibration exactly as first fitted.
 
-**Tried and left out.** Vision2 Expression 500T 5229, Fujifilm Eterna Vivid 160 8543, Eterna 500
-8573, Reala 500D 8592 and the print Eterna-CP 3521XD were digitised and fitted too, but they landed 0.9-1.5
-mean dE2000 from an existing stock (8573 vs 8592 0.91, 5229 vs 5213 1.43, 8543 vs 8573 1.49, 3521XD
-vs 3513DI 1.31). The Fujifilm negatives would run on VISION3 spectral proxies and one calibration
-reference, so only their curves would set them apart. They are left out rather than pushed apart.
+**Distinctness (owner decision 2026-10-11).** Any pair with a designed or style stock still needs 2.0
+mean dE2000 (on P1, with CN 200T for prints, and through the Lab Scan). Two data-sheet stocks need a
+floor of 0.7, so they are never duplicates; every data-sheet pair under 2.0 is reported as info
+(`design.py gates`, render suite). Closest pairs on the NumPy model:
 
-**3513DI figure mix-up (not changed).** The P7 curves were digitised in v1.2 from the 3521XD figure of
-KB-0707E (p.56-57), with the log H axis read as 4.5 across the frame (it is 10 grid columns of 0.5, so
-5.0). The real 3513DI figure (p.52-53) gives curves that sit only 1.05 mean dE2000 from 2383 with CN
-200T, below the 2.0 the render suite asks between prints. P7 keeps its v1.2 curves so saved projects
-render as before; the source line says which figure they come from.
+| Pair | mean dE2000 |
+|---|---|
+| Eterna 500 8573 vs Reala 500D 8592 (P1) | 0.93 |
+| Eterna 250D 8563 vs Reala 500D 8592 (P1 / Lab Scan) | 1.03 / 0.75 |
+| Kodak Vision 2383 vs Eterna-CP 3513DI, corrected (CN 200T) | 1.04 |
+| Eterna 250D 8563 vs Eterna 500 8573 (P1) | 1.29 |
+| Eterna-CP 3513DI legacy / corrected vs 3521XD (CN 200T) | 1.32 / 1.33 |
+| Vision3 200T 5213 vs Vision2 Expression 5229 (P1) | 1.45 |
+| Eterna Vivid 160 8543 vs Eterna 500 8573 (P1) | 1.50 |
+| Vision3 250D 5207 vs 500T 5219 (P1) | 1.71 |
+
+The Fujifilm negatives run on VISION3 spectral proxies and one calibration reference, so mostly their
+curves (and grain) set them apart; that is what the data sheet gives.
+
+**3513DI figure mix-up (fixed in v1.3 without moving saved projects).** The v1.2 P7 curves were digitised
+from the 3521XD figure of KB-0707E (p.56-57), with the log H axis read as 4.5 across the frame (it is 10
+grid columns of 0.5, so 5.0). In v1.3:
+
+- print 7 keeps exactly those curves and data, renamed **Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)**,
+  so every saved project renders bit-identically (projects store the index). The Soft Cinema preset and
+  the Eterna 250D calibration still use it. Its data: `reference/datasheets/data/fuji_3513_hd_*.csv`.
+- print 10, **Fujifilm Eterna-CP 3513DI**, has the corrected curves read from its own figure (p.52-53,
+  D 0-4, 5.0 log H across the frame: `fuji_3513v13_hd_*.csv`, fit key `fuji_3513v13`), with the same
+  2383 spectral proxies as print 7. It is 1.04 mean dE2000 from 2383 with CN 200T: the real 3513DI is
+  a neutral, 2383-like print.
+- print 9, **Fujifilm Eterna-CP 3521XD**, is its own figure read with the correct 5.0 log H axis.
 
 **Known close pairs (v1.2 stocks).** Vision3 250D 5207 vs 500T 5219 sit 1.69 mean dE2000 apart on P1
 and 50D 5203 vs 200T 5213 1.93. Kodak's camera-stop curves of 5207 and 5219 agree to 0.02 D from -8
