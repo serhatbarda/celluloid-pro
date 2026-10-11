@@ -1,4 +1,4 @@
-// Celluloid Pro - CUDA translation unit of the production kernel set (owned by the gpu role).
+// Reafilm Pro - CUDA translation unit of the production kernel set (owned by the gpu role).
 // Compiled by nvcc for every architecture in CEL_CUDA_ARCHITECTURES (SASS) plus PTX of the newest
 // one (JIT for future GPUs). The host side looks the entries up in cel_cuda_production_entries
 // (index = KernelId; the probe kernel is appended at KID_COUNT).

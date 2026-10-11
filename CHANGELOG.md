@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Celluloid Pro. Versions follow [Semantic Versioning](https://semver.org);
+All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions follow [Semantic Versioning](https://semver.org);
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
@@ -72,6 +72,21 @@ unchanged in a newer one.
 
 ### Changed
 
+- **Renamed to Reafilm Pro.** The plug-in label, the Resolve menu group (*OpenFX › Reafilm*), the
+  About and help texts, the bundle (`ReafilmPro.ofx.bundle`, binary `ReafilmPro.ofx`), the
+  installers, disk image and zip (`ReafilmPro-<version>-…`), exported LUT names and titles
+  (`Reafilm_….cube` in `<Documents>/Reafilm LUTs`, previously `Celluloid LUTs`), the *Reafilm
+  original* style labels and the trial watermark (*REAFILM PRO — TRIAL*) use the new name.
+  Saved projects keep loading: the OFX plug-in identifier, its version, all parameter identifiers
+  and choice orders are unchanged, so the rendered pixels are too. License keys stay valid.
+  - **Delete the old `Celluloid.ofx.bundle`** from the OFX plug-ins folder, otherwise Resolve
+    shows both. The macOS and Windows installers remove it; after a manual install delete it by hand.
+  - Environment variables: `REAFILM_LOG`, `REAFILM_DISABLE_GPU` and `REAFILM_LICENSE_KEY`. The old
+    `CELLULOID_*` names still work when the new ones are not set.
+  - License files are written to the `Reafilm` folder (`~/.config/reafilm` on Linux,
+    `Application Support/Reafilm` on macOS, `%APPDATA%\Reafilm` on Windows, and the machine-wide
+    equivalents). A key in the old `Celluloid` / `celluloid` folder is still read, so there is no
+    need to activate again.
 - **Fujifilm Eterna-CP 3513DI**: the curve used since v1.2 was read from the 3521XD figure of the
   Fujifilm data sheet, with a 10 % short exposure axis. Print 7 keeps that curve, so saved projects
   render exactly as before. It is now called *Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)*. The

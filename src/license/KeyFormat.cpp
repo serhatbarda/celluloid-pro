@@ -1,4 +1,4 @@
-// Celluloid Pro - license key wire format. See KeyFormat.h for the byte layout.
+// Reafilm Pro - license key wire format. See KeyFormat.h for the byte layout.
 #include "KeyFormat.h"
 #include "../../third_party/monocypher/monocypher.h"
 #include "../../third_party/monocypher/monocypher-ed25519.h"
@@ -380,7 +380,7 @@ std::string privateKeyFileText(const uint8_t seed[kSeedSize], const std::string&
     std::string t;
     if (!comment.empty()) t += "# " + comment + "\n";
     t += "# Ed25519 PRIVATE signing key (RFC 8032 seed). Anyone holding this file can issue\n"
-         "# Celluloid Pro licenses. Keep it offline, backed up, and out of every repository.\n";
+         "# Reafilm Pro licenses. Keep it offline, backed up, and out of every repository.\n";
     t += "CELPRIV1:" + hexEncode(seed, kSeedSize) + "\n";
     return t;
 }

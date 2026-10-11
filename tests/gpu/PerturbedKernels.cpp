@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU tests: the production kernels compiled for the CPU with "worst-case GPU"
+// Reafilm Pro - GPU tests: the production kernels compiled for the CPU with "worst-case GPU"
 // math. Every transcendental cel_* wrapper returns its correctly rounded result moved by a
 // deterministic pseudo-random amount of up to the ulp error the OpenCL 1.2 full profile allows
 // (pow 16 ulp, exp/exp2/log/log2/log10 3 ulp, sin/cos 4 ulp, atan2 6 ulp, sqrt 1 ulp; CUDA and

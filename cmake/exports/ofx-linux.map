@@ -1,4 +1,4 @@
-/* Celluloid Pro: the plug-in exports exactly the two OFX entry points. */
+/* Reafilm Pro: the plug-in exports exactly the two OFX entry points. */
 {
   global:
     OfxGetNumberOfPlugins;

@@ -22,7 +22,7 @@ import scenes  # noqa: E402
 import spectral as sp  # noqa: E402
 
 import tempfile  # noqa: E402
-OUT = os.path.join(tempfile.gettempdir(), 'celluloid_renders')
+OUT = os.path.join(tempfile.gettempdir(), 'reafilm_renders')
 
 
 def to_flog2c(rgb2020):

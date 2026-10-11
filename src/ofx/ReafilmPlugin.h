@@ -1,12 +1,12 @@
-// Celluloid Pro - OFX plug-in (factory declaration). Implementation: CelluloidPlugin.cpp.
+// Reafilm Pro - OFX plug-in (factory declaration). Implementation: ReafilmPlugin.cpp.
 #pragma once
 #include "ofxsImageEffect.h"
 
 namespace cel { namespace ofxp {
 
-class CelluloidFactory : public OFX::PluginFactoryHelper<CelluloidFactory> {
+class ReafilmFactory : public OFX::PluginFactoryHelper<ReafilmFactory> {
 public:
-    CelluloidFactory();
+    ReafilmFactory();
     void load() override;
     void unload() override;
     void describe(OFX::ImageEffectDescriptor& desc) override;

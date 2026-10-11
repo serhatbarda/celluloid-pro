@@ -1,10 +1,15 @@
 #!/bin/sh
-# Celluloid Pro: remove a previous installation so no stale files survive an upgrade.
+# Reafilm Pro: remove a previous installation so no stale files survive an upgrade.
 # $3 = target volume ("/" for the boot volume).
 TARGET="${3:-/}"
-PLUGIN="${TARGET%/}/Library/OFX/Plugins/Celluloid.ofx.bundle"
+PLUGIN="${TARGET%/}/Library/OFX/Plugins/ReafilmPro.ofx.bundle"
 if [ -d "$PLUGIN" ]; then
   /bin/rm -rf "$PLUGIN"
+fi
+# the bundle of the pre-rename releases (Celluloid Pro): same plug-in, Resolve would list it twice
+LEGACY="${TARGET%/}/Library/OFX/Plugins/Celluloid.ofx.bundle"
+if [ -d "$LEGACY" ]; then
+  /bin/rm -rf "$LEGACY"
 fi
 /bin/mkdir -p "${TARGET%/}/Library/OFX/Plugins"
 exit 0

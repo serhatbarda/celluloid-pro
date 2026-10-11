@@ -1,4 +1,4 @@
-// Celluloid Pro - stock library accessors (data: StockData.inc, generated).
+// Reafilm Pro - stock library accessors (data: StockData.inc, generated).
 #include "Stocks.h"
 #include <algorithm>
 

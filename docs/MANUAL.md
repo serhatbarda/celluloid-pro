@@ -1,8 +1,8 @@
-# Celluloid Pro — User Manual
+# Reafilm Pro — User Manual
 
 Version 1.0.0 · OpenFX plug-in for DaVinci Resolve on macOS and Windows
 
-Celluloid Pro turns camera log footage into a photochemical film image. It does not apply a fixed
+Reafilm Pro turns camera log footage into a photochemical film image. It does not apply a fixed
 LUT: it simulates the chain a frame of film goes through. The scene exposes a colour negative
 through the spectral sensitivities of its three layers; the negative is developed (with push/pull,
 interlayer effects and optional bleach bypass); it is printed onto print stock with printer lights,
@@ -10,7 +10,7 @@ or scanned by a lab scanner; and the result is projected and encoded for your di
 bloom, film grain, development acutance, gate weave and lens vignetting are added at the point in
 the chain where they physically happen.
 
-All film stocks, look presets and colour science in Celluloid Pro are original designs. They are
+All film stocks, look presets and colour science in Reafilm Pro are original designs. They are
 not copies or measurements of any manufacturer's product, and their names deliberately do not
 refer to real film stocks.
 
@@ -44,7 +44,7 @@ refer to real film stocks.
 | Host | DaVinci Resolve or DaVinci Resolve Studio with OpenFX support | same |
 | GPU memory | about 0.5 GB for UHD, 1.5 GB for 8K, on top of what Resolve needs | same |
 
-Without a usable GPU, Celluloid Pro renders on the CPU with all cores. That is much slower, but the
+Without a usable GPU, Reafilm Pro renders on the CPU with all cores. That is much slower, but the
 image is the same: CPU and GPU run the same colour and texture code.
 
 Linux builds exist only for development and testing; they are not a product.
@@ -52,11 +52,11 @@ Linux builds exist only for development and testing; they are not a product.
 ### Installing on macOS
 
 1. Quit DaVinci Resolve.
-2. Open `CelluloidPro-<version>-macOS.dmg` and double-click `CelluloidPro-<version>-macOS.pkg`
+2. Open `ReafilmPro-<version>-macOS.dmg` and double-click `ReafilmPro-<version>-macOS.pkg`
    (the disk image also contains this manual and a short *READ ME FIRST*).
 3. Follow the installer. The plug-in is installed to
-   `/Library/OFX/Plugins/Celluloid.ofx.bundle`; an older version is removed first.
-4. Start Resolve. The effect is in the Effects library under **OpenFX › Celluloid › Celluloid Pro**.
+   `/Library/OFX/Plugins/ReafilmPro.ofx.bundle`; an older version is removed first.
+4. Start Resolve. The effect is in the Effects library under **OpenFX › Reafilm › Reafilm Pro**.
 
 **Unsigned installers (Gatekeeper).** Until a Developer ID certificate is in place, the installer
 is not signed or notarized and macOS refuses to open it with a message that it "cannot be verified".
@@ -65,7 +65,7 @@ To install anyway:
 - macOS 14 and earlier: right-click (Control-click) the `.pkg`, choose **Open**, then **Open** again.
 - macOS 15 and later: double-click the `.pkg` once and dismiss the warning, then open
   **System Settings › Privacy & Security**, scroll down and click **Open Anyway** next to the
-  message about `CelluloidPro-….pkg`, and confirm with your password.
+  message about `ReafilmPro-….pkg`, and confirm with your password.
 
 The installer clears the quarantine flag of the installed plug-in, so Resolve can load it. Signed
 and notarized installers open without these steps.
@@ -73,17 +73,17 @@ and notarized installers open without these steps.
 ### Installing on Windows
 
 1. Quit DaVinci Resolve.
-2. Run `CelluloidPro-<version>-Windows-Setup.exe` (administrator rights are required, because OFX
+2. Run `ReafilmPro-<version>-Windows-Setup.exe` (administrator rights are required, because OFX
    plug-ins live in a system folder). The installer speaks English and German.
-3. The plug-in is installed to `C:\Program Files\Common Files\OFX\Plugins\Celluloid.ofx.bundle`.
-4. Start Resolve; the effect is under **OpenFX › Celluloid › Celluloid Pro**.
+3. The plug-in is installed to `C:\Program Files\Common Files\OFX\Plugins\ReafilmPro.ofx.bundle`.
+4. Start Resolve; the effect is under **OpenFX › Reafilm › Reafilm Pro**.
 
 **Unsigned installer (SmartScreen).** Until the installer is Authenticode-signed, Microsoft
 Defender SmartScreen may show "Windows protected your PC". Click **More info**, check that the file
-name is `CelluloidPro-<version>-Windows-Setup.exe`, then click **Run anyway**.
+name is `ReafilmPro-<version>-Windows-Setup.exe`, then click **Run anyway**.
 
-**Manual installation (zip).** `CelluloidPro-<version>-Windows-bundle.zip` contains the bare
-`Celluloid.ofx.bundle` folder. Copy the whole folder into
+**Manual installation (zip).** `ReafilmPro-<version>-Windows-bundle.zip` contains the bare
+`ReafilmPro.ofx.bundle` folder. Copy the whole folder into
 `C:\Program Files\Common Files\OFX\Plugins\` (create `OFX\Plugins` if it does not exist). If
 Windows blocked the downloaded zip, right-click it › **Properties** › **Unblock** before extracting.
 
@@ -92,8 +92,15 @@ Windows blocked the downloaded zip, right-click it › **Properties** › **Unbl
 Install a new version over the old one; the installers replace the previous bundle. Resolve keeps
 your node settings, because the parameter identifiers never change between versions.
 
-- macOS: quit Resolve and delete `/Library/OFX/Plugins/Celluloid.ofx.bundle`.
-- Windows: **Settings › Apps › Installed apps › Celluloid Pro (OFX plug-in) › Uninstall**, or delete
+**Upgrading from Celluloid Pro.** The plug-in was renamed from Celluloid Pro to Reafilm Pro in
+1.3.0, and its bundle from `Celluloid.ofx.bundle` to `ReafilmPro.ofx.bundle`. Delete the old
+`Celluloid.ofx.bundle` from the OFX plug-ins folder (`/Library/OFX/Plugins` on macOS,
+`C:\Program Files\Common Files\OFX\Plugins` on Windows), otherwise Resolve shows both. The
+installers do this for you; after a manual (zip) install, delete it by hand. Saved projects keep
+loading: the plug-in identifier and all parameters are unchanged, and license keys stay valid.
+
+- macOS: quit Resolve and delete `/Library/OFX/Plugins/ReafilmPro.ofx.bundle`.
+- Windows: **Settings › Apps › Installed apps › Reafilm Pro (OFX plug-in) › Uninstall**, or delete
   the bundle folder if you installed from the zip.
 
 The personal build uses no license key. In the licensed build, license keys are stored per user
@@ -102,14 +109,14 @@ The personal build uses no license key. In the licensed build, license keys are 
 ### Where is this manual?
 
 A copy of this manual is installed inside the plug-in bundle,
-`Celluloid.ofx.bundle/Contents/Resources/MANUAL.md`, and the plug-in's **About** group points to it.
+`ReafilmPro.ofx.bundle/Contents/Resources/MANUAL.md`, and the plug-in's **About** group points to it.
 Third-party notices are in `Contents/Resources/Licenses/`.
 
 ---
 
 ## 2. First steps
 
-1. On the Color page, add a serial node to a clip and drag **Celluloid Pro** onto it.
+1. On the Color page, add a serial node to a clip and drag **Reafilm Pro** onto it.
 2. Set **Camera Log** (Input group) to the log encoding your footage was recorded in. The default is
    **Fujifilm F-Log2 C / F-Gamut C**. The node expects the *camera log signal*: do not convert the
    clip to Rec.709 (with a LUT, CST or colour management) before this node. See section 3.
@@ -123,8 +130,8 @@ Third-party notices are in `Contents/Resources/Licenses/`.
    **Printer Red / Green / Blue**, the way a film lab does.
 
 **Where the node goes.** Primary balance (white balance, exposure matching between shots) and
-secondaries (keys, windows) belong *before* Celluloid Pro, in the camera log space, so the film
-"photographs" your corrected scene. Celluloid Pro then produces a finished display image: put only
+secondaries (keys, windows) belong *before* Reafilm Pro, in the camera log space, so the film
+"photographs" your corrected scene. Reafilm Pro then produces a finished display image: put only
 light trims after it. When the colour is already finished by another tool, use **Texture Only**
 mode (section 7).
 
@@ -139,11 +146,11 @@ mode (section 7).
 
 ## 3. Setting up Resolve: YRGB, RCM and ACES
 
-Celluloid Pro needs two things from the project: the clip must arrive at the node **in the camera
+Reafilm Pro needs two things from the project: the clip must arrive at the node **in the camera
 log selected under Camera Log**, and whatever comes after the node must treat its output as a
 **display image in the selected Output space**. The setups below achieve that.
 
-> These setups follow Resolve's documented colour management. Celluloid Pro has been verified in
+> These setups follow Resolve's documented colour management. Reafilm Pro has been verified in
 > our own OpenFX test host and in CI, not yet inside every Resolve version; if your Resolve behaves
 > differently, the general rule above still tells you what to do.
 
@@ -155,9 +162,9 @@ This is the simplest and most transparent setup, and the recommended one for F-L
    and output colour space are labels only in this mode; set them to Rec.709 Gamma 2.4 for SDR
    (or your HDR format, section 9).
 2. Do not apply a camera LUT or CST to the clips.
-3. Celluloid Pro: **Camera Log = Fujifilm F-Log2 C / F-Gamut C**, **Output = Rec.709 (Gamma 2.4)**.
+3. Reafilm Pro: **Camera Log = Fujifilm F-Log2 C / F-Gamut C**, **Output = Rec.709 (Gamma 2.4)**.
 4. Grade before the node in F-Log2 C (Offset for exposure and balance works well in log), put
-   Celluloid Pro last or before a final trim node.
+   Reafilm Pro last or before a final trim node.
 
 The same works for every camera in the Camera Log list: ARRI LogC3 and LogC4, Sony S-Log3,
 Panasonic V-Log, Canon Log 3, Blackmagic Film Gen 5, Fujifilm F-Log / F-Log2, DaVinci Intermediate,
@@ -170,7 +177,7 @@ not change brightness but shifts saturated colours (F-Gamut C read as F-Gamut lo
 ### 3.2 DaVinci YRGB Color Managed (RCM)
 
 In RCM, Resolve converts each clip into the timeline colour space and converts the timeline space to
-the output space at the end. Celluloid Pro sits in between, so it must receive a log space it knows
+the output space at the end. Reafilm Pro sits in between, so it must receive a log space it knows
 and the conversion after it must be undone.
 
 1. **Project Settings › Color Management**: Color science *DaVinci YRGB Color Managed*, colour
@@ -178,35 +185,35 @@ and the conversion after it must be undone.
    Output colour space **Rec.709 Gamma 2.4** (or your HDR format). Switch **output tone mapping** and
    **output gamut mapping** to *None*.
 2. Set each clip's Input Colour Space to its camera (right-click the clip › Input Color Space).
-3. Celluloid Pro: **Camera Log = DaVinci Intermediate / DaVinci Wide Gamut**, **Output = Rec.709
+3. Reafilm Pro: **Camera Log = DaVinci Intermediate / DaVinci Wide Gamut**, **Output = Rec.709
    (Gamma 2.4)** (the same display as the project output).
-4. Add a node **after** Celluloid Pro with a **Color Space Transform**: Input *Rec.709 / Gamma 2.4*
+4. Add a node **after** Reafilm Pro with a **Color Space Transform**: Input *Rec.709 / Gamma 2.4*
    → Output *DaVinci Wide Gamut / DaVinci Intermediate*, tone mapping *None*, gamut mapping *None*,
    *Apply Forward OOTF* and *Apply Inverse OOTF* off. Resolve's output conversion then returns the
-   image exactly to what Celluloid Pro rendered.
+   image exactly to what Reafilm Pro rendered.
 
 *If your Resolve version has no input colour space for F-Log2 C*, set those clips' Input Colour
-Space to **Bypass**, set **Camera Log = Fujifilm F-Log2 C / F-Gamut C** on their Celluloid Pro node
+Space to **Bypass**, set **Camera Log = Fujifilm F-Log2 C / F-Gamut C** on their Reafilm Pro node
 and keep the CST after it. Or use the YRGB setup above, which avoids the question altogether.
 
 ### 3.3 ACES (ACEScct)
 
 1. **Project Settings › Color Management**: Color science *ACEScct*.
-2. Celluloid Pro: **Camera Log = ACEScct / AP1**, Output = the display of your ACES Output
+2. Reafilm Pro: **Camera Log = ACEScct / AP1**, Output = the display of your ACES Output
    Transform (for example Rec.709 Gamma 2.4).
 3. Undo the Output Transform after the node, choosing one of:
-   - set **ACES Output Transform** to *No Output Transform* when Celluloid Pro is on every clip or on
+   - set **ACES Output Transform** to *No Output Transform* when Reafilm Pro is on every clip or on
      a timeline node, so its display image goes straight to the output; or
-   - add an **ACES Transform** node after Celluloid Pro that converts the display image back to
+   - add an **ACES Transform** node after Reafilm Pro that converts the display image back to
      ACEScct with the *inverse* of your Output Transform (Input Transform = your display, e.g.
      Rec.709, as an inverse ODT; Output Transform = ACEScct).
 
 The inverse route keeps other ACES clips untouched but brings back a little of the ACES output
-rendering's highlight handling; the first route shows Celluloid Pro's image exactly.
+rendering's highlight handling; the first route shows Reafilm Pro's image exactly.
 
 ### 3.4 HDR projects
 
-Set Celluloid Pro's **Output** to *Rec.2100 PQ (HDR)* or *Rec.2100 HLG (HDR)* and the project's
+Set Reafilm Pro's **Output** to *Rec.2100 PQ (HDR)* or *Rec.2100 HLG (HDR)* and the project's
 output (YRGB: the timeline/output labels and HDR mastering settings; RCM: the output colour space)
 to the same format. See section 9.
 
@@ -214,7 +221,7 @@ to the same format. See section 9.
 
 ## 4. Thinking like a film lab
 
-Celluloid Pro has three separate brightness controls, and they do different things:
+Reafilm Pro has three separate brightness controls, and they do different things:
 
 | Control | Where it acts | What it does |
 |---|---|---|
@@ -364,7 +371,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Color Density** (`interlayer`; 0 … 2; default 1; keyframable) — Interlayer (DIR) effect: how strongly the dye layers inhibit each other. 1 = the stock's nominal colour density; higher values give denser, more separated colours, 0 a flatter, purer-channel rendering. Neutrals stay neutral at any setting.
 - **Neg Bleach Bypass** (`negBleach`; 0 … 1; default 0; keyframable) — Skips (partially) the bleach step of the negative so silver stays in the film alongside the dyes. The extra silver density builds with exposure: higher contrast, harder highlights and muted colour, strongest in the bright parts of the image. 0 = normal processing.
 - **Neutralize** (`neutralize`; 0 … 1; default 0; keyframable) — Removes the stock's per-layer curve differences (the subtle colour crossover between shadows and highlights). 0 = the stock's natural character, 1 = perfectly neutral greys from black to white.
-- **Stock Data** (`negProvenance`; read-only; “Data sheet: Kodak H-1-5207 (2015): spectral sensitivity, characteristic curves; dyes from H-1-5219t (VISION3 dye set). ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film.”) — Where the selected film stock's data comes from (v1.3): a manufacturer data sheet (fitted, not measured from film), partly borrowed from a named proxy stock, a Celluloid design, or a style approximation.
+- **Stock Data** (`negProvenance`; read-only; “Data sheet: Kodak H-1-5207 (2015): spectral sensitivity, characteristic curves; dyes from H-1-5219t (VISION3 dye set). ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film.”) — Where the selected film stock's data comes from (v1.3): a manufacturer data sheet (fitted, not measured from film), partly borrowed from a named proxy stock, a Reafilm design, or a style approximation.
 
 ### Print
 
@@ -383,7 +390,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Print Density** (`printExposure`; -12 … 12; default 0; keyframable) — Overall printer light in points on all three layers. Positive values make the print BRIGHTER (less print density), negative values darker and denser. This is the lab's way to brighten or darken a print: highlights and blacks respond like real print film, not like a gain.
 - **Print Bleach Bypass** (`printBleach`; 0 … 1; default 0; keyframable) — Bleach bypass on the print: retained silver deepens the blacks and shadows, raises contrast and desaturates - the classic gritty, metallic release-print look. 0 = normal processing.
 - **Print Crossover** (`printCrossover`; -1 … 1; default 0; keyframable) — Warm highlights and cool shadows the way many release prints render them (the classic 2383 chain): positive values add yellow and remove cyan in the bright end of the print and do the opposite in the shadows, growing from the middle of the scale outward, while middle grey stays neutral. Negative values reverse it (cool highlights, warm shadows). 0 = the print stock exactly as designed. Print process only.
-- **Print Stock Data** (`printProvenance`; read-only; “Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the default-look target).”) — Where the selected print stock's data comes from: a manufacturer data sheet (fitted, not measured from film), partly borrowed from a named proxy stock, a Celluloid design, or a style approximation.
+- **Print Stock Data** (`printProvenance`; read-only; “Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the default-look target).”) — Where the selected print stock's data comes from: a manufacturer data sheet (fitted, not measured from film), partly borrowed from a named proxy stock, a Reafilm design, or a style approximation.
 - **Enable Print Lab** (`printLabEnable`; default on) — Switches the print lab controls below (Projection White, Process Aim, Print Contrast, Rendering) on or off without losing their values. Off = a contact print at the nominal process aim, adapted to D65 - exactly the v1.2 print.
 - **Projection White** (`projectionWhite`; default: D65 (Adapted)) — The white the projected print is shown at. D65 (Adapted): the eye adapted to the projector lamp, mapped to the D65 white of a video display (the classic film-out preview). Theatre Xenon (Unadapted): the print as a colorimeter reads it off a xenon-lit screen - the clear print base and the lamp give a warmer, slightly yellow white. D60 Sim: adapted to the ACES D60 white and shown on a D65 display (a slightly warm white, as in DCI / ACES D60 sim mastering).
   - Options: D65 (Adapted) · Theatre Xenon (Unadapted) · D60 Sim
@@ -491,7 +498,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 - **LUT Size** (`lutSize`; default: 33) — Lattice size of the exported 3D LUT. 33 is the usual choice; 65 is the most accurate (larger file); 17 for devices with small LUT memory.
   - Options: 17 · 33 · 65
-- **Folder** (`lutPath`; folder; default empty) — Folder the LUT is written to (created if needed). Leave empty for the default folder `<Documents>/Celluloid` LUTs of the user who exports. File name: `Celluloid_<input>_<negative>_<print>_<output>.cube`. Add this folder to Resolve's LUT list (Project Settings > Color Management > Open LUT Folder) to use the LUTs elsewhere.
+- **Folder** (`lutPath`; folder; default empty) — Folder the LUT is written to (created if needed). Leave empty for the default folder `<Documents>/Reafilm` LUTs of the user who exports. File name: `Reafilm_<input>_<negative>_<print>_<output>.cube`. Add this folder to Resolve's LUT list (Project Settings > Color Management > Open LUT Folder) to use the LUTs elsewhere.
 - **Export LUT** (`lutExport`; button) — Writes the current colour settings (Color Only: input space, exposure, stocks, development, print, output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, cameras or other applications. The LUT expects the selected camera log as input (Linear Rec.2020: the file carries a log2 shaper).
 
 ### About
@@ -499,7 +506,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 *Version information.*
 
 - **Version** (`aboutVersion`; read-only) — Plugin version, build variant and build.
-- **Manual** (`aboutManual`; read-only; “See the User Manual (MANUAL.md in the plugin bundle's Resources folder).”) — The user manual explains every control, recommended Resolve setups (YRGB, RCM, ACES) and workflow recipes. It is installed inside the plugin bundle: Celluloid.ofx.bundle/Contents/Resources.
+- **Manual** (`aboutManual`; read-only; “See the User Manual (MANUAL.md in the plugin bundle's Resources folder).”) — The user manual explains every control, recommended Resolve setups (YRGB, RCM, ACES) and workflow recipes. It is installed inside the plugin bundle: ReafilmPro.ofx.bundle/Contents/Resources.
 
 <!-- END GENERATED: controls -->
 
@@ -717,7 +724,7 @@ Recipe:
 
 ### Colour and texture separately
 
-Use **Color Only** on the grade node of each clip and a second Celluloid Pro instance in **Texture
+Use **Color Only** on the grade node of each clip and a second Reafilm Pro instance in **Texture
 Only** mode on a timeline node or at the end of the node tree (same Output setting). Grain and
 halation are then added once to the finished image, after any trims, and the colour nodes render
 faster.
@@ -730,7 +737,7 @@ film look). Colour is left untouched.
 
 ### Matching two cameras
 
-Give each camera group its own Celluloid Pro node with its own **Camera Log**, and the same stocks
+Give each camera group its own Reafilm Pro node with its own **Camera Log**, and the same stocks
 and printer lights. Both cameras are then rendered through the same negative and print. Match
 exposure and white balance before the node, in each camera's log.
 
@@ -740,7 +747,7 @@ exposure and white balance before the node, in each camera's log.
 the work between negative development, scanning, printing and projection. **Full Chain** (the
 default) is everything in one node, exactly as before.
 
-A three-node chain in Resolve (each node its own Celluloid Pro instance, same Print Stock):
+A three-node chain in Resolve (each node its own Reafilm Pro instance, same Print Stock):
 
 1. **Negative -> Log Scan**: your camera log in (Camera Log as usual), the developed negative out
    as a Cineon-style printing-density scan (clear film at code 95, 0.002 density per 10-bit code).
@@ -802,7 +809,7 @@ where the selected stock's numbers come from:
 
 - a manufacturer data sheet, fitted rather than measured from film
 - a partial data sheet, with the rest borrowed from a named proxy stock
-- a Celluloid design
+- a Reafilm design
 - a style approximation
 
 The full list is in [STOCKS.md](STOCKS.md), section 5c.
@@ -861,14 +868,14 @@ nothing in Print Only (the input there is a scan, not scene light); Film Roll-of
 
 ### Looking like an ALEXA (Sensor Match and ALEXA Rendering, v1.3)
 
-A camera's "look" has two parts. Celluloid Pro models each one separately:
+A camera's "look" has two parts. Reafilm Pro models each one separately:
 
 1. **The sensor** (Sensor Match group): the colours the ALEXA's sensor would have recorded of the
    same scene. This change is subtle and scene-referred. It has no tone curve and greys stay put. It
    is on by default for F-Log2 C / F-Log2 / F-Log footage.
 2. **The rendering** (ALEXA Rendering group): how the ALEXA's classic LogC3 -> Rec.709 look turns that
    scene into a picture, with its tone curve, its saturation and hue per hue and brightness, and its
-   skin. Celluloid Pro uses its own parametric model, fitted to ARRI's published look. No ARRI LUT is
+   skin. Reafilm Pro uses its own parametric model, fitted to ARRI's published look. No ARRI LUT is
    included or needed. On the owner footage the model is within a mean of 0.6 dE2000 of ARRI's own
    rendering.
 
@@ -894,11 +901,11 @@ and are left out.
 
 - **Size:** 17³, 33³ (default) or 65³ points. A 33³ LUT matches the plug-in to about 0.03 code values
   (99th percentile); use 65³ for critical work and 17³ only for devices with little LUT memory.
-- **File name:** `Celluloid_<input>_<negative>_<print>_<output>.cube`, for example
-  `Celluloid_Fujifilm-F-Log2-C_CN-200T-Studio-Tungsten_P1-Standard-Projection_Rec.709-Gamma-2.4.cube`
+- **File name:** `Reafilm_<input>_<negative>_<print>_<output>.cube`, for example
+  `Reafilm_Fujifilm-F-Log2-C_CN-200T-Studio-Tungsten_P1-Standard-Projection_Rec.709-Gamma-2.4.cube`
   (the print part is `Lab-Scan` or `Reversal` where applicable). An existing file of the same name
   is replaced, and the confirmation message says so.
-- **Folder:** the **Folder** field, or — when it is empty — `Documents/Celluloid LUTs/` of the user
+- **Folder:** the **Folder** field, or — when it is empty — `Documents/Reafilm LUTs/` of the user
   who exports. The folder is created when needed.
 - **Input:** a LUT maps one camera's log code values. Export one per camera log. For Linear Rec.2020
   input the file carries a 1D log2 shaper (−8.5 … +8.5 stops around mid grey) in front of the 3D
@@ -929,7 +936,7 @@ encoding.
 
 ## 10. Personal build and licensing
 
-This copy of Celluloid Pro is the **personal build** for non-commercial use, the default
+This copy of Reafilm Pro is the **personal build** for non-commercial use, the default
 configuration of the source repository:
 
 - **No license check.** The plug-in never looks for a license key, offline or online.
@@ -937,7 +944,7 @@ configuration of the source repository:
 - **LUT export always works** (section 8).
 - The **License** group is hidden. Its parameters still exist inside the plug-in, so projects saved
   with any earlier version, licensed or trial, open unchanged.
-- **About › Version** reads "Celluloid Pro *version* - Personal build".
+- **About › Version** reads "Reafilm Pro *version* - Personal build".
 
 Nothing in the image pipeline differs between the builds: a personal-build render is
 pixel-identical to a licensed render of the same settings.
@@ -948,7 +955,7 @@ The commercial variant is still in the source and builds with the CMake option
 `-DCEL_LICENSING=ON` (README, CMake options). It shows the License group and behaves as follows.
 
 Without a license key the licensed build runs as a **trial**: every feature works except **LUT export**,
-and renders carry a small "CELLULOID PRO — TRIAL" badge in the bottom-right corner plus a faint
+and renders carry a small "REAFILM PRO — TRIAL" badge in the bottom-right corner plus a faint
 diagonal band. There is no time limit.
 
 **Activate.** Open the **License** group, paste your key into **License Key** (keys start with
@@ -961,11 +968,14 @@ Where keys are stored:
 
 | | per user (written by Activate) | machine-wide (studios, installed by an administrator) |
 |---|---|---|
-| macOS | `~/Library/Application Support/Celluloid/license.key` | `/Library/Application Support/Celluloid/license.key` |
-| Windows | `%APPDATA%\Celluloid\license.key` | `%PROGRAMDATA%\Celluloid\license.key` |
+| macOS | `~/Library/Application Support/Reafilm/license.key` | `/Library/Application Support/Reafilm/license.key` |
+| Windows | `%APPDATA%\Reafilm\license.key` | `%PROGRAMDATA%\Reafilm\license.key` |
+
+A key activated before the rename to Reafilm Pro (in the old `Celluloid` folders) is still read,
+so there is no need to activate again.
 
 Render nodes and containers can also provide the key in the environment variable
-`CELLULOID_LICENSE_KEY`. If several sources hold a key, a valid paid key (Indie, Pro, Studio) wins
+`REAFILM_LICENSE_KEY` (the old name `CELLULOID_LICENSE_KEY` still works). If several sources hold a key, a valid paid key (Indie, Pro, Studio) wins
 over a Trial-edition evaluation key. A key copied into place by hand is picked up within a few
 seconds, without restarting Resolve.
 
@@ -977,7 +987,7 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
 
 ## 11. Performance
 
-- **GPU.** Celluloid Pro renders on the GPU Resolve uses: Metal on macOS, CUDA on NVIDIA and OpenCL
+- **GPU.** Reafilm Pro renders on the GPU Resolve uses: Metal on macOS, CUDA on NVIDIA and OpenCL
   on AMD/Intel under Windows. Each GPU backend runs a self test when the plug-in loads, and only
   backends that pass are offered to Resolve. Check **Preferences › Memory and GPU** in Resolve: the
   GPU processing mode must be Metal, CUDA or OpenCL, not CPU.
@@ -998,9 +1008,11 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
 
 **Diagnostics for support cases** (set before starting Resolve):
 
-- `CELLULOID_LOG=1` — diagnostics on the standard error output (GPU self tests, preset checks).
-- `CELLULOID_DISABLE_GPU=1` — do not offer any GPU backend (CPU only), or a list such as
+- `REAFILM_LOG=1` — diagnostics on the standard error output (GPU self tests, preset checks).
+- `REAFILM_DISABLE_GPU=1` — do not offer any GPU backend (CPU only), or a list such as
   `opencl,cuda,metal` to disable only those.
+
+The old names `CELLULOID_LOG` and `CELLULOID_DISABLE_GPU` still work when the new ones are not set.
 
 ---
 
@@ -1008,7 +1020,7 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
 
 | Symptom | Cause and remedy |
 |---|---|
-| Celluloid Pro is not in the Effects library | Check that `Celluloid.ofx.bundle` is in the OFX plug-in folder (section 1) and restart Resolve. On macOS confirm the installer was allowed to run. Resolve caches plug-ins: if it lists the effect as failed, delete Resolve's OFX plug-in cache or reinstall, then restart. |
+| Reafilm Pro is not in the Effects library | Check that `ReafilmPro.ofx.bundle` is in the OFX plug-in folder (section 1) and restart Resolve. On macOS confirm the installer was allowed to run. Resolve caches plug-ins: if it lists the effect as failed, delete Resolve's OFX plug-in cache or reinstall, then restart. |
 | Image is flat and washed out, or harsh and colour-shifted | **Camera Log** does not match the footage, or the clip was converted (LUT, CST, colour management) before the node. Section 3. |
 | Image looks right in the node but wrong in the viewer / render | A colour-managed project converts the plug-in's display image again. Add the conversion back to the timeline space after the node, or use YRGB (section 3). |
 | Too dark or too bright | **Exposure** for the scene, **Print Density** for the print. Avoid fixing exposure with a gain after the node. |
@@ -1022,7 +1034,7 @@ Keep your purchase e-mail: if you reinstall or change computers, paste the key a
 | "LUT export is part of the licensed version" | Licensed build only: activate a license key (section 10). The personal build always exports. |
 | "This license key could not be activated" | Licensed build only. Paste the complete key including `CELL1-`; the message explains the reason (for example an expired subscription key or a key for another product). |
 | Watermark still visible after activation | Licensed build only (the personal build never watermarks). Check License Status. A machine-wide or environment key with an error is reported there. Re-render the frame (Resolve may show a cached frame). |
-| Slow playback | Check Resolve's GPU processing mode, lower texture settings or use Color Only plus one Texture Only node (section 11). With `CELLULOID_LOG=1` the plug-in logs which GPU backends passed their self test. |
+| Slow playback | Check Resolve's GPU processing mode, lower texture settings or use Color Only plus one Texture Only node (section 11). With `REAFILM_LOG=1` the plug-in logs which GPU backends passed their self test. |
 | A GPU error in one frame | The plug-in re-renders a failed GPU frame on the CPU and, if that fails, asks Resolve to render on the CPU; persistent errors disable that GPU backend for the node. Update the GPU driver. |
 
 ---

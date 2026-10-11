@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU backends: API-independent machinery (internal to src/gpu).
+// Reafilm Pro - GPU backends: API-independent machinery (internal to src/gpu).
 //   - FrameSchedule: validates a Plan against the host images, fills the per-pass CelPassArgs
 //     (sizes/strides), and assigns internal buffers to physical slots by liveness (internal buffers
 //     whose lifetimes do not overlap share memory).

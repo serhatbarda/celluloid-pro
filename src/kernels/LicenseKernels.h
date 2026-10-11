@@ -1,6 +1,6 @@
-/* Celluloid Pro - trial watermark kernel (license agent).  Portable dialect (see Portable.h).
+/* Reafilm Pro - trial watermark kernel (license agent).  Portable dialect (see Portable.h).
  *
- * cel_k_watermark stamps a small, semi-transparent "CELLULOID PRO - TRIAL" line (with a real em
+ * cel_k_watermark stamps a small, semi-transparent "REAFILM PRO - TRIAL" line (with a real em
  * dash) in the bottom-right corner plus a faint diagonal veil band through the centre of the
  * frame. The text sits on a soft translucent dark pill so it stays legible on any background
  * (white walls, skies) without a heavy outline. It runs as the very last pass on the ENCODED output image (display code values), so all
@@ -46,12 +46,12 @@
   #define CEL_WM_TABLE static const
 #endif
 
-#define CEL_WM_NGLYPHS   13
+#define CEL_WM_NGLYPHS   15
 #define CEL_WM_GLYPH_U32 8          /* per glyph: advance width in cells, then 7 row masks */
-#define CEL_WM_MSG_LEN   21
+#define CEL_WM_MSG_LEN   19
 #define CEL_WM_TRACKING  1.6f       /* extra space between glyphs, in cells */
 /* Total text width in cells = sum(width) + (MSG_LEN-1)*TRACKING (checked by tests/license). */
-#define CEL_WM_TEXT_W    110.0f
+#define CEL_WM_TEXT_W    98.8f
 #define CEL_WM_ROWS      7
 #define CEL_WM_STROKE_R  0.34f      /* stroke radius in cells */
 
@@ -69,12 +69,14 @@ CEL_WM_TABLE cel_uint cel_wm_font[CEL_WM_NGLYPHS * CEL_WM_GLYPH_U32] = {
     5u, 0x0fu, 0x11u, 0x11u, 0x0fu, 0x05u, 0x09u, 0x11u,   /*  9 R     @@@@ |@   @|@   @|@@@@ |@ @  |@  @ |@   @ */
     5u, 0x1fu, 0x04u, 0x04u, 0x04u, 0x04u, 0x04u, 0x04u,   /* 10 T     @@@@@|  @  |  @  |  @  |  @  |  @  |  @   */
     5u, 0x04u, 0x0au, 0x11u, 0x11u, 0x1fu, 0x11u, 0x11u,   /* 11 A       @  | @ @ |@   @|@   @|@@@@@|@   @|@   @ */
-    4u, 0x00u, 0x00u, 0x00u, 0x0fu, 0x00u, 0x00u, 0x00u    /* 12 dash      |    |    |@@@@|    |    |     */
+    4u, 0x00u, 0x00u, 0x00u, 0x0fu, 0x00u, 0x00u, 0x00u,   /* 12 dash      |    |    |@@@@|    |    |     */
+    4u, 0x0fu, 0x01u, 0x01u, 0x07u, 0x01u, 0x01u, 0x01u,   /* 13 F     @@@@|@   |@   |@@@ |@   |@   |@    */
+    5u, 0x11u, 0x1bu, 0x15u, 0x15u, 0x11u, 0x11u, 0x11u    /* 14 M     @   @|@@ @@|@ @ @|@ @ @|@   @|@   @|@   @ */
 };
 
-/* "CELLULOID PRO <em dash> TRIAL" as glyph indices */
+/* "REAFILM PRO <em dash> TRIAL" as glyph indices (C, U and D are unused since the rename) */
 CEL_WM_TABLE cel_uint cel_wm_msg[CEL_WM_MSG_LEN] = {
-    1u, 2u, 3u, 3u, 4u, 3u, 5u, 6u, 7u, 0u, 8u, 9u, 5u, 0u, 12u, 0u, 10u, 9u, 6u, 11u, 3u
+    9u, 2u, 11u, 13u, 6u, 3u, 14u, 0u, 8u, 9u, 5u, 0u, 12u, 0u, 10u, 9u, 6u, 11u, 3u
 };
 
 /* 1 if cell (cx, cy) of glyph g is lit (cells outside the glyph are dark). */

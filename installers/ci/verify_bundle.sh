@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Celluloid Pro CI: structural checks of the built OFX bundle.
-#   verify_bundle.sh <path/Celluloid.ofx.bundle> <macos|windows|linux>
+# Reafilm Pro CI: structural checks of the built OFX bundle.
+#   verify_bundle.sh <path/ReafilmPro.ofx.bundle> <macos|windows|linux>
 # - bundle layout (Info.plist, icon, MANUAL.md, licence texts, binary in the OFX architecture folder)
 # - exactly two exported symbols: OfxGetNumberOfPlugins, OfxGetPlugin
 # - no unexpected runtime dependencies (static MSVC/CUDA runtimes, system libraries only)
@@ -31,7 +31,7 @@ devkey_check() {
   local found=0 bin py
   py="$(command -v python3 || command -v python || true)"
   [[ -n "$py" ]] || fail "python3 is needed for the development-key check"
-  for bin in "$B"/Contents/*/Celluloid.ofx; do
+  for bin in "$B"/Contents/*/ReafilmPro.ofx; do
     [[ -f "$bin" ]] || continue
     if "$py" - "$ROOT/tools/licensegen/dev-keys/celluloid-dev.public.key" "$bin" <<'PYEOF'
 import sys
@@ -63,7 +63,7 @@ ok "layout (Info.plist, icon, MANUAL.md, licences)"
 
 case "$OS" in
   macos)
-    BIN="$B/Contents/MacOS/Celluloid.ofx"
+    BIN="$B/Contents/MacOS/ReafilmPro.ofx"
     [[ -f "$BIN" ]] || fail "missing $BIN"
     archs=$(lipo -archs "$BIN")
     [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || fail "not universal: $archs"
@@ -82,7 +82,7 @@ case "$OS" in
     ok "dependencies: system only"
     ;;
   windows)
-    BIN="$B/Contents/Win64/Celluloid.ofx"
+    BIN="$B/Contents/Win64/ReafilmPro.ofx"
     [[ -f "$BIN" ]] || fail "missing $BIN"
     command -v dumpbin >/dev/null || fail "dumpbin not found (run inside the MSVC developer environment)"
     exports=$(dumpbin -nologo -exports "$BIN" | tr -d '\r' | awk '/ordinal +hint +RVA +name/{f=1;next} f&&NF>=4{print $4}' | sort | tr '\n' ' ')
@@ -98,8 +98,8 @@ case "$OS" in
     ok "dependencies: system DLLs only"
     ;;
   linux)
-    BIN=$(ls "$B"/Contents/Linux-*/Celluloid.ofx 2>/dev/null | head -1)
-    [[ -n "$BIN" ]] || fail "missing Contents/Linux-*/Celluloid.ofx"
+    BIN=$(ls "$B"/Contents/Linux-*/ReafilmPro.ofx 2>/dev/null | head -1)
+    [[ -n "$BIN" ]] || fail "missing Contents/Linux-*/ReafilmPro.ofx"
     syms=$(nm -D --defined-only "$BIN" | awk '{print $NF}' | sort | tr '\n' ' ')
     [[ "$syms" == "OfxGetNumberOfPlugins OfxGetPlugin " ]] || fail "exports: $syms"
     ok "exports: $syms"

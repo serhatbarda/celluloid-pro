@@ -1,4 +1,4 @@
-// Celluloid Pro - OFX parameter registry.
+// Reafilm Pro - OFX parameter registry.
 //
 // Every parameter of the plugin is described ONCE here (id, type, group, label, range, default,
 // hint, flags). describeInContext() defines the OFX parameters from this table, the look-preset

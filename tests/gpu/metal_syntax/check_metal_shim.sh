@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Celluloid Pro - Linux workbench: syntax/dialect check of flattened MSL sources with clang++ and
+# Reafilm Pro - Linux workbench: syntax/dialect check of flattened MSL sources with clang++ and
 # the address-space shim in tests/gpu/metal_syntax/shim. Usage: check_metal_shim.sh <file.metal>...
 # Catches: C++-isms the dialect forbids that MSL also rejects, address-space mismatches, double
 # promotion (MSL has no double), undeclared metal:: functions. Exit code != 0 on any diagnostic.

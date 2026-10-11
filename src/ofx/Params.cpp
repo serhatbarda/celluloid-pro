@@ -1,4 +1,4 @@
-// Celluloid Pro - OFX parameter registry (see Params.h). Hints are written for colourists.
+// Reafilm Pro - OFX parameter registry (see Params.h). Hints are written for colourists.
 #include "Params.h"
 #include "Presets.h"
 #include "Platform.h"
@@ -330,7 +330,7 @@ std::vector<ParamDef> build() {
           true);
     b.label(id::negProvenance, "Stock Data", negs.empty() ? std::string() : negs[size_t(std::max(negDefault, 0))].provenance,
             "Where the selected film stock's data comes from (v1.3): a manufacturer data sheet (fitted, not measured "
-            "from film), partly borrowed from a named proxy stock, a Celluloid design, or a style approximation.")
+            "from film), partly borrowed from a named proxy stock, a Reafilm design, or a style approximation.")
         .persistent = false;   // derived from Film Stock, recomputed when the instance is created
 
     // ---------------------------------------------------------------- [Print]
@@ -386,7 +386,7 @@ std::vector<ParamDef> build() {
         const std::vector<std::string> pprov = core::printStockProvenance();
         b.label(id::printProvenance, "Print Stock Data", pprov.empty() ? std::string() : pprov[size_t(std::max(printDefault, 0))],
                 "Where the selected print stock's data comes from: a manufacturer data sheet (fitted, not measured "
-                "from film), partly borrowed from a named proxy stock, a Celluloid design, or a style approximation.")
+                "from film), partly borrowed from a named proxy stock, a Reafilm design, or a style approximation.")
             .persistent = false;   // derived from Print Stock, recomputed when the instance is created
         b.boolean(id::printLabEnable, "Enable Print Lab", true,
                   "Switches the print lab controls below (Projection White, Process Aim, Print Contrast, Rendering) on "
@@ -671,8 +671,8 @@ std::vector<ParamDef> build() {
     // projects, and point at a foreign home folder on another machine)
     b.str(id::lutPath, "Folder", "", StrKind::Directory,
           "Folder the LUT is written to (created if needed). Leave empty for the default folder "
-          "<Documents>/Celluloid LUTs of the user who exports. File name: "
-          "Celluloid_<input>_<negative>_<print>_<output>.cube. Add this folder to Resolve's LUT list "
+          "<Documents>/Reafilm LUTs of the user who exports. File name: "
+          "Reafilm_<input>_<negative>_<print>_<output>.cube. Add this folder to Resolve's LUT list "
           "(Project Settings > Color Management > Open LUT Folder) to use the LUTs elsewhere.");
     // the licensed build gates LUT export (SPEC §9); the personal build always exports
 #define CEL_LUT_EXPORT_HINT                                                                                  \
@@ -708,7 +708,7 @@ std::vector<ParamDef> build() {
                             "cleared after activation.");
         k.persistent = false;
     }
-    b.push(id::licenseActivate, "Activate", "Verifies the pasted key and activates Celluloid Pro on this computer.");
+    b.push(id::licenseActivate, "Activate", "Verifies the pasted key and activates Reafilm Pro on this computer.");
     b.push(id::licenseRemove, "Deactivate",
            "Removes the license from this computer (for example before moving it to another machine). Renders "
            "return to trial mode.");
@@ -722,7 +722,7 @@ std::vector<ParamDef> build() {
     b.label(id::aboutManual, "Manual",
             "See the User Manual (MANUAL.md in the plugin bundle's Resources folder).",
             "The user manual explains every control, recommended Resolve setups (YRGB, RCM, ACES) and "
-            "workflow recipes. It is installed inside the plugin bundle: Celluloid.ofx.bundle/Contents/Resources.");
+            "workflow recipes. It is installed inside the plugin bundle: ReafilmPro.ofx.bundle/Contents/Resources.");
 
     return std::move(b.defs);
 }

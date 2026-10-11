@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-    <title>Celluloid Pro @VERSION@</title>
+    <title>Reafilm Pro @VERSION@</title>
     <organization>de.serhatbarda</organization>
     <welcome file="welcome.html" mime-type="text/html"/>
     <conclusion file="conclusion.html" mime-type="text/html"/>
@@ -17,8 +17,8 @@
         </line>
     </choices-outline>
     <choice id="default"/>
-    <choice id="@PKG_ID@" visible="false" title="Celluloid Pro OFX plug-in">
+    <choice id="@PKG_ID@" visible="false" title="Reafilm Pro OFX plug-in">
         <pkg-ref id="@PKG_ID@"/>
     </choice>
-    <pkg-ref id="@PKG_ID@" version="@VERSION@" onConclusion="none">CelluloidPro-plugin.pkg</pkg-ref>
+    <pkg-ref id="@PKG_ID@" version="@VERSION@" onConclusion="none">ReafilmPro-plugin.pkg</pkg-ref>
 </installer-gui-script>

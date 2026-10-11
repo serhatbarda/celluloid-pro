@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU tests: OpenCL environment (creates its own context + queue like a host).
+// Reafilm Pro - GPU tests: OpenCL environment (creates its own context + queue like a host).
 #include "GpuTestEnv.h"
 #include "../../src/gpu/opencl/CLApi.h"
 

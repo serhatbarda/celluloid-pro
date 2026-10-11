@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reference implementation of the Celluloid Pro license key format (issue + verify).
+"""Reference implementation of the Reafilm Pro license key format (issue + verify).
 
 For web-shop back ends that prefer to sign keys in Python instead of calling the `licensegen`
 binary. Byte-for-byte compatible with src/license/KeyFormat.{h,cpp}; tests/license/build.sh

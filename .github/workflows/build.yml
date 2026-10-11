@@ -1,4 +1,4 @@
-# Celluloid Pro - CI / release (SPEC §11).
+# Reafilm Pro - CI / release (SPEC §11).
 #
 # Exactly two jobs: macOS (universal arm64+x86_64, Metal) and Windows (MSVC x64, CUDA, OpenCL).
 # There is deliberately NO Linux job: unit tests, POCL GPU parity and host render tests run on the
@@ -108,13 +108,13 @@ jobs:
           fi
 
       - name: Verify bundle
-        run: bash installers/ci/verify_bundle.sh build/Celluloid.ofx.bundle macos
+        run: bash installers/ci/verify_bundle.sh build/ReafilmPro.ofx.bundle macos
 
       # Licensed builds on tags only (never main/PR builds, never the personal build): no provisional
       # production key, no CEL_DEV_LICENSE build, no development public key in the binary
       - name: Release licence gate
         if: startsWith(github.ref, 'refs/tags/v') && env.CEL_LICENSING == 'ON'
-        run: bash installers/ci/release_gate.sh build build/Celluloid.ofx.bundle
+        run: bash installers/ci/release_gate.sh build build/ReafilmPro.ofx.bundle
 
       - name: Unit tests
         run: ctest --test-dir build -C ${BUILD_TYPE} --output-on-failure --timeout 900 -LE "gpu-device|linux-only"
@@ -153,7 +153,7 @@ jobs:
 
       - name: Package (.pkg)
         run: |
-          args=(--bundle build/Celluloid.ofx.bundle --version "${{ steps.ver.outputs.version }}" --out dist)
+          args=(--bundle build/ReafilmPro.ofx.bundle --version "${{ steps.ver.outputs.version }}" --out dist)
           [ -n "${APP_IDENTITY:-}" ] && args+=(--app-identity "$APP_IDENTITY")
           [ -n "${INSTALLER_IDENTITY:-}" ] && args+=(--installer-identity "$INSTALLER_IDENTITY")
           [ -n "${KEYCHAIN:-}" ] && args+=(--keychain "$KEYCHAIN")
@@ -171,12 +171,16 @@ jobs:
           cp dist/*.pkg "$STAGE/"
           [ -f docs/MANUAL.md ] && cp docs/MANUAL.md "$STAGE/Manual.md"
           cat > "$STAGE/READ ME FIRST.txt" <<EOF
-          Celluloid Pro $VER for DaVinci Resolve (macOS 11+, Apple silicon and Intel)
+          Reafilm Pro $VER for DaVinci Resolve (macOS 11+, Apple silicon and Intel)
 
           1. Quit DaVinci Resolve.
-          2. Double-click CelluloidPro-$VER-macOS.pkg and follow the installer.
-             The plug-in is installed to /Library/OFX/Plugins/Celluloid.ofx.bundle.
-          3. Start Resolve; the effect is under OpenFX > Celluloid > Celluloid Pro.
+          2. Double-click ReafilmPro-$VER-macOS.pkg and follow the installer.
+             The plug-in is installed to /Library/OFX/Plugins/ReafilmPro.ofx.bundle.
+          3. Start Resolve; the effect is under OpenFX > Reafilm > Reafilm Pro.
+
+          Upgrading from Celluloid Pro: the installer removes the old
+          /Library/OFX/Plugins/Celluloid.ofx.bundle. If you installed it by hand, delete
+          that folder yourself, otherwise Resolve shows both. Saved projects keep loading.
 
           If the installer is not signed yet, macOS may block it: right-click the
           .pkg and choose Open, or allow it in System Settings > Privacy & Security.
@@ -186,12 +190,12 @@ jobs:
           else
             echo "Personal build for non-commercial use: no license key needed, no watermark." >> "$STAGE/READ ME FIRST.txt"
           fi
-          hdiutil create -volname "Celluloid Pro $VER" -srcfolder "$STAGE" -fs HFS+ \
-            -format UDZO -ov "dist/CelluloidPro-$VER-macOS.dmg"
+          hdiutil create -volname "Reafilm Pro $VER" -srcfolder "$STAGE" -fs HFS+ \
+            -format UDZO -ov "dist/ReafilmPro-$VER-macOS.dmg"
           if [ -n "${APP_IDENTITY:-}" ]; then
-            codesign --force --sign "$APP_IDENTITY" ${KEYCHAIN:+--keychain "$KEYCHAIN"} --timestamp "dist/CelluloidPro-$VER-macOS.dmg"
+            codesign --force --sign "$APP_IDENTITY" ${KEYCHAIN:+--keychain "$KEYCHAIN"} --timestamp "dist/ReafilmPro-$VER-macOS.dmg"
           fi
-          hdiutil verify "dist/CelluloidPro-$VER-macOS.dmg"
+          hdiutil verify "dist/ReafilmPro-$VER-macOS.dmg"
           ls -la dist
 
       - name: Clean up keychain
@@ -200,7 +204,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: CelluloidPro-${{ steps.ver.outputs.version }}-macOS
+          name: ReafilmPro-${{ steps.ver.outputs.version }}-macOS
           path: dist/*
           if-no-files-found: error
 
@@ -273,11 +277,11 @@ jobs:
         run: cmake --build build --parallel 4
 
       - name: Verify bundle
-        run: bash installers/ci/verify_bundle.sh build/Celluloid.ofx.bundle windows
+        run: bash installers/ci/verify_bundle.sh build/ReafilmPro.ofx.bundle windows
 
       - name: Release licence gate
         if: startsWith(github.ref, 'refs/tags/v') && env.CEL_LICENSING == 'ON'
-        run: bash installers/ci/release_gate.sh build build/Celluloid.ofx.bundle
+        run: bash installers/ci/release_gate.sh build build/ReafilmPro.ofx.bundle
 
       - name: Unit tests
         run: ctest --test-dir build --output-on-failure --timeout 900 -LE "gpu-device|linux-only"
@@ -305,7 +309,7 @@ jobs:
             [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX))
           }
           try {
-            ./installers/windows/build_installer.ps1 -BundleDir build/Celluloid.ofx.bundle `
+            ./installers/windows/build_installer.ps1 -BundleDir build/ReafilmPro.ofx.bundle `
               -Version "${{ steps.ver.outputs.version }}" -OutDir dist -CertPfx $pfx -CertPassword "$env:WINDOWS_CERT_PASSWORD"
           } finally {
             if ($pfx -and (Test-Path $pfx)) { Remove-Item -Force $pfx }
@@ -313,11 +317,11 @@ jobs:
 
       - name: Zip the bundle (manual installs)
         shell: pwsh
-        run: Compress-Archive -Path build/Celluloid.ofx.bundle -DestinationPath "dist/CelluloidPro-${{ steps.ver.outputs.version }}-Windows-bundle.zip"
+        run: Compress-Archive -Path build/ReafilmPro.ofx.bundle -DestinationPath "dist/ReafilmPro-${{ steps.ver.outputs.version }}-Windows-bundle.zip"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: CelluloidPro-${{ steps.ver.outputs.version }}-Windows
+          name: ReafilmPro-${{ steps.ver.outputs.version }}-Windows
           path: dist/*
           if-no-files-found: error
 
@@ -334,7 +338,7 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           path: dist
-          pattern: CelluloidPro-*
+          pattern: ReafilmPro-*
           merge-multiple: true
       - name: Publish release
         env:

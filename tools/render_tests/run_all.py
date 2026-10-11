@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Celluloid Pro render tests (SPEC §6 / §10) driven through the headless OFX host.
+"""Reafilm Pro render tests (SPEC §6 / §10) driven through the headless OFX host.
 
-    run_all.py --host ofxhost --bundle Celluloid.ofx.bundle --out OUTDIR [--quick|--full] [--no-gpu]
+    run_all.py --host ofxhost --bundle ReafilmPro.ofx.bundle --out OUTDIR [--quick|--full] [--no-gpu]
 
 Everything is discovered from `ofxhost --list-params-json` (parameter IDs are the permanent
 SPEC §7 IDs; choice options are located by label patterns), so the suite adapts to new stocks,
@@ -379,7 +379,7 @@ class Suite:
             script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "licensegen", "celluloid_license.py")
             priv = os.path.join(os.path.dirname(script), "dev-keys", "celluloid-dev.private.key")
             try:
-                key = subprocess.run([sys.executable, script, "sign", "--key", priv, "--licensee", "Celluloid render tests",
+                key = subprocess.run([sys.executable, script, "sign", "--key", priv, "--licensee", "Reafilm render tests",
                                       "--edition", "pro", "--id", "RENDER-TESTS"], stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE, text=True, check=True).stdout.strip()
             except Exception as ex:  # cryptography missing etc.
@@ -1351,8 +1351,8 @@ class Suite:
             fname = os.path.basename(cubes[0])
             self.check(g, "%s %d^3: .cube == Color Only render at lattice points" % (cname, n), ok_size and mx <= LUT_TOL,
                        "max %.2e mean %.2e" % (mx, float(dd.mean())), "<= %.0e" % LUT_TOL, fname)
-            self.check(g, "%s %d^3: file name Celluloid_<input>_<neg>_<print>_<output>.cube" % (cname, n),
-                       re.match(r"^Celluloid_.+_.+_.+_.+\.cube$", fname) is not None, fname)
+            self.check(g, "%s %d^3: file name Reafilm_<input>_<neg>_<print>_<output>.cube" % (cname, n),
+                       re.match(r"^Reafilm_.+_.+_.+_.+\.cube$", fname) is not None, fname)
             # interpolation accuracy of the LUT vs the plug-in at random code values (informational)
             rr = self.load("lutr_%s_%d" % (cname, n), "lut_random")[0, :, :3]
             ap = cube.apply(rnd[0, :, :3].astype(np.float64))
@@ -1441,7 +1441,7 @@ class Suite:
             json.dump(rep, f, indent=1, default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o))
         md = []
         pl = self.data.get("plugin", {})
-        md.append("# Celluloid Pro render test report\n")
+        md.append("# Reafilm Pro render test report\n")
         md.append("- Bundle: `%s`  (plug-in `%s` v%s.%s)" % (meta["bundle"], pl.get("id"), pl.get("versionMajor"), pl.get("versionMinor")))
         md.append("- Date: %s, %.0f s, mode: %s, OpenCL: %s, licensed: %s" % (meta["date"], meta["seconds"],
                   "quick" if self.a.quick else ("full" if self.a.full else "standard"), "yes" if self.gpu else "no",
@@ -1515,7 +1515,7 @@ class Suite:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", required=True, help="ofxhost executable")
-    ap.add_argument("--bundle", required=True, help="Celluloid.ofx.bundle")
+    ap.add_argument("--bundle", required=True, help="ReafilmPro.ofx.bundle")
     ap.add_argument("--out", required=True)
     ap.add_argument("--quick", action="store_true", help="subset of stock pairs, 1080p timing only")
     ap.add_argument("--full", action="store_true", help="also 65^3 LUTs")

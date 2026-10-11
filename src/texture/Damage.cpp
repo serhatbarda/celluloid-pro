@@ -1,4 +1,4 @@
-// Celluloid Pro - film damage and film blur: host-side design (v1.1, texture). See TextureDesign.h
+// Reafilm Pro - film damage and film blur: host-side design (v1.1, texture). See TextureDesign.h
 // and the kernels in src/kernels/DamageKernels.h.
 //
 // Physical model (what is drawn where, see also ColorKernels.h celc_film_xyz_dmg):

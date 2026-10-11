@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU backend tests over the ABI test kernel set (tests/gpu/abi) plus the
+// Reafilm Pro - GPU backend tests over the ABI test kernel set (tests/gpu/abi) plus the
 // production self tests. Every available device API (OpenCL here; CUDA when compiled in and a
 // device exists) is checked against the independent reference executor (RefBackend.h):
 //   strides/padding, odd sizes, 4 inputs of different sizes, f[]/i[] layout, state buffer
@@ -544,7 +544,7 @@ void runAll(Env& env, cel::engine::Backend& be) {
 } // namespace
 
 int main() {
-    std::printf("Celluloid Pro GPU ABI tests\n");
+    std::printf("Reafilm Pro GPU ABI tests\n");
     // idle lanes are released after 150 ms instead of 10 s (testIdleLanes); read once by the module
 #if defined(_WIN32)
     _putenv_s("CEL_GPU_LANE_IDLE_MS", "150");

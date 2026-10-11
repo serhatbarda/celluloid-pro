@@ -1,4 +1,4 @@
-// Celluloid Pro - dynamically loaded OpenCL API (owned by the gpu role).
+// Reafilm Pro - dynamically loaded OpenCL API (owned by the gpu role).
 //
 // The plugin never links an OpenCL import library: the ICD loader (OpenCL.dll on Windows,
 // libOpenCL.so.1 on Linux, OpenCL.framework on macOS) is loaded on first use. A missing OpenCL

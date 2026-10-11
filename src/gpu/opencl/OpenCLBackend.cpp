@@ -1,4 +1,4 @@
-// Celluloid Pro - OpenCL backend (owned by the gpu role). See src/gpu/README.md.
+// Reafilm Pro - OpenCL backend (owned by the gpu role). See src/gpu/README.md.
 //
 // Objects and their lifetime
 //   Program  per (cl_context, cl_device_id): built once from the embedded flattened source; a

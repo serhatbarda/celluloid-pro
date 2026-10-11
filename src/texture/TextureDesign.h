@@ -1,4 +1,4 @@
-// Celluloid Pro - host-side design of the texture passes (texture agent).
+// Reafilm Pro - host-side design of the texture passes (texture agent).
 // Everything here is pure, deterministic math that turns cel::tex::TextureParams into the f[]/i[]
 // values of the portable kernels in src/kernels/TextureKernels.h. Used by src/engine/Plan.cpp and
 // by the tests. All "Px" inputs are actual pixels (i.e. already multiplied by pixelScale).

@@ -1,4 +1,4 @@
-// Celluloid Pro - host-side bakes of the spectral film model (double precision) and the
+// Reafilm Pro - host-side bakes of the spectral film model (double precision) and the
 // process-wide bake cache. Mirrors reference/model.py. Private to core.
 #pragma once
 #include "Spectral.h"

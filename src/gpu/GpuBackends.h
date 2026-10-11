@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU backends: public API beyond engine::Backend (owned by the gpu role).
+// Reafilm Pro - GPU backends: public API beyond engine::Backend (owned by the gpu role).
 //
 // engine::openclBackend() / cudaBackend() / metalBackend() (declared in engine/Engine.h) return the
 // process-wide production backends (nullptr when the API was not compiled in). This header adds:

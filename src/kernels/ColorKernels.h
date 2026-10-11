@@ -1,4 +1,4 @@
-/* Celluloid Pro - colour kernels (portable dialect, owned by core).
+/* Reafilm Pro - colour kernels (portable dialect, owned by core).
  *
  * Per-pixel evaluation of the spectral film model baked by core::Pipeline::prepare() into the
  * state buffer (layout: ColorState.h). Mirrors reference/model.py function by function.

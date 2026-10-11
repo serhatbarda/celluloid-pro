@@ -1,6 +1,6 @@
-# Celluloid Pro - GPU backends (owned by the gpu role). Usage from the top-level CMakeLists.txt:
+# Reafilm Pro - GPU backends (owned by the gpu role). Usage from the top-level CMakeLists.txt:
 #
-#     add_subdirectory(src/gpu)          # defines the static library target `celgpu` (+ alias Celluloid::gpu)
+#     add_subdirectory(src/gpu)          # defines the static library target `celgpu` (+ alias Reafilm::gpu)
 #     target_link_libraries(<plugin> PRIVATE celgpu)
 #
 # Options (define them before add_subdirectory to override the defaults):
@@ -34,7 +34,7 @@ file(MAKE_DIRECTORY "${CEL_GPU_GEN_DIR}")
 add_library(celgpu STATIC
   GpuBackends.h GpuCommon.h GpuCommon.cpp ProductionKernels.cpp Registry.cpp
   kernels/Probe.h kernels/EntryOpenCL.h kernels/EntryMetal.h kernels/EntryCuda.h)
-add_library(Celluloid::gpu ALIAS celgpu)
+add_library(Reafilm::gpu ALIAS celgpu)
 target_compile_features(celgpu PUBLIC cxx_std_17)
 target_include_directories(celgpu PUBLIC "${CEL_GPU_SRC_DIR}")
 set_target_properties(celgpu PROPERTIES
@@ -78,13 +78,13 @@ if(CEL_ENABLE_OPENCL)
     FetchContent_MakeAvailable(cel_opencl_headers)
     set(_cel_cl_inc "${cel_opencl_headers_SOURCE_DIR}")
   endif()
-  message(STATUS "Celluloid GPU: OpenCL backend ON (headers: ${_cel_cl_inc})")
+  message(STATUS "Reafilm GPU: OpenCL backend ON (headers: ${_cel_cl_inc})")
 
   cel_embed_kernel_source(
     ROOT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/kernels/ProductionOpenCL.cl"
     SYMBOL cel_opencl_production
     OUTPUT_CPP "${CEL_GPU_GEN_DIR}/OpenCLProductionSource.cpp"
-    OUTPUT_FLAT "${CEL_GPU_GEN_DIR}/celluloid_production.cl"
+    OUTPUT_FLAT "${CEL_GPU_GEN_DIR}/reafilm_production.cl"
     BASE_DIR "${CEL_GPU_REPO_DIR}"
     INCLUDE_DIRS ${CEL_GPU_KERNEL_INCLUDE_DIRS}
     DEPENDS_DIRS ${CEL_GPU_KERNEL_DEPEND_DIRS})
@@ -95,7 +95,7 @@ if(CEL_ENABLE_OPENCL)
     INCLUDE_DIRECTORIES "${_cel_cl_inc}")
   target_compile_definitions(celgpu PRIVATE CEL_GPU_HAVE_OPENCL=1 CEL_HAVE_KHRONOS_CL_HEADERS=1)
   target_link_libraries(celgpu PRIVATE ${CMAKE_DL_LIBS})
-  set(CEL_GPU_OPENCL_FLAT_SOURCE "${CEL_GPU_GEN_DIR}/celluloid_production.cl" CACHE INTERNAL "")
+  set(CEL_GPU_OPENCL_FLAT_SOURCE "${CEL_GPU_GEN_DIR}/reafilm_production.cl" CACHE INTERNAL "")
   set(CEL_GPU_OPENCL_INCLUDE_DIR "${_cel_cl_inc}" CACHE INTERNAL "CL/cl.h directory used by celgpu")
 endif()
 
@@ -116,7 +116,7 @@ if(CEL_ENABLE_CUDA)
     set(_cel_archs "52-real;60-real;61-real;70-real;75-real;80-real;86-real;86-virtual")
   endif()
   set(CEL_CUDA_ARCHITECTURES "${_cel_archs}" CACHE STRING "CUDA architectures for the kernels")
-  message(STATUS "Celluloid GPU: CUDA backend ON (nvcc ${_v}, archs ${CEL_CUDA_ARCHITECTURES})")
+  message(STATUS "Reafilm GPU: CUDA backend ON (nvcc ${_v}, archs ${CEL_CUDA_ARCHITECTURES})")
   target_sources(celgpu PRIVATE cuda/CudaKernels.cu cuda/CudaBackend.cpp)
   set_target_properties(celgpu PROPERTIES
     CUDA_ARCHITECTURES "${CEL_CUDA_ARCHITECTURES}"
@@ -139,11 +139,11 @@ cel_embed_kernel_source(
   ROOT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/kernels/ProductionMetal.metal"
   SYMBOL cel_metal_production
   OUTPUT_CPP "${CEL_GPU_GEN_DIR}/MetalProductionSource.cpp"
-  OUTPUT_FLAT "${CEL_GPU_GEN_DIR}/celluloid_production.metal"
+  OUTPUT_FLAT "${CEL_GPU_GEN_DIR}/reafilm_production.metal"
   BASE_DIR "${CEL_GPU_REPO_DIR}"
   INCLUDE_DIRS ${CEL_GPU_KERNEL_INCLUDE_DIRS}
   DEPENDS_DIRS ${CEL_GPU_KERNEL_DEPEND_DIRS})
-set(CEL_GPU_METAL_FLAT_SOURCE "${CEL_GPU_GEN_DIR}/celluloid_production.metal" CACHE INTERNAL "")
+set(CEL_GPU_METAL_FLAT_SOURCE "${CEL_GPU_GEN_DIR}/reafilm_production.metal" CACHE INTERNAL "")
 if(CEL_ENABLE_METAL)
   if(NOT APPLE)
     message(FATAL_ERROR "CEL_ENABLE_METAL requires Apple platforms")
@@ -153,13 +153,13 @@ if(CEL_ENABLE_METAL)
   set_source_files_properties(metal/MetalBackend.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
   target_compile_definitions(celgpu PRIVATE CEL_GPU_HAVE_METAL=1)
   target_link_libraries(celgpu PRIVATE "-framework Metal" "-framework Foundation")
-  message(STATUS "Celluloid GPU: Metal backend ON")
+  message(STATUS "Reafilm GPU: Metal backend ON")
 endif()
 
 # Flattened sources as standalone files (inspection, `xcrun metal` syntax check in macOS CI):
 #   cmake --build <dir> --target celgpu_kernel_sources
-set(_cel_flat "${CEL_GPU_GEN_DIR}/celluloid_production.metal")
+set(_cel_flat "${CEL_GPU_GEN_DIR}/reafilm_production.metal")
 if(CEL_ENABLE_OPENCL)
-  list(APPEND _cel_flat "${CEL_GPU_GEN_DIR}/celluloid_production.cl")
+  list(APPEND _cel_flat "${CEL_GPU_GEN_DIR}/reafilm_production.cl")
 endif()
 add_custom_target(celgpu_kernel_sources DEPENDS ${_cel_flat})

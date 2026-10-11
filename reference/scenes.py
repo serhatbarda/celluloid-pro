@@ -1,6 +1,6 @@
 """Synthetic test scenes for designing / validating the stocks (scene-linear Rec.2020, D65).
 
-All colours are our own definitions (no third-party chart data). The 24-patch "Celluloid
+All colours are our own definitions (no third-party chart data). The 24-patch "Reafilm
 reference chart" uses CIELAB (D65) aims chosen to represent natural object colours: skin,
 sky, foliage, flowers, saturated primaries/secondaries and a neutral row.
 """
@@ -10,7 +10,7 @@ import numpy as np
 
 import spectral as sp
 
-# CIELAB (D65) aims of the Celluloid reference chart, row-major 6 x 4
+# CIELAB (D65) aims of the Reafilm reference chart, row-major 6 x 4
 CHART_LAB = [
     (38, 13, 14), (66, 17, 17), (50, -4, -22), (43, -14, 22), (55, 9, -25), (71, -33, 0),
     (62, 34, 57), (40, 10, -45), (51, 47, 16), (30, 22, -21), (72, -24, 57), (71, 19, 67),

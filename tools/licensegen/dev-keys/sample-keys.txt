@@ -1,4 +1,4 @@
-# Celluloid Pro - DEVELOPMENT sample license keys (signed with celluloid-dev.private.key).
+# Reafilm Pro - DEVELOPMENT sample license keys (signed with celluloid-dev.private.key).
 # Accepted ONLY by builds configured with -DCEL_DEV_LICENSE=ON. Status messages carry the tag
 # "[DEVELOPMENT KEY]". Regenerate with: licensegen sign --key celluloid-dev.private.key ...
 # One key per line after its comment; blank lines and '#' lines are ignored by tests.

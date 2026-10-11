@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Celluloid Pro - macOS installer (.pkg) builder.
+# Reafilm Pro - macOS installer (.pkg) builder.
 #
-# Builds a signed (or ad-hoc signed) product archive that installs Celluloid.ofx.bundle into
+# Builds a signed (or ad-hoc signed) product archive that installs ReafilmPro.ofx.bundle into
 # /Library/OFX/Plugins, the OFX plug-in folder DaVinci Resolve scans.
 #
-#   installers/macos/build_pkg.sh --bundle build/Celluloid.ofx.bundle --version 1.0.0 --out dist \
+#   installers/macos/build_pkg.sh --bundle build/ReafilmPro.ofx.bundle --version 1.0.0 --out dist \
 #       [--app-identity "Developer ID Application: NAME (TEAMID)"] \
 #       [--installer-identity "Developer ID Installer: NAME (TEAMID)"] \
 #       [--keychain /path/to/build.keychain] [--notarize] [--licensed]
@@ -28,7 +28,7 @@ KEYCHAIN=""
 NOTARIZE=0
 VARIANT="personal"
 PKG_ID="de.serhatbarda.CelluloidPro.plugin"
-BUNDLE_NAME="Celluloid.ofx.bundle"
+BUNDLE_NAME="ReafilmPro.ofx.bundle"
 INSTALL_DIR="/Library/OFX/Plugins"
 
 die() { echo "build_pkg: $*" >&2; exit 1; }
@@ -51,7 +51,7 @@ done
 [[ -n "$BUNDLE" && -d "$BUNDLE" ]] || die "--bundle <path to $BUNDLE_NAME> is required"
 [[ -n "$VERSION" ]] || die "--version is required"
 [[ "$(basename "$BUNDLE")" == "$BUNDLE_NAME" ]] || die "bundle must be named $BUNDLE_NAME"
-BIN="$BUNDLE/Contents/MacOS/Celluloid.ofx"
+BIN="$BUNDLE/Contents/MacOS/ReafilmPro.ofx"
 [[ -f "$BIN" ]] || die "missing $BIN"
 command -v pkgbuild >/dev/null || die "pkgbuild not found (run on macOS)"
 
@@ -104,11 +104,11 @@ pkgbuild --root "$WORK/root" \
   --version "$VERSION" \
   --install-location "$INSTALL_DIR" \
   --scripts "$WORK/scripts" \
-  "$WORK/CelluloidPro-plugin.pkg"
+  "$WORK/ReafilmPro-plugin.pkg"
 
 # ---- product archive -------------------------------------------------------------------------
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@PKG_ID@/$PKG_ID/g" "$HERE/distribution.xml.in" > "$WORK/distribution.xml"
-PRODUCT="$OUT/CelluloidPro-$VERSION-macOS.pkg"
+PRODUCT="$OUT/ReafilmPro-$VERSION-macOS.pkg"
 rm -f "$PRODUCT"
 # installer texts for this build variant
 OTHER="licensed"; [[ "$VARIANT" == "licensed" ]] && OTHER="personal"
@@ -157,6 +157,6 @@ if [[ "$NOTARIZE" == 1 ]]; then
 fi
 
 echo "== Package contents"
-pkgutil --payload-files "$WORK/CelluloidPro-plugin.pkg" | head -50 || true
+pkgutil --payload-files "$WORK/ReafilmPro-plugin.pkg" | head -50 || true
 shasum -a 256 "$PRODUCT" | tee "$PRODUCT.sha256"
 echo "Created $PRODUCT"

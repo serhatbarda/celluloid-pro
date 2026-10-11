@@ -8,7 +8,7 @@ stock data itself is left alone, so the calibrated interlayer / mask fits of fit
 Provenance classes (shown read-only in the UI and in docs/STOCKS.md):
   datasheet  - modelled from the manufacturer's public technical data (fitted, not scanned or measured from film)
   partial    - data sheet for part of the data, the rest borrowed from a named proxy stock
-  designed   - Celluloid original, not a real stock
+  designed   - Reafilm original, not a real stock
   style      - style approximation of a real stock without public data
 """
 import json
@@ -17,7 +17,7 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 REF = os.path.dirname(HERE)
 
-DESIGNED = 'Designed (Celluloid original): parametric spectra and curves, not a real stock.'
+DESIGNED = 'Designed (Reafilm original): parametric spectra and curves, not a real stock.'
 FRESH = 'Fresh stock at the nominal process; fitted to the published curves, not measured from film.'
 
 NEG = {

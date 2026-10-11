@@ -1,4 +1,4 @@
-/* Celluloid Pro - film damage kernels (v1.1): dust, scratches and hair as a procedural damage field.
+/* Reafilm Pro - film damage kernels (v1.1): dust, scratches and hair as a procedural damage field.
  * Portable dialect (Portable.h), uniform ABI (KernelABI.h); included at the end of TextureKernels.h
  * (uses its cel_txh_ helpers). Owner: texture.
  *

@@ -1,4 +1,4 @@
-// Celluloid Pro - the OFX plug-in: parameters, presets, license UI, LUT export and render
+// Reafilm Pro - the OFX plug-in: parameters, presets, license UI, LUT export and render
 // orchestration (FrameSettings -> core::Pipeline -> engine::Plan -> Backend).
 //
 // Build variants (SPEC §9): the default PERSONAL build (CEL_PERSONAL_BUILD=1) contains no license
@@ -33,13 +33,14 @@
 //     which tells the host to retry the frame with GPU rendering disabled. After a non-memory GPU
 //     failure the instance sets its own <API>RenderSupported property to "false" (instances may
 //     override the descriptor per ofxGPURender.h) so the host stops offering that API to it.
-//   * Environment overrides for support cases: CELLULOID_DISABLE_GPU=1|all|opencl,cuda,metal
-//     (do not declare those APIs), CELLULOID_LOG=1 (diagnostics on stderr).
+//   * Environment overrides for support cases: REAFILM_DISABLE_GPU=1|all|opencl,cuda,metal
+//     (do not declare those APIs), REAFILM_LOG=1 (diagnostics on stderr). The pre-rename names
+//     CELLULOID_DISABLE_GPU / CELLULOID_LOG still work when the new ones are unset.
 //   * Images: y = 0 is the first row in memory, i.e. the BOTTOM row in OFX's y-up convention,
 //     identically on CPU and GPU (GPU buffers cannot be offset), so CPU/GPU renders are
 //     bit-comparable. Row stride = kOfxImagePropRowBytes / 4 (CPU rows may be negative).
 // ---------------------------------------------------------------------------------------------
-#include "CelluloidPlugin.h"
+#include "ReafilmPlugin.h"
 #include "Params.h"
 #include "Platform.h"
 #include "Presets.h"
@@ -89,12 +90,12 @@ namespace {
 // ------------------------------------------------------------------------------- utilities
 
 bool logEnabled() {
-    static const bool on = !envVar("CELLULOID_LOG").empty() && envVar("CELLULOID_LOG") != "0";
+    static const bool on = !productEnv("LOG").empty() && productEnv("LOG") != "0";
     return on;
 }
 
 void logf(const std::string& msg) {
-    if (logEnabled()) std::fprintf(stderr, "[Celluloid Pro] %s\n", msg.c_str());
+    if (logEnabled()) std::fprintf(stderr, "[Reafilm Pro] %s\n", msg.c_str());
 }
 
 std::string lowerAscii(std::string s) {
@@ -113,9 +114,9 @@ const char* apiName(Api a) {
     }
 }
 
-// true if the GPU API is disabled by CELLULOID_DISABLE_GPU
+// true if the GPU API is disabled by REAFILM_DISABLE_GPU (or the old CELLULOID_DISABLE_GPU)
 bool gpuDisabledByEnv(Api a) {
-    const std::string v = lowerAscii(envVar("CELLULOID_DISABLE_GPU"));
+    const std::string v = lowerAscii(productEnv("DISABLE_GPU"));
     if (v.empty() || v == "0" || v == "false" || v == "no") return false;
     if (v == "1" || v == "all" || v == "true" || v == "yes") return true;
     return v.find(lowerAscii(apiName(a))) != std::string::npos;
@@ -262,9 +263,9 @@ int componentCount(OFX::PixelComponentEnum c) {
 
 // =============================================================================== the effect
 
-class CelluloidEffect : public OFX::ImageEffect {
+class ReafilmEffect : public OFX::ImageEffect {
 public:
-    explicit CelluloidEffect(OfxImageEffectHandle handle);
+    explicit ReafilmEffect(OfxImageEffectHandle handle);
 
     void render(const OFX::RenderArguments& args) override;
     bool isIdentity(const OFX::IsIdentityArguments& args, OFX::Clip*& identityClip, double& identityTime) override;
@@ -351,7 +352,7 @@ private:
     bool m_applyingPreset = false;
 };
 
-CelluloidEffect::CelluloidEffect(OfxImageEffectHandle handle) : OFX::ImageEffect(handle) {
+ReafilmEffect::ReafilmEffect(OfxImageEffectHandle handle) : OFX::ImageEffect(handle) {
     m_dstClip = fetchClip(kOfxImageEffectOutputClipName);
     m_srcClip = fetchClip(kOfxImageEffectSimpleSourceClipName);
 
@@ -380,7 +381,7 @@ CelluloidEffect::CelluloidEffect(OfxImageEffectHandle handle) : OFX::ImageEffect
 
 // ------------------------------------------------------------------------- param helpers
 
-double CelluloidEffect::num(const std::string& pid, double t) const {
+double ReafilmEffect::num(const std::string& pid, double t) const {
     if (auto it = m_double.find(pid); it != m_double.end()) {
         double v = 0;
         it->second->getValueAtTime(t, v);
@@ -405,7 +406,7 @@ double CelluloidEffect::num(const std::string& pid, double t) const {
     return d ? d->def : 0.0;
 }
 
-double CelluloidEffect::num(const std::string& pid) const {
+double ReafilmEffect::num(const std::string& pid) const {
     if (auto it = m_double.find(pid); it != m_double.end()) return it->second->getValue();
     if (auto it = m_int.find(pid); it != m_int.end()) return it->second->getValue();
     if (auto it = m_bool.find(pid); it != m_bool.end()) return it->second->getValue() ? 1.0 : 0.0;
@@ -418,7 +419,7 @@ double CelluloidEffect::num(const std::string& pid) const {
     return d ? d->def : 0.0;
 }
 
-std::string CelluloidEffect::str(const std::string& pid) const {
+std::string ReafilmEffect::str(const std::string& pid) const {
     auto it = m_string.find(pid);
     if (it == m_string.end()) return std::string();
     std::string v;
@@ -426,14 +427,14 @@ std::string CelluloidEffect::str(const std::string& pid) const {
     return v;
 }
 
-void CelluloidEffect::setNum(const std::string& pid, double v) {
+void ReafilmEffect::setNum(const std::string& pid, double v) {
     if (auto it = m_double.find(pid); it != m_double.end()) { it->second->setValue(v); return; }
     if (auto it = m_int.find(pid); it != m_int.end()) { it->second->setValue(int(std::lround(v))); return; }
     if (auto it = m_bool.find(pid); it != m_bool.end()) { it->second->setValue(v != 0.0); return; }
     if (auto it = m_choice.find(pid); it != m_choice.end()) { it->second->setValue(int(std::lround(v))); return; }
 }
 
-void CelluloidEffect::setStr(const std::string& pid, const std::string& v) {
+void ReafilmEffect::setStr(const std::string& pid, const std::string& v) {
     auto it = m_string.find(pid);
     if (it == m_string.end()) return;
     std::string cur;
@@ -441,7 +442,7 @@ void CelluloidEffect::setStr(const std::string& pid, const std::string& v) {
     if (cur != v) it->second->setValue(v);
 }
 
-void CelluloidEffect::setEnabled(const std::string& pid, bool on) {
+void ReafilmEffect::setEnabled(const std::string& pid, bool on) {
     OFX::Param* p = nullptr;
     if (auto it = m_double.find(pid); it != m_double.end()) p = it->second;
     else if (auto it2 = m_int.find(pid); it2 != m_int.end()) p = it2->second;
@@ -456,7 +457,7 @@ void CelluloidEffect::setEnabled(const std::string& pid, bool on) {
 // state. Colour modules map to the neutral LookParams values (exposure 0, standard development,
 // grey-balanced print at 0 points, unroll 0); the stock pair, Process and Output always stay
 // active because the stock choice IS the look. Texture modules are skipped in the plan (no passes).
-core::LookParams CelluloidEffect::lookAt(double t) const {
+core::LookParams ReafilmEffect::lookAt(double t) const {
     core::LookParams lp;
     auto clampIdx = [](int v, int count) { return std::min(std::max(v, 0), std::max(count - 1, 0)); };
     lp.input = core::InputSpace(clampIdx(choice(id::inputSpace, t), int(core::InputSpace::Count)));
@@ -529,7 +530,7 @@ core::LookParams CelluloidEffect::lookAt(double t) const {
     return lp;
 }
 
-engine::FrameSettings CelluloidEffect::frameSettingsAt(double t, int fullWidthPx) const {
+engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) const {
     engine::FrameSettings fs;
     fs.look = lookAt(t);
     fs.mode = effectiveMode(t);
@@ -604,9 +605,9 @@ engine::FrameSettings CelluloidEffect::frameSettingsAt(double t, int fullWidthPx
 
 // ------------------------------------------------------------------------- render
 
-bool CelluloidEffect::isIdentity(const OFX::IsIdentityArguments&, OFX::Clip*&, double&) { return false; }
+bool ReafilmEffect::isIdentity(const OFX::IsIdentityArguments&, OFX::Clip*&, double&) { return false; }
 
-void CelluloidEffect::getClipPreferences(OFX::ClipPreferencesSetter& prefs) {
+void ReafilmEffect::getClipPreferences(OFX::ClipPreferencesSetter& prefs) {
     // Grain/weave make the output change every frame even for a still source.
     const bool texture = effectiveMode(0.0) != core::Mode::ColorOnly;
     const bool animatedGrain = flag(id::grainEnable, 0.0) && flag(id::grainAnimated, 0.0) && num(id::grainAmount) > 0.0;
@@ -616,7 +617,7 @@ void CelluloidEffect::getClipPreferences(OFX::ClipPreferencesSetter& prefs) {
     prefs.setOutputFrameVarying(texture && (animatedGrain || weave || damage || blur));
 }
 
-void CelluloidEffect::render(const OFX::RenderArguments& args) {
+void ReafilmEffect::render(const OFX::RenderArguments& args) {
     if (!m_dstClip) fail(kOfxStatFailed);
     if (m_dstClip->getPixelDepth() != OFX::eBitDepthFloat) fail(kOfxStatErrUnsupported);
     if (componentCount(m_dstClip->getPixelComponents()) == 0) fail(kOfxStatErrUnsupported);
@@ -668,7 +669,7 @@ void CelluloidEffect::render(const OFX::RenderArguments& args) {
     else renderGpu(api, args, src.get(), *dst, plan);
 }
 
-void CelluloidEffect::renderCpu(const OFX::RenderArguments&, OFX::Image* src, OFX::Image& dst,
+void ReafilmEffect::renderCpu(const OFX::RenderArguments&, OFX::Image* src, OFX::Image& dst,
                                 const engine::Plan& plan) {
     const OfxRectI db = dst.getBounds();
     const int w = db.x2 - db.x1, h = db.y2 - db.y1;
@@ -755,7 +756,7 @@ void CelluloidEffect::renderCpu(const OFX::RenderArguments&, OFX::Image* src, OF
     clearRenderError();
 }
 
-void CelluloidEffect::renderGpu(Api api, const OFX::RenderArguments& args, OFX::Image* src, OFX::Image& dst,
+void ReafilmEffect::renderGpu(Api api, const OFX::RenderArguments& args, OFX::Image* src, OFX::Image& dst,
                                 const engine::Plan& plan) {
     engine::Backend* be = gpuBackend(api);
     if (!be || gpuDisabledByEnv(api)) {
@@ -828,7 +829,7 @@ void CelluloidEffect::renderGpu(Api api, const OFX::RenderArguments& args, OFX::
         }
         if (fallbackOk) {
             if (!m_gpuWarned.exchange(true))
-                std::fprintf(stderr, "[Celluloid Pro] %s render failed (%s); rendered on the CPU instead.\n",
+                std::fprintf(stderr, "[Reafilm Pro] %s render failed (%s); rendered on the CPU instead.\n",
                              apiName(api), err.empty() ? "unknown error" : err.c_str());
             if (!oom) disableGpuForInstance(api);   // future frames go straight to the CPU path
             clearRenderError();
@@ -836,7 +837,7 @@ void CelluloidEffect::renderGpu(Api api, const OFX::RenderArguments& args, OFX::
         }
         err += "; CPU fallback: " + (ferr.empty() ? std::string("failed") : ferr);
 #endif
-        std::fprintf(stderr, "[Celluloid Pro] %s render failed (%s); asking the host to render this frame on the CPU.\n",
+        std::fprintf(stderr, "[Reafilm Pro] %s render failed (%s); asking the host to render this frame on the CPU.\n",
                      apiName(api), err.empty() ? "unknown error" : err.c_str());
         if (!oom) disableGpuForInstance(api);
         fail(oom ? kOfxStatGPUOutOfMemory : kOfxStatGPURenderFailed);
@@ -844,7 +845,7 @@ void CelluloidEffect::renderGpu(Api api, const OFX::RenderArguments& args, OFX::
     clearRenderError();
 }
 
-void CelluloidEffect::disableGpuForInstance(Api api) {
+void ReafilmEffect::disableGpuForInstance(Api api) {
     const char* prop = nullptr;
     switch (api) {
     case Api::OpenCL: prop = kOfxImageEffectPropOpenCLRenderSupported; break;
@@ -859,16 +860,16 @@ void CelluloidEffect::disableGpuForInstance(Api api) {
     }
 }
 
-void CelluloidEffect::setRenderError(const std::string& msg) {
-    std::fprintf(stderr, "[Celluloid Pro] %s\n", msg.c_str());
+void ReafilmEffect::setRenderError(const std::string& msg) {
+    std::fprintf(stderr, "[Reafilm Pro] %s\n", msg.c_str());
     try {
-        setPersistentMessage(OFX::Message::eMessageError, "", "Celluloid Pro: " + msg);
+        setPersistentMessage(OFX::Message::eMessageError, "", "Reafilm Pro: " + msg);
         m_hasRenderError = true;
     } catch (...) {
     }
 }
 
-void CelluloidEffect::clearRenderError() {
+void ReafilmEffect::clearRenderError() {
     if (!m_hasRenderError.exchange(false)) return;
     try {
         clearPersistentMessage();
@@ -878,7 +879,7 @@ void CelluloidEffect::clearRenderError() {
 
 // ------------------------------------------------------------------------- UI logic
 
-void CelluloidEffect::changedParam(const OFX::InstanceChangedArgs& args, const std::string& name) {
+void ReafilmEffect::changedParam(const OFX::InstanceChangedArgs& args, const std::string& name) {
     try {
         if (name == id::lookPresetStatus || name == id::licenseStatus || name == id::aboutVersion ||
             name == id::aboutManual || name == id::negProvenance || name == id::printProvenance)
@@ -903,11 +904,11 @@ void CelluloidEffect::changedParam(const OFX::InstanceChangedArgs& args, const s
     } catch (const OFX::Exception::Suite&) {
         throw;
     } catch (const std::exception& e) {
-        sendMessage(OFX::Message::eMessageError, "", std::string("Celluloid Pro: ") + e.what());
+        sendMessage(OFX::Message::eMessageError, "", std::string("Reafilm Pro: ") + e.what());
     }
 }
 
-void CelluloidEffect::applyPreset(int choiceIdx) {
+void ReafilmEffect::applyPreset(int choiceIdx) {
     if (choiceIdx <= 0) return;   // "Custom": keep everything
     std::vector<std::string> problems;
     const std::vector<ResolvedValue> values = resolvePreset(size_t(choiceIdx - 1), &problems);
@@ -925,7 +926,7 @@ void CelluloidEffect::applyPreset(int choiceIdx) {
     m_applyingPreset = false;
 }
 
-void CelluloidEffect::refreshPresetStatus(double t) {
+void ReafilmEffect::refreshPresetStatus(double t) {
     const int idx = choice(id::lookPreset, t);
     const auto& presets = lookPresets();
     if (idx <= 0 || size_t(idx - 1) >= presets.size()) {
@@ -944,7 +945,7 @@ void CelluloidEffect::refreshPresetStatus(double t) {
     setStr(id::lookPresetStatus, modified ? name + " (modified)" : name);
 }
 
-void CelluloidEffect::refreshEnabledness(double t) {
+void ReafilmEffect::refreshEnabledness(double t) {
     const core::Mode mode = effectiveMode(t);
     const core::NegativeStockInfo* st = stockInfo(choice(id::negStock, t));
     const bool reversal = st && st->reversal;
@@ -1095,23 +1096,23 @@ void CelluloidEffect::refreshEnabledness(double t) {
         setEnabled(p, blurOn);
 }
 
-void CelluloidEffect::refreshLicenseStatus() { setStr(id::licenseStatus, licenseStatus()); }
+void ReafilmEffect::refreshLicenseStatus() { setStr(id::licenseStatus, licenseStatus()); }
 
 #if CEL_PERSONAL_BUILD
 // The License group is secret in the personal build; scripts that still press its buttons get a
 // note and nothing is checked or stored.
-void CelluloidEffect::activateLicense() {
+void ReafilmEffect::activateLicense() {
     setStr(id::licenseKey, "");
     sendMessage(OFX::Message::eMessageMessage, "",
-                "This is the personal build of Celluloid Pro: no license key is needed. Renders never carry a "
+                "This is the personal build of Reafilm Pro: no license key is needed. Renders never carry a "
                 "watermark and LUT export is always available.");
 }
-void CelluloidEffect::deactivateLicense() { activateLicense(); }
+void ReafilmEffect::deactivateLicense() { activateLicense(); }
 #else
-void CelluloidEffect::activateLicense() {
+void ReafilmEffect::activateLicense() {
     std::string key = normalizeUserPath(str(id::licenseKey));   // trims white space / quotes
     if (key.empty()) {
-        sendMessage(OFX::Message::eMessageError, "", "Please paste your Celluloid Pro license key into the License Key field first.");
+        sendMessage(OFX::Message::eMessageError, "", "Please paste your Reafilm Pro license key into the License Key field first.");
         return;
     }
     const lic::LicenseInfo info = lic::verifyKey(key, int64_t(std::time(nullptr)));
@@ -1132,11 +1133,11 @@ void CelluloidEffect::activateLicense() {
     refreshLicenseStatus();
     const lic::LicenseInfo cur = lic::current();
     sendMessage(OFX::Message::eMessageMessage, "",
-                "Celluloid Pro is activated. " + (cur.message.empty() ? info.message : cur.message) +
-                    "\nThank you for choosing Celluloid Pro.");
+                "Reafilm Pro is activated. " + (cur.message.empty() ? info.message : cur.message) +
+                    "\nThank you for choosing Reafilm Pro.");
 }
 
-void CelluloidEffect::deactivateLicense() {
+void ReafilmEffect::deactivateLicense() {
     std::string err;
     if (!lic::removeKey(&err)) {
         sendMessage(OFX::Message::eMessageError, "", "The license could not be removed: " + err);
@@ -1144,7 +1145,7 @@ void CelluloidEffect::deactivateLicense() {
     }
     refreshLicenseStatus();
     // removeKey() succeeds but fills err with a note when another license (machine-wide file or
-    // CELLULOID_LICENSE_KEY) still applies after the per-user key is gone: show that note.
+    // REAFILM_LICENSE_KEY / CELLULOID_LICENSE_KEY) still applies after the per-user key is gone: show that note.
     const lic::LicenseInfo cur = lic::current();
     if (!lic::needsWatermark(cur)) {
         sendMessage(OFX::Message::eMessageMessage, "",
@@ -1153,13 +1154,13 @@ void CelluloidEffect::deactivateLicense() {
                                 : err);
         return;
     }
-    std::string msg = "The license was removed from this computer. Celluloid Pro now runs as a trial (watermarked renders).";
+    std::string msg = "The license was removed from this computer. Reafilm Pro now runs as a trial (watermarked renders).";
     if (!err.empty()) msg += "\n" + err;
     sendMessage(OFX::Message::eMessageMessage, "", msg);
 }
 #endif
 
-void CelluloidEffect::exportLut(double t) {
+void ReafilmEffect::exportLut(double t) {
     // Licensed build: LUT export is a licensed feature, a .cube carries the whole colour pipeline
     // without the trial watermark (SPEC section 9, section 13 entry of 2026-10-07). The personal
     // build never watermarks, so it always exports.
@@ -1198,7 +1199,7 @@ void CelluloidEffect::exportLut(double t) {
     // a .cube maps one camera's code values: the input space is part of the name, so exports of the
     // same look for two cameras do not overwrite each other (short tag: the part before " / ")
     const std::string inTag = inName.substr(0, inName.find(" / "));
-    const std::string file = "Celluloid_" + fileComponent(inTag) + "_" + fileComponent(negName) + "_" +
+    const std::string file = "Reafilm_" + fileComponent(inTag) + "_" + fileComponent(negName) + "_" +
                              fileComponent(printName) + "_" + fileComponent(outName) + ".cube";
     const std::string path = joinPath(dir, file);
     bool replaced = false;
@@ -1206,7 +1207,7 @@ void CelluloidEffect::exportLut(double t) {
         std::error_code ec;
         replaced = std::filesystem::exists(std::filesystem::u8path(path), ec);
     }
-    const std::string title = std::string("Celluloid Pro ") + CEL_VERSION_STRING + " - " + negName + " / " + printName +
+    const std::string title = std::string("Reafilm Pro ") + CEL_VERSION_STRING + " - " + negName + " / " + printName +
                               " - " + inName + " to " + outName;
     try {
         core::Pipeline pipe;
@@ -1235,17 +1236,17 @@ void CelluloidEffect::exportLut(double t) {
 
 // =============================================================================== factory
 
-CelluloidFactory::CelluloidFactory()
-    : OFX::PluginFactoryHelper<CelluloidFactory>(CEL_PLUGIN_IDENTIFIER, CEL_VERSION_MAJOR, CEL_VERSION_MINOR) {}
+ReafilmFactory::ReafilmFactory()
+    : OFX::PluginFactoryHelper<ReafilmFactory>(CEL_PLUGIN_IDENTIFIER, CEL_VERSION_MAJOR, CEL_VERSION_MINOR) {}
 
-void CelluloidFactory::load() {
+void ReafilmFactory::load() {
     // Validate the data-driven preset table once (diagnostics only; invalid entries are skipped).
     std::vector<std::string> problems;
     if (!validatePresets(&problems))
         for (const std::string& p : problems) logf("preset table: " + p);
 }
 
-void CelluloidFactory::unload() {
+void ReafilmFactory::unload() {
     try {
         cel::shutdownParallelPool();   // join the CPU worker threads before the module goes away
     } catch (...) {
@@ -1258,9 +1259,9 @@ void CelluloidFactory::unload() {
 #endif
 }
 
-void CelluloidFactory::describe(OFX::ImageEffectDescriptor& desc) {
+void ReafilmFactory::describe(OFX::ImageEffectDescriptor& desc) {
     desc.setLabels(CEL_PRODUCT_NAME, CEL_PRODUCT_NAME, CEL_PRODUCT_NAME);
-    desc.setPluginGrouping("Celluloid");
+    desc.setPluginGrouping("Reafilm");
     desc.setPluginDescription(
         "Photochemical film emulation: spectral negative and print stocks, push/pull and bleach bypass "
         "development, printer lights, halation, bloom, film grain, acutance, gate weave and vignetting, "
@@ -1293,7 +1294,7 @@ void CelluloidFactory::describe(OFX::ImageEffectDescriptor& desc) {
          " Metal=" + (metal ? "yes" : "no"));
 }
 
-void CelluloidFactory::describeInContext(OFX::ImageEffectDescriptor& desc, OFX::ContextEnum) {
+void ReafilmFactory::describeInContext(OFX::ImageEffectDescriptor& desc, OFX::ContextEnum) {
     OFX::ClipDescriptor* src = desc.defineClip(kOfxImageEffectSimpleSourceClipName);
     src->addSupportedComponent(OFX::ePixelComponentRGBA);
     src->addSupportedComponent(OFX::ePixelComponentRGB);
@@ -1393,8 +1394,8 @@ void CelluloidFactory::describeInContext(OFX::ImageEffectDescriptor& desc, OFX::
     }
 }
 
-OFX::ImageEffect* CelluloidFactory::createInstance(OfxImageEffectHandle handle, OFX::ContextEnum) {
-    return new CelluloidEffect(handle);
+OFX::ImageEffect* ReafilmFactory::createInstance(OfxImageEffectHandle handle, OFX::ContextEnum) {
+    return new ReafilmEffect(handle);
 }
 
 }} // namespace cel::ofxp
@@ -1403,7 +1404,7 @@ OFX::ImageEffect* CelluloidFactory::createInstance(OfxImageEffectHandle handle, 
 
 namespace OFX { namespace Plugin {
 void getPluginIDs(OFX::PluginFactoryArray& ids) {
-    static cel::ofxp::CelluloidFactory factory;
+    static cel::ofxp::ReafilmFactory factory;
     ids.push_back(&factory);
 }
 }} // namespace OFX::Plugin

@@ -1,4 +1,4 @@
-// Celluloid Pro - texture parameters (spatial / temporal effects).  FIXED (architect).
+// Reafilm Pro - texture parameters (spatial / temporal effects).  FIXED (architect).
 // The texture agent implements the passes as portable kernels (src/kernels/TextureKernels.h,
 // listed in src/kernels/TextureKernelList.inc), the plan builder (src/engine/Plan.cpp ->
 // engine::buildPlan) and the CPU backend (src/engine/CpuBackend.cpp). See SPEC §5.

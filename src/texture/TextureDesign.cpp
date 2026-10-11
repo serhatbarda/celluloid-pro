@@ -1,4 +1,4 @@
-// Celluloid Pro - host-side design of the texture passes (texture agent). See TextureDesign.h.
+// Reafilm Pro - host-side design of the texture passes (texture agent). See TextureDesign.h.
 #include "TextureDesign.h"
 #include <algorithm>
 #include <cmath>

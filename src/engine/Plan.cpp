@@ -1,4 +1,4 @@
-// Celluloid Pro - frame plan builder (texture agent). Implements engine::buildPlan, kernelName and
+// Reafilm Pro - frame plan builder (texture agent). Implements engine::buildPlan, kernelName and
 // Plan::debugString (Engine.h), plus the texture-only plans of src/texture/TexturePlan.h.
 //
 // PASS GRAPH (SPEC §3).  "full" = frame size w x h, "Ln" = pyramid level n (ceil(w/2^n) x ...).

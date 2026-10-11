@@ -1,4 +1,4 @@
-// Celluloid Pro - license key issuing (signing side). Linked into tools/licensegen and the tests
+// Reafilm Pro - license key issuing (signing side). Linked into tools/licensegen and the tests
 // only (library target `cellic_sign`); the plugin itself never signs anything.
 #pragma once
 #include "KeyFormat.h"

@@ -1,4 +1,4 @@
-/* Celluloid Pro - CUDA entry points for the uniform kernel ABI (owned by the gpu role).
+/* Reafilm Pro - CUDA entry points for the uniform kernel ABI (owned by the gpu role).
  * CEL_GPU_ENTRY(name) defines  __global__ void cel_<name>(...)  wrapping cel_k_<name>.
  * Parameters (launched generically with cudaLaunchKernel by src/gpu/cuda/CudaBackend.cpp):
  *   CelPassArgs by value (kernel parameter space, 220 bytes), out, in0..in3 (nullptr if unused),

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Celluloid Pro render tests (SPEC §10).
+# Reafilm Pro render tests (SPEC §10).
 #
-#   tools/render_tests/run_all.sh <Celluloid.ofx.bundle> <outdir> [run_all.py options]
+#   tools/render_tests/run_all.sh <ReafilmPro.ofx.bundle> <outdir> [run_all.py options]
 #
 # Options are passed to run_all.py: --quick, --full, --no-gpu, --threads N, --license-key KEY,
 # --dev-license, --only GROUPS, -v.  The ofxhost binary is taken from $OFXHOST, else from the

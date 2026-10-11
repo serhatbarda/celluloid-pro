@@ -1,4 +1,4 @@
-// Celluloid Pro - Linux workbench shim for <metal_stdlib> (tests/gpu/metal_syntax).
+// Reafilm Pro - Linux workbench shim for <metal_stdlib> (tests/gpu/metal_syntax).
 // Lets clang++ parse the flattened MSL source as C++14 (the MSL base language) with MSL-like
 // address spaces: `device`, `constant`, `threadgroup` map to distinct clang address spaces, so
 // mixing them (e.g. passing a constant pointer where a device pointer is expected) is a hard

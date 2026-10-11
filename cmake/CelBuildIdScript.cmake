@@ -1,4 +1,4 @@
-# Celluloid Pro - writes the build identification header at BUILD time (cmake -P script), so the
+# Reafilm Pro - writes the build identification header at BUILD time (cmake -P script), so the
 # About string always names the commit that was actually built (a configure-time value goes stale
 # as soon as the tree moves on). Inputs: SRC (source dir), OUT (header path), FORCED (optional
 # -DCEL_BUILD_ID given to CMake, e.g. by CI). The file is rewritten only when its content changes.

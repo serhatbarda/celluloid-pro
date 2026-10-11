@@ -1,12 +1,12 @@
-# Celluloid Pro - top-level build (SPEC §11).
+# Reafilm Pro - top-level build (SPEC §11).
 #
 #   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release [-DFETCHCONTENT_SOURCE_DIR_OPENFX=external-openfx-ref]
 #   cmake --build build -j
-#   -> build/Celluloid.ofx.bundle   (Contents/{MacOS|Win64|Linux-x86-64}/Celluloid.ofx, Info.plist, Resources/)
+#   -> build/ReafilmPro.ofx.bundle   (Contents/{MacOS|Win64|Linux-x86-64}/ReafilmPro.ofx, Info.plist, Resources/)
 #
 # Targets: celcore (colour science), celtex (texture + frame engine + CPU backend), celgpu
 # (OpenCL/CUDA/Metal backends, from src/gpu), cellic (licensing), cel_ofxsupport (OpenFX C++
-# Support library, static, from the pinned OpenFX sources) and celluloid_ofx (the plug-in module).
+# Support library, static, from the pinned OpenFX sources) and reafilm_ofx (the plug-in module).
 #
 # Default = PERSONAL build (no licensing); -DCEL_LICENSING=ON = licensed build (SPEC §9).
 cmake_minimum_required(VERSION 3.20)
@@ -23,7 +23,7 @@ endif()
 cmake_policy(SET CMP0091 NEW)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "MSVC runtime")
 
-project(CelluloidPro VERSION 1.0.0 LANGUAGES C CXX)
+project(ReafilmPro VERSION 1.0.0 LANGUAGES C CXX)
 # Languages must be enabled in the top-level directory: CMake generates the per-language rules
 # (e.g. CMAKE_OBJCXX_COMPILE_OBJECT) only for languages enabled here, so an enable_language()
 # inside src/gpu or tests/gpu alone breaks the generate step on macOS.
@@ -31,10 +31,10 @@ if(APPLE)
   enable_language(OBJCXX)   # Metal backend (src/gpu/metal/*.mm) and its test environment
 endif()
 
-set(CEL_PRODUCT_NAME "Celluloid Pro")
+set(CEL_PRODUCT_NAME "Reafilm Pro")
 set(CEL_PLUGIN_IDENTIFIER "de.serhatbarda.CelluloidPro")
-set(CEL_BUNDLE_NAME "Celluloid.ofx.bundle")
-set(CEL_BUNDLE_EXECUTABLE "Celluloid.ofx")
+set(CEL_BUNDLE_NAME "ReafilmPro.ofx.bundle")
+set(CEL_BUNDLE_EXECUTABLE "ReafilmPro.ofx")
 set(CEL_COPYRIGHT "Copyright (c) 2026 Serhat (serhatbarda.de). All rights reserved.")
 set(CEL_MACOS_MIN "11.0")
 set(CEL_BUNDLE_DIR "${CMAKE_BINARY_DIR}/${CEL_BUNDLE_NAME}")
@@ -58,7 +58,7 @@ option(CEL_DEV_LICENSE "Accept the DEVELOPMENT license key pair (tests only, nev
 # LUT-export gate. An existing build dir configured with CEL_DEV_LICENSE=ON (only meaningful for a
 # licensed build) is switched to the licensed variant on first configure.
 if(CEL_DEV_LICENSE AND NOT DEFINED CACHE{CEL_LICENSING})
-  message(WARNING "Celluloid: CEL_DEV_LICENSE=ON implies the licensed build - setting CEL_LICENSING=ON")
+  message(WARNING "Reafilm: CEL_DEV_LICENSE=ON implies the licensed build - setting CEL_LICENSING=ON")
   set(CEL_LICENSING ON CACHE BOOL "Licensed build (license keys, trial watermark, LUT-export gate); OFF = personal build")
 endif()
 option(CEL_LICENSING "Licensed build (license keys, trial watermark, LUT-export gate); OFF = personal build" OFF)
@@ -172,7 +172,7 @@ endif()
 cel_require_target(cellic)
 target_link_libraries(cellic PUBLIC cel_includes)
 if(CEL_DEV_LICENSE)
-  message(WARNING "Celluloid: CEL_DEV_LICENSE=ON - this build accepts the DEVELOPMENT license key. Never ship it.")
+  message(WARNING "Reafilm: CEL_DEV_LICENSE=ON - this build accepts the DEVELOPMENT license key. Never ship it.")
 endif()
 
 # ---- celgpu: GPU backends (src/gpu, owned by the GPU engineer; see src/gpu/README.md) --------------
@@ -209,7 +209,7 @@ if(CEL_BUILD_TESTS)
 endif()
 
 # ---- summary -------------------------------------------------------------------------------------------
-message(STATUS "Celluloid Pro ${PROJECT_VERSION} (build ${CEL_BUILD_ID}) - ${CMAKE_SYSTEM_NAME} ${CMAKE_OSX_ARCHITECTURES}")
+message(STATUS "Reafilm Pro ${PROJECT_VERSION} (build ${CEL_BUILD_ID}) - ${CMAKE_SYSTEM_NAME} ${CMAKE_OSX_ARCHITECTURES}")
 message(STATUS "  OpenFX:  ${CEL_OPENFX_DIR}")
 message(STATUS "  GPU:     OpenCL=${CEL_ENABLE_OPENCL} CUDA=${CEL_ENABLE_CUDA} Metal=${CEL_ENABLE_METAL} ")
 if(CEL_LICENSING)

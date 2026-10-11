@@ -1,9 +1,9 @@
-# Celluloid Pro
+# Reafilm Pro
 
 **Spectral film emulation for DaVinci Resolve** — an OpenFX plug-in for macOS (universal, Metal) and
 Windows (x64, CUDA and OpenCL), with a CPU fallback everywhere.
 
-Celluloid Pro simulates the photochemical chain instead of applying a fixed LUT: camera log →
+Reafilm Pro simulates the photochemical chain instead of applying a fixed LUT: camera log →
 scene light → spectral exposure of a three-layer colour negative → development (push/pull,
 interlayer effects, bleach bypass) → print with printer lights, or lab scan → projection →
 display encoding (SDR or HDR). Halation, bloom, film grain, acutance, gate weave, vignetting and (1.1)
@@ -13,7 +13,7 @@ designs; see the originality rules in [SPEC.md](SPEC.md) §1.
 
 | | |
 |---|---|
-| Plug-in | `de.serhatbarda.CelluloidPro` · "Celluloid Pro" · OpenFX group "Celluloid" · version 1.0.0 |
+| Plug-in | `de.serhatbarda.CelluloidPro` · "Reafilm Pro" · OpenFX group "Reafilm" · version 1.0.0 |
 | Stocks | 11 negatives (incl. reversal and black & white) · 5 prints · Lab Scan process |
 | Looks | 14 curated presets (2 with film damage) |
 | Cameras | Fujifilm F-Log2 C (primary), F-Log2, F-Log, ARRI LogC3/LogC4, Sony S-Log3, Panasonic V-Log, Canon Log 3, Blackmagic Film Gen 5, DaVinci Intermediate, ACEScct, Linear Rec.2020 |
@@ -21,6 +21,13 @@ designs; see the originality rules in [SPEC.md](SPEC.md) §1.
 | Extras | .cube LUT export |
 | Build | **personal build** (default, non-commercial): no licensing, no watermark. The licensed variant (offline Ed25519 keys, trial watermark, licensed-only LUT export) builds with `-DCEL_LICENSING=ON` |
 | Shipping platforms | macOS 11+ (arm64 + x86_64) · Windows 10/11 x64. Linux builds are for development and tests only |
+
+**Upgrading from Celluloid Pro.** The plug-in was renamed from Celluloid Pro to Reafilm Pro in
+1.3.0, and its bundle from `Celluloid.ofx.bundle` to `ReafilmPro.ofx.bundle`. Delete the old
+`Celluloid.ofx.bundle` from the OFX plug-ins folder (`/Library/OFX/Plugins` on macOS,
+`C:\Program Files\Common Files\OFX\Plugins` on Windows), otherwise Resolve shows both. The
+installers do this for you; after a manual (zip) install, delete it by hand. Saved projects keep
+loading: the plug-in identifier and all parameters are unchanged, and license keys stay valid.
 
 Documentation:
 
@@ -123,8 +130,8 @@ Every configuration below builds the **personal build** (no license check, no tr
 LUT export always on), the default of this repository. Add `-DCEL_LICENSING=ON` for the licensed
 variant (see [CMake options](#cmake-options)).
 
-The result of every build is `<build>/Celluloid.ofx.bundle`
-(`Contents/{MacOS|Win64|Linux-x86-64}/Celluloid.ofx`, `Info.plist`, `Resources/` with the icon,
+The result of every build is `<build>/ReafilmPro.ofx.bundle`
+(`Contents/{MacOS|Win64|Linux-x86-64}/ReafilmPro.ofx`, `Info.plist`, `Resources/` with the icon,
 `MANUAL.md` and licence texts).
 
 ### macOS (universal, Metal + OpenCL)
@@ -137,8 +144,8 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
       -DCEL_ENABLE_METAL=ON -DCEL_ENABLE_OPENCL=ON
 cmake --build build --parallel
-bash installers/ci/verify_bundle.sh build/Celluloid.ofx.bundle macos
-installers/macos/build_pkg.sh --bundle build/Celluloid.ofx.bundle --version 1.0.0 --out dist
+bash installers/ci/verify_bundle.sh build/ReafilmPro.ofx.bundle macos
+installers/macos/build_pkg.sh --bundle build/ReafilmPro.ofx.bundle --version 1.0.0 --out dist
 ```
 
 For a quick local test, copy the bundle to `/Library/OFX/Plugins/` and restart Resolve.
@@ -154,7 +161,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ^
       -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
       -DCEL_ENABLE_CUDA=ON -DCEL_ENABLE_OPENCL=ON
 cmake --build build --parallel
-powershell -File installers\windows\build_installer.ps1 -BundleDir build\Celluloid.ofx.bundle -Version 1.0.0 -OutDir dist
+powershell -File installers\windows\build_installer.ps1 -BundleDir build\ReafilmPro.ofx.bundle -Version 1.0.0 -OutDir dist
 ```
 
 The plug-in DLL links the MSVC runtime and the CUDA runtime statically; OpenCL is loaded at run time
@@ -171,7 +178,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DCEL_BUILD_TESTS=ON -DCEL_WARNINGS_AS_ERRORS=ON
 cmake --build build -j"$(nproc)"
 ctest --test-dir build --output-on-failure
-tools/render_tests/run_all.sh build/Celluloid.ofx.bundle /tmp/cel-render   # end-to-end render tests
+tools/render_tests/run_all.sh build/ReafilmPro.ofx.bundle /tmp/cel-render   # end-to-end render tests
 ```
 
 ### CMake options
@@ -203,7 +210,7 @@ When you change a parameter's label, range, default or hint in `src/ofx/Params.c
 manual's controls reference (the `docs_manual_controls` test fails until you do):
 
 ```sh
-python3 tools/docs/gen_manual_controls.py --bundle build/Celluloid.ofx.bundle \
+python3 tools/docs/gen_manual_controls.py --bundle build/ReafilmPro.ofx.bundle \
         --ofxhost build/tools/ofxhost/ofxhost
 ```
 
@@ -222,8 +229,8 @@ builds the licensed variant (`-DCEL_LICENSING=ON`):
 | GitHub Release | ubuntu-latest, tags only | after both jobs succeed, publishes all installers to the release of the tag |
 
 Every run uploads the installers as workflow artifacts
-(`CelluloidPro-<version>-macOS.{pkg,dmg}`, `CelluloidPro-<version>-Windows-Setup.exe`,
-`CelluloidPro-<version>-Windows-bundle.zip`). There is deliberately no Linux job.
+(`ReafilmPro-<version>-macOS.{pkg,dmg}`, `ReafilmPro-<version>-Windows-Setup.exe`,
+`ReafilmPro-<version>-Windows-bundle.zip`). There is deliberately no Linux job.
 
 ### Signing secrets
 
@@ -254,7 +261,7 @@ and stapled, and the `.dmg` is signed.
    `src/license/PublicKey.h` is provisional, the build has `CEL_DEV_LICENSE=ON`, or the development
    public key is found in the plug-in binary (`installers/ci/release_gate.sh`).
 2. Signing secrets added (strongly recommended for any build installed outside CI).
-3. Version bumped in `CMakeLists.txt` (`project(CelluloidPro VERSION x.y.z …)`) and
+3. Version bumped in `CMakeLists.txt` (`project(ReafilmPro VERSION x.y.z …)`) and
    [CHANGELOG.md](CHANGELOG.md) updated.
 4. `git tag vX.Y.Z && git push origin vX.Y.Z` — the tag must equal the project version
    (`installers/ci/version.sh` checks it). CI builds, tests, gates and publishes the release.
@@ -265,7 +272,7 @@ and stapled, and the `.dmg` is signed.
 
 *Licensed build (`-DCEL_LICENSING=ON`) only; the default personal build has no license keys.*
 
-Celluloid Pro uses **offline, signed keys**: `CELL1-` + Base32 of a small payload (product, edition,
+Reafilm Pro uses **offline, signed keys**: `CELL1-` + Base32 of a small payload (product, edition,
 licensee, order id, issue and expiry dates, seats) and an Ed25519 signature. The plug-in contains
 only the public key and verifies keys locally. Full documentation:
 [tools/licensegen/README.md](tools/licensegen/README.md).
@@ -341,4 +348,4 @@ licence says otherwise. End users receive the plug-in under the end-user licence
 Khronos OpenCL headers (Apache-2.0, compile time), the OpenFX SDK Support library (BSD-3-Clause), and
 on Windows the statically linked NVIDIA CUDA runtime; their notices ship in the bundle under
 `Contents/Resources/Licenses/`. DaVinci Resolve is a trademark of Blackmagic Design Pty. Ltd.;
-Celluloid Pro is not affiliated with or endorsed by Blackmagic Design or any film manufacturer.
+Reafilm Pro is not affiliated with or endorsed by Blackmagic Design or any film manufacturer.

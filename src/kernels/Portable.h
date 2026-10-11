@@ -1,4 +1,4 @@
-/* Celluloid Pro - portable kernel dialect.  FIXED (architect).
+/* Reafilm Pro - portable kernel dialect.  FIXED (architect).
  *
  * Every per-pixel function (colour science AND texture passes) is written ONCE in this dialect and
  * compiled as: C++17 (CPU backend + tests), OpenCL C 1.2 (runtime-compiled source), CUDA C++,

@@ -1,12 +1,12 @@
 # src/ofx — the OFX plug-in shell
 
-The OpenFX plug-in `de.serhatbarda.CelluloidPro` ("Celluloid Pro", grouping "Celluloid", v1.0),
+The OpenFX plug-in `de.serhatbarda.CelluloidPro` ("Reafilm Pro", grouping "Reafilm", v1.0),
 built with the OpenFX C++ Support library (compiled statically from the pinned OpenFX sources,
 `cmake/CelOpenFX.cmake`).
 
 | File | Purpose |
 |---|---|
-| `CelluloidPlugin.{h,cpp}` | factory (describe / describeInContext / unload), the effect: render orchestration, UI logic, license UI, LUT export |
+| `ReafilmPlugin.{h,cpp}` | factory (describe / describeInContext / unload), the effect: render orchestration, UI logic, license UI, LUT export |
 | `Params.{h,cpp}` | the parameter registry: every parameter/group once (id, group, label, range, default, hint, flags). describe, presets and the self test all use it |
 | `Presets.{h,cpp}` | data-driven look presets (name, description, `param = value` list) + resolver/validator |
 | `Platform.{h,cpp}` | Documents folder, path helpers, UTF-8 on Windows |
@@ -77,8 +77,8 @@ runs it on the backend the host asked for.
 
 `Export LUT` (licensed version only; the trial answers with a message) writes the Color Only
 pipeline (no grain/texture) of the current settings as
-`<folder>/Celluloid_<input>_<negative>_<print|Lab-Scan|Reversal>_<output>.cube` (17/33/65),
-creating the folder (empty field = `<Documents>/Celluloid LUTs/` of the exporting user, resolved
+`<folder>/Reafilm_<input>_<negative>_<print|Lab-Scan|Reversal>_<output>.cube` (17/33/65),
+creating the folder (empty field = `<Documents>/Reafilm LUTs/` of the exporting user, resolved
 at export time), and reports the path via `sendMessage`. The input-space tag is the part of the
 input label before " / " (e.g. `Fujifilm-F-Log2-C`): a .cube maps one camera's code values.
 Linear Rec.2020 input is written with a 1D log2 shaper (-8.5..+8.5 stops) in front of the 3D LUT.
@@ -86,10 +86,10 @@ Linear Rec.2020 input is written with a 1D log2 shaper (-8.5..+8.5 stops) in fro
 ## Bundle
 
 ```
-Celluloid.ofx.bundle/Contents/Info.plist
-Celluloid.ofx.bundle/Contents/{MacOS|Win64|Linux-x86-64}/Celluloid.ofx
-Celluloid.ofx.bundle/Contents/Resources/de.serhatbarda.CelluloidPro.png   (resources/icon/make_icon.py)
-Celluloid.ofx.bundle/Contents/Resources/MANUAL.md, Licenses/
+ReafilmPro.ofx.bundle/Contents/Info.plist
+ReafilmPro.ofx.bundle/Contents/{MacOS|Win64|Linux-x86-64}/ReafilmPro.ofx
+ReafilmPro.ofx.bundle/Contents/Resources/de.serhatbarda.CelluloidPro.png   (resources/icon/make_icon.py)
+ReafilmPro.ofx.bundle/Contents/Resources/MANUAL.md, Licenses/
 ```
 
 Only `OfxGetNumberOfPlugins` and `OfxGetPlugin` are exported (hidden visibility + version script on

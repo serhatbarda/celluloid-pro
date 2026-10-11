@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU tests: device environments (own context/queue/stream like a host would
+// Reafilm Pro - GPU tests: device environments (own context/queue/stream like a host would
 // create), host images with arbitrary strides and padding sentinels, comparison helpers.
 #pragma once
 #include "../../src/gpu/GpuBackends.h"

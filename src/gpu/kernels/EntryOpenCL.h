@@ -1,4 +1,4 @@
-/* Celluloid Pro - OpenCL C entry points for the uniform kernel ABI (owned by the gpu role).
+/* Reafilm Pro - OpenCL C entry points for the uniform kernel ABI (owned by the gpu role).
  * CEL_GPU_ENTRY(name) defines  __kernel void cel_<name>(...)  wrapping cel_k_<name>.
  * Kernel arguments (set generically by src/gpu/opencl/OpenCLBackend.cpp):
  *   0 __constant CelPassArgs* args   all passes of the frame (one buffer)

@@ -1,4 +1,4 @@
-// Celluloid Pro - production parity: real plans (engine::buildPlan + core::Pipeline) executed by
+// Reafilm Pro - production parity: real plans (engine::buildPlan + core::Pipeline) executed by
 //   (a) engine::cpuBackend()                 (texture agent's multithreaded CPU backend)
 //   (b) celtest::RefBackend                  (independent single-thread executor, same kernels)
 //   (c) every available GPU backend          (OpenCL via POCL here; CUDA when a device exists)
@@ -435,7 +435,7 @@ int main(int argc, char** argv) {
     // --model: no GPU device; only CPU vs reference and the worst-case GPU math model
     const bool modelOnly = argc > 1 && std::string(argv[1]) == "--model";
     const double tol = 2e-4;
-    std::printf("Celluloid Pro GPU parity (production kernels), tolerance %.1g on encoded output\n", tol);
+    std::printf("Reafilm Pro GPU parity (production kernels), tolerance %.1g on encoded output\n", tol);
     std::vector<std::unique_ptr<Env>> envs;
     std::string why;
     if (!modelOnly) {

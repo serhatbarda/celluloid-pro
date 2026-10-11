@@ -1,4 +1,4 @@
-/* Celluloid Pro - all kernel bodies (portable dialect). FIXED (architect).
+/* Reafilm Pro - all kernel bodies (portable dialect). FIXED (architect).
  * Included by: CPU backend, CUDA translation unit, and the OpenCL/Metal source flattener. */
 #ifndef CEL_ALL_KERNELS_H
 #define CEL_ALL_KERNELS_H

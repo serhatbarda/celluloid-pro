@@ -1,4 +1,4 @@
-// Celluloid Pro - license key issuing (signing side). See KeySigner.h.
+// Reafilm Pro - license key issuing (signing side). See KeySigner.h.
 #include "KeySigner.h"
 #include "../../third_party/monocypher/monocypher.h"
 #include "../../third_party/monocypher/monocypher-ed25519.h"

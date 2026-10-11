@@ -18,9 +18,9 @@ add_subdirectory(tests/gpu)                   # optional: tests (see below)
 
 | Item | Name |
 |---|---|
-| static library | `celgpu` (alias `Celluloid::gpu`), PIC, hidden visibility, C++17 |
+| static library | `celgpu` (alias `Reafilm::gpu`), PIC, hidden visibility, C++17 |
 | public include dir | `src/` (`#include "gpu/GpuBackends.h"`) |
-| flattened sources target | `celgpu_kernel_sources` → `<build>/src/gpu/generated/celluloid_production.{cl,metal}` |
+| flattened sources target | `celgpu_kernel_sources` → `<build>/src/gpu/generated/reafilm_production.{cl,metal}` |
 | cache variables (read-only) | `CEL_GPU_OPENCL_FLAT_SOURCE`, `CEL_GPU_METAL_FLAT_SOURCE`, `CEL_GPU_OPENCL_INCLUDE_DIR` |
 | options | `CEL_ENABLE_OPENCL`, `CEL_ENABLE_CUDA`, `CEL_ENABLE_METAL`, `CEL_CUDA_ARCHITECTURES`, `CEL_OPENCL_HEADERS_DIR`, `CEL_GPU_KERNEL_INCLUDE_DIRS` (extra kernel header dirs; empty for product builds) |
 | compile definitions (private) | `CEL_GPU_HAVE_OPENCL/CUDA/METAL=1` for the compiled-in APIs |
@@ -168,5 +168,5 @@ by orders of magnitude (the PQ EOTF and the Texture-Only tone map were rewritten
 CI: macOS runs `ctest -L gpu-device` on the runner's GPU (Metal and Apple's OpenCL; SKIP without
 a device), Windows runs it too (no GPU on hosted runners: proves the graceful runtime probing).
 macOS CI (no device needed): `cmake --build <dir> --target celgpu_kernel_sources` then
-`tests/gpu/metal_syntax/check_metal.sh <dir>/src/gpu/generated/celluloid_production.metal`
+`tests/gpu/metal_syntax/check_metal.sh <dir>/src/gpu/generated/reafilm_production.metal`
 (or run `ctest -R gpu_metal_xcrun` when tests are built).

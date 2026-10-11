@@ -1,4 +1,4 @@
-// Celluloid Pro - spectral foundations (host side). Mirrors reference/spectral.py.
+// Reafilm Pro - spectral foundations (host side). Mirrors reference/spectral.py.
 #include "Spectral.h"
 #include <algorithm>
 #include <cmath>

@@ -1,4 +1,4 @@
-// Celluloid Pro - texture-only plans and CPU backend diagnostics (texture agent).
+// Reafilm Pro - texture-only plans and CPU backend diagnostics (texture agent).
 // Internal API for tests, tools and diagnostics; the plugin uses engine::buildPlan (Engine.h).
 #pragma once
 #include "../engine/Engine.h"

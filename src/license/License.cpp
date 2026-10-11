@@ -1,4 +1,4 @@
-// Celluloid Pro - license key verification (pure, no I/O). See KeyFormat.h for the format.
+// Reafilm Pro - license key verification (pure, no I/O). See KeyFormat.h for the format.
 //
 // Order of checks: syntax -> base32 -> size -> format version -> Ed25519 signature (over the
 // domain-separated payload, before the payload is interpreted) -> strict payload parse ->
@@ -60,7 +60,7 @@ LicenseInfo verifyKeyWithKeys(const std::string& key, int64_t now, const Trusted
             if (!(ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')) { blank = false; break; }
         if (blank) return invalid("No license key entered.");
         if (!fmt::normalizeKeyText(key, canon))
-            return invalid("Not a Celluloid Pro license key (it must start with CELL1-).");
+            return invalid("Not a Reafilm Pro license key (it must start with CELL1-).");
 
         std::vector<uint8_t> raw;
         const size_t plen = std::char_traits<char>::length(fmt::kKeyPrefix);
@@ -73,7 +73,7 @@ LicenseInfo verifyKeyWithKeys(const std::string& key, int64_t now, const Trusted
         const uint8_t* payload = raw.data();
         const uint8_t* sig = raw.data() + payloadSize;
         if (payload[0] != fmt::kPayloadVersion)
-            return invalid("This license key was issued for a newer version of Celluloid Pro - please update the plugin.");
+            return invalid("This license key was issued for a newer version of Reafilm Pro - please update the plugin.");
 
         const std::vector<uint8_t> msg = fmt::signingMessage(payload, payloadSize);
         int matched = -1;

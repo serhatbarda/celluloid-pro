@@ -1,4 +1,4 @@
-// Celluloid Pro - shared basic types and a portable parallel_for.
+// Reafilm Pro - shared basic types and a portable parallel_for.
 // Interface owned by the architect. Do not change signatures without updating SPEC.md.
 #pragma once
 #include <cstddef>

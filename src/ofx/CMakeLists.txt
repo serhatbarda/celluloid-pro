@@ -1,8 +1,8 @@
-# Celluloid Pro - the OFX plug-in module and its bundle (SPEC §7, §11).
+# Reafilm Pro - the OFX plug-in module and its bundle (SPEC §7, §11).
 #
-#   ${CEL_BUNDLE_DIR} = <build>/Celluloid.ofx.bundle
+#   ${CEL_BUNDLE_DIR} = <build>/ReafilmPro.ofx.bundle
 #     Contents/Info.plist
-#     Contents/<MacOS | Win64 | Linux-x86-64>/Celluloid.ofx
+#     Contents/<MacOS | Win64 | Linux-x86-64>/ReafilmPro.ofx
 #     Contents/Resources/de.serhatbarda.CelluloidPro.png     (host icon, OFX convention)
 #     Contents/Resources/MANUAL.md, Licenses/*                 (docs, third-party notices)
 
@@ -33,35 +33,35 @@ add_custom_target(cel_build_id ALL
   COMMAND "${CMAKE_COMMAND}" "-DSRC=${PROJECT_SOURCE_DIR}" "-DOUT=${CMAKE_CURRENT_BINARY_DIR}/generated/CelBuildId.h"
           "-DFORCED=$CACHE{CEL_BUILD_ID}" -P "${PROJECT_SOURCE_DIR}/cmake/CelBuildIdScript.cmake"
   BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/generated/CelBuildId.h"
-  COMMENT "Celluloid build id"
+  COMMENT "Reafilm Pro build id"
   VERBATIM)
 
 set(CEL_OFX_SOURCES
-  CelluloidPlugin.cpp
+  ReafilmPlugin.cpp
   Params.cpp
   Platform.cpp
   Presets.cpp)
 
-add_library(celluloid_ofx MODULE ${CEL_OFX_SOURCES})
-target_include_directories(celluloid_ofx PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(celluloid_ofx PRIVATE cel_ofxsupport celgpu celtex celcore)
+add_library(reafilm_ofx MODULE ${CEL_OFX_SOURCES})
+target_include_directories(reafilm_ofx PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(reafilm_ofx PRIVATE cel_ofxsupport celgpu celtex celcore)
 # Personal build (default): no license code in the plug-in at all. Licensed build (CEL_LICENSING=ON):
 # key verification, trial watermark and the LUT-export gate (SPEC §9).
 if(CEL_LICENSING)
-  target_link_libraries(celluloid_ofx PRIVATE cellic)
+  target_link_libraries(reafilm_ofx PRIVATE cellic)
   set(_cel_personal 0)
 else()
   set(_cel_personal 1)
 endif()
-target_compile_definitions(celluloid_ofx PRIVATE CEL_PERSONAL_BUILD=${_cel_personal})
-add_dependencies(celluloid_ofx cel_build_id)
+target_compile_definitions(reafilm_ofx PRIVATE CEL_PERSONAL_BUILD=${_cel_personal})
+add_dependencies(reafilm_ofx cel_build_id)
 # celgpu is always built and linked: the GPU self test at describe, the in-plug-in CPU fallback
-# and GPU cleanup at unload must always be compiled in (CelluloidPlugin.cpp, CEL_GPU_EXTRAS).
-target_compile_definitions(celluloid_ofx PRIVATE CEL_HAVE_GPU_API=1)
-cel_set_warnings(celluloid_ofx)
+# and GPU cleanup at unload must always be compiled in (ReafilmPlugin.cpp, CEL_GPU_EXTRAS).
+target_compile_definitions(reafilm_ofx PRIVATE CEL_HAVE_GPU_API=1)
+cel_set_warnings(reafilm_ofx)
 
-set_target_properties(celluloid_ofx PROPERTIES
-  OUTPUT_NAME "Celluloid"
+set_target_properties(reafilm_ofx PROPERTIES
+  OUTPUT_NAME "ReafilmPro"
   PREFIX ""
   SUFFIX ".ofx"
   LIBRARY_OUTPUT_DIRECTORY "${CEL_BUNDLE_BINARY_DIR}"
@@ -70,7 +70,7 @@ set_target_properties(celluloid_ofx PROPERTIES
   PDB_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/pdb")
 foreach(_cfg IN ITEMS Debug Release RelWithDebInfo MinSizeRel)
   string(TOUPPER "${_cfg}" _CFG)
-  set_target_properties(celluloid_ofx PROPERTIES
+  set_target_properties(reafilm_ofx PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY_${_CFG} "${CEL_BUNDLE_BINARY_DIR}"
     ARCHIVE_OUTPUT_DIRECTORY_${_CFG} "${CMAKE_BINARY_DIR}/lib"
     PDB_OUTPUT_DIRECTORY_${_CFG} "${CMAKE_BINARY_DIR}/pdb")
@@ -78,24 +78,24 @@ endforeach()
 
 # ---- exported symbols: only OfxGetNumberOfPlugins / OfxGetPlugin --------------------------------
 if(APPLE)
-  target_link_options(celluloid_ofx PRIVATE
+  target_link_options(reafilm_ofx PRIVATE
     "LINKER:-exported_symbols_list,${PROJECT_SOURCE_DIR}/cmake/exports/ofx-macos.exp"
     "LINKER:-dead_strip")
-  set_property(TARGET celluloid_ofx APPEND PROPERTY LINK_DEPENDS "${PROJECT_SOURCE_DIR}/cmake/exports/ofx-macos.exp")
+  set_property(TARGET reafilm_ofx APPEND PROPERTY LINK_DEPENDS "${PROJECT_SOURCE_DIR}/cmake/exports/ofx-macos.exp")
 elseif(WIN32)
   # OfxExport (__declspec(dllexport)) in ofxCore.h exports exactly the two entry points.
-  target_link_libraries(celluloid_ofx PRIVATE shell32 ole32)
+  target_link_libraries(reafilm_ofx PRIVATE shell32 ole32)
   if(MSVC)
-    target_link_options(celluloid_ofx PRIVATE /OPT:REF /OPT:ICF)
+    target_link_options(reafilm_ofx PRIVATE /OPT:REF /OPT:ICF)
   endif()
 else()
-  target_link_options(celluloid_ofx PRIVATE
+  target_link_options(reafilm_ofx PRIVATE
     "LINKER:--version-script=${PROJECT_SOURCE_DIR}/cmake/exports/ofx-linux.map"
     "LINKER:-z,defs"              # no unresolved symbols in the module
     "LINKER:--gc-sections"
     "LINKER:-z,noexecstack")
-  set_property(TARGET celluloid_ofx APPEND PROPERTY LINK_DEPENDS "${PROJECT_SOURCE_DIR}/cmake/exports/ofx-linux.map")
-  target_link_libraries(celluloid_ofx PRIVATE ${CMAKE_DL_LIBS})
+  set_property(TARGET reafilm_ofx APPEND PROPERTY LINK_DEPENDS "${PROJECT_SOURCE_DIR}/cmake/exports/ofx-linux.map")
+  target_link_libraries(reafilm_ofx PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
 # ---- bundle resources ------------------------------------------------------------------------------
@@ -168,7 +168,7 @@ endif()
 configure_file("${PROJECT_SOURCE_DIR}/resources/THIRD_PARTY_NOTICES.txt.in"
                "${CMAKE_CURRENT_BINARY_DIR}/generated/THIRD_PARTY_NOTICES.txt" @ONLY)
 cel_bundle_copy("${CMAKE_CURRENT_BINARY_DIR}/generated/THIRD_PARTY_NOTICES.txt" "${CEL_BUNDLE_RES}/Licenses/THIRD_PARTY_NOTICES.txt")
-add_custom_command(TARGET celluloid_ofx POST_BUILD
+add_custom_command(TARGET reafilm_ofx POST_BUILD
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CEL_BUNDLE_RES}/Licenses"
   ${_cel_res_cmds}
   COMMENT "Assembling ${CEL_BUNDLE_NAME} resources"

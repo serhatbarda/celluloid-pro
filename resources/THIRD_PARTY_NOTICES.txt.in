@@ -1,7 +1,7 @@
-Celluloid Pro - third-party software notices
+Reafilm Pro - third-party software notices
 =============================================
 
-Celluloid Pro contains or was built with the following third-party software. License texts are in
+Reafilm Pro contains or was built with the following third-party software. License texts are in
 this folder next to this file where named.
 
 OpenFX C++ Support Library (and OpenFX API headers)
@@ -16,4 +16,4 @@ Monocypher (Ed25519 signature verification)
 
 @CEL_NOTICE_GPU@
 All other code, colour science, stock designs, presets, artwork and documentation are original
-work of the Celluloid Pro project.
+work of the Reafilm Pro project.

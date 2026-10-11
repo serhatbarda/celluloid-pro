@@ -1,4 +1,4 @@
-"""One-time extraction of the PUBLIC CIE colorimetric tables used by Celluloid Pro.
+"""One-time extraction of the PUBLIC CIE colorimetric tables used by Reafilm Pro.
 
 Run with a Python that has `colour-science` installed (not needed for normal use; the
 resulting CSV files are committed in reference/data/):

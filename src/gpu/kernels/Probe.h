@@ -1,4 +1,4 @@
-/* Celluloid Pro - GPU self-test probe kernel (portable dialect, owned by the gpu role).
+/* Reafilm Pro - GPU self-test probe kernel (portable dialect, owned by the gpu role).
  * Not part of KernelList.h: every GPU kernel set appends it as entry `cel_gpu_probe` at index
  * KernelSet::count. It writes a 16 x 1 output whose pixels echo the CelPassArgs layout, the state
  * buffer and an input, and evaluate every cel_* math wrapper, so the self test can compare the

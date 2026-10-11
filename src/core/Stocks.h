@@ -1,4 +1,4 @@
-// Celluloid Pro - designed stock library (host side). Data generated from reference/stocks.json
+// Reafilm Pro - designed stock library (host side). Data generated from reference/stocks.json
 // by reference/gen_tables.py into StockData.inc. All spectra are parametric designs (sums of
 // asymmetric Gaussian lobes), not digitised manufacturer data (SPEC section 1).
 #pragma once

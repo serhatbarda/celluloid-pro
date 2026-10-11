@@ -1,9 +1,9 @@
-; Celluloid Pro - Windows installer (Inno Setup 6.3 or newer).
+; Reafilm Pro - Windows installer (Inno Setup 6.3 or newer).
 ;
-; Installs Celluloid.ofx.bundle into "C:\Program Files\Common Files\OFX\Plugins", the OFX plug-in
+; Installs ReafilmPro.ofx.bundle into "C:\Program Files\Common Files\OFX\Plugins", the OFX plug-in
 ; folder DaVinci Resolve scans. Build (paths relative to this file or absolute):
 ;
-;   iscc /DAppVersion=1.0.0 /DBundleDir=..\..\build\Celluloid.ofx.bundle /DOutputDir=..\..\dist CelluloidPro.iss
+;   iscc /DAppVersion=1.0.0 /DBundleDir=..\..\build\ReafilmPro.ofx.bundle /DOutputDir=..\..\dist ReafilmPro.iss
 ;
 ; Optional Authenticode signing of the installer and uninstaller: define SignToolName and pass the
 ; matching /S option to ISCC, e.g.
@@ -13,15 +13,15 @@
   #define AppVersion "1.0.0"
 #endif
 #ifndef BundleDir
-  #define BundleDir "..\..\build\Celluloid.ofx.bundle"
+  #define BundleDir "..\..\build\ReafilmPro.ofx.bundle"
 #endif
 #ifndef OutputDir
   #define OutputDir "..\..\dist"
 #endif
 
-#define AppName "Celluloid Pro"
+#define AppName "Reafilm Pro"
 #define AppPublisher "Serhat (serhatbarda.de)"
-#define BundleName "Celluloid.ofx.bundle"
+#define BundleName "ReafilmPro.ofx.bundle"
 
 [Setup]
 ; Never change AppId: it identifies the product for upgrades and uninstall.
@@ -46,13 +46,14 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir={#OutputDir}
-OutputBaseFilename=CelluloidPro-{#AppVersion}-Windows-Setup
+OutputBaseFilename=ReafilmPro-{#AppVersion}-Windows-Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no
 UninstallDisplayName={#AppName} (OFX plug-in)
+; kept from the Celluloid Pro releases so upgrades find the existing uninstaller
 UninstallFilesDir={commonappdata}\Celluloid\Uninstall
 #ifdef SignToolName
 SignTool={#SignToolName}
@@ -70,6 +71,8 @@ german.WelcomeLabel2=Dieses Programm installiert [name/ver] in den OpenFX-Plug-i
 [InstallDelete]
 ; remove any previous version completely so no stale files survive an upgrade
 Type: filesandordirs; Name: "{app}\{#BundleName}"
+; the bundle of the pre-rename releases (Celluloid Pro): same plug-in, Resolve would list it twice
+Type: filesandordirs; Name: "{app}\Celluloid.ofx.bundle"
 
 [Files]
 Source: "{#BundleDir}\*"; DestDir: "{app}\{#BundleName}"; Flags: ignoreversion recursesubdirs createallsubdirs

@@ -12,7 +12,7 @@ is rewritten; everything else in MANUAL.md is hand-written.
 
 Usage (Linux workbench, after building the bundle and tools/ofxhost):
 
-    python3 tools/docs/gen_manual_controls.py --bundle <build>/Celluloid.ofx.bundle \
+    python3 tools/docs/gen_manual_controls.py --bundle <build>/ReafilmPro.ofx.bundle \
         --ofxhost <build>/tools/ofxhost/ofxhost            # rewrite docs/MANUAL.md
     python3 tools/docs/gen_manual_controls.py ... --check  # exit 1 if the manual is out of date
     python3 tools/docs/gen_manual_controls.py --params params.json ...   # use a saved
@@ -149,7 +149,7 @@ def load_params(args):
     with tempfile.TemporaryDirectory() as td:
         path = os.path.join(td, "params.json")
         # a clean environment: no license key from the shell, so nothing machine-specific leaks in
-        env = {k: v for k, v in os.environ.items() if not k.startswith("CELLULOID_")}
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("REAFILM_", "CELLULOID_"))}
         subprocess.run([args.ofxhost, args.bundle, "--list-params-json", path], check=True,
                        stdout=subprocess.DEVNULL, env=env)
         with open(path, encoding="utf-8") as f:
@@ -159,7 +159,7 @@ def load_params(args):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--params", help="JSON written by `ofxhost <bundle> --list-params-json FILE`")
-    ap.add_argument("--bundle", help="path of Celluloid.ofx.bundle")
+    ap.add_argument("--bundle", help="path of ReafilmPro.ofx.bundle")
     ap.add_argument("--ofxhost", help="path of the ofxhost binary")
     ap.add_argument("--manual", default=os.path.join(ROOT, "docs", "MANUAL.md"))
     ap.add_argument("--check", action="store_true", help="do not write; exit 1 when the manual is stale")

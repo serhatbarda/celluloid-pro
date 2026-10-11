@@ -1,4 +1,4 @@
-# Celluloid Pro - Look presets
+# Reafilm Pro - Look presets
 
 Fourteen curated looks, chosen in the **Look Preset** menu (Look group). A preset is a complete recipe: it sets
 every look parameter (stocks, development, print, printer lights, halation, bloom, grain, lens and gate, film

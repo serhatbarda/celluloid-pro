@@ -98,24 +98,35 @@ CEL_TEST(persist_default_paths_follow_home) {
     setenv("HOME", home.path.c_str(), 1);
     unsetenv("XDG_CONFIG_HOME");
     detail::setKeyPathsForTesting("", "");
-    CHECK(detail::userKeyFilePath() == (home.path / ".config/celluloid/license.key").string());
-    CHECK(detail::machineKeyFilePath() == "/etc/celluloid/license.key");
+    CHECK(detail::userKeyFilePath() == (home.path / ".config/reafilm/license.key").string());
+    CHECK(detail::machineKeyFilePath() == "/etc/reafilm/license.key");
     setenv("XDG_CONFIG_HOME", (home.path / "xdg").c_str(), 1);
-    CHECK(detail::userKeyFilePath() == (home.path / "xdg/celluloid/license.key").string());
+    CHECK(detail::userKeyFilePath() == (home.path / "xdg/reafilm/license.key").string());
     setenv("XDG_CONFIG_HOME", "relative/not/allowed", 1);   // XDG spec: ignore relative paths
-    CHECK(detail::userKeyFilePath() == (home.path / ".config/celluloid/license.key").string());
+    CHECK(detail::userKeyFilePath() == (home.path / ".config/reafilm/license.key").string());
     unsetenv("XDG_CONFIG_HOME");
 
-    if (!skipIfNoDev() && !fs::exists("/etc/celluloid/license.key")) {
+    if (!skipIfNoDev() && !fs::exists("/etc/reafilm/license.key") && !fs::exists("/etc/celluloid/license.key")) {
         detail::setClockForTesting(kT0);
         CHECK(needsWatermark(current()));
         std::string err;
         CHECK_MSG(saveKey(devKey("Home User", kT0 - 86400), &err), err);
-        CHECK(fs::exists(home.path / ".config/celluloid/license.key"));
+        CHECK(fs::exists(home.path / ".config/reafilm/license.key"));
         const LicenseInfo li = current();
         CHECK(li.valid && li.licensee == "Home User");
         CHECK(removeKey(&err));
-        CHECK(!fs::exists(home.path / ".config/celluloid/license.key"));
+        CHECK(!fs::exists(home.path / ".config/reafilm/license.key"));
+        CHECK(needsWatermark(current()));
+
+        // a key activated before the rename (~/.config/celluloid) is still read, and removed too
+        const fs::path legacy = home.path / ".config/celluloid/license.key";
+        fs::create_directories(legacy.parent_path());
+        writeText(legacy, devKey("Legacy User", kT0 - 86400) + "\n");
+        detail::invalidateCache();
+        const LicenseInfo lg = current();
+        CHECK(lg.valid && lg.licensee == "Legacy User");
+        CHECK(removeKey(&err));
+        CHECK(!fs::exists(legacy));
         CHECK(needsWatermark(current()));
         detail::setClockForTesting(0);
     }
@@ -125,13 +136,13 @@ CEL_TEST(persist_default_paths_follow_home) {
     detail::setKeyPathsForTesting("", "");
     const std::string u = detail::userKeyFilePath(), m = detail::machineKeyFilePath();
     std::printf("    user: %s\n    machine: %s\n", u.c_str(), m.c_str());
-    CHECK(u.size() > 22 && u.compare(u.size() - 22, 22, "\\Celluloid\\license.key") == 0);
-    CHECK(m.size() > 22 && m.compare(m.size() - 22, 22, "\\Celluloid\\license.key") == 0 && m != u);
+    CHECK(u.size() > 20 && u.compare(u.size() - 20, 20, "\\Reafilm\\license.key") == 0);
+    CHECK(m.size() > 20 && m.compare(m.size() - 20, 20, "\\Reafilm\\license.key") == 0 && m != u);
 #elif defined(__APPLE__)
     detail::setKeyPathsForTesting("", "");
     const std::string u = detail::userKeyFilePath();
-    CHECK(contains(u, "/Library/Application Support/Celluloid/license.key") && u[0] == '/');
-    CHECK(detail::machineKeyFilePath() == "/Library/Application Support/Celluloid/license.key");
+    CHECK(contains(u, "/Library/Application Support/Reafilm/license.key") && u[0] == '/');
+    CHECK(detail::machineKeyFilePath() == "/Library/Application Support/Reafilm/license.key");
 #else
     CHECK(!detail::userKeyFilePath().empty());
 #endif
@@ -140,7 +151,7 @@ CEL_TEST(persist_default_paths_follow_home) {
 CEL_TEST(persist_save_load_remove_roundtrip) {
     if (skipIfNoDev()) return;
     TempDir tmp;
-    const fs::path user = tmp.path / "user dir" / "Celluloid" / "license.key";
+    const fs::path user = tmp.path / "user dir" / "Reafilm" / "license.key";
     const fs::path machine = tmp.path / "machine" / "license.key";
     detail::setKeyPathsForTesting(user.string(), machine.string());
     detail::setClockForTesting(kT0);
@@ -165,7 +176,7 @@ CEL_TEST(persist_save_load_remove_roundtrip) {
     CHECK_MSG(saveKey(messy, &err), err);
     CHECK(fs::exists(user));
     const std::string content = readText(user);
-    CHECK(contains(content, key + "\n") && contains(content, "# Celluloid Pro license key"));
+    CHECK(contains(content, key + "\n") && contains(content, "# Reafilm Pro license key"));
 #if !defined(_WIN32)
     struct stat st;
     CHECK(::stat(user.c_str(), &st) == 0 && (st.st_mode & 0777) == 0600);
@@ -234,10 +245,15 @@ CEL_TEST(persist_machine_wide_env_and_precedence) {
 #if !defined(_WIN32)
     setenv(detail::kLicenseEnvVar, devKey("Render Farm", kT0 - 86400).c_str(), 1);
     li = current();
-    CHECK(li.valid && li.licensee == "Render Farm" && contains(li.message, "CELLULOID_LICENSE_KEY"));
+    CHECK(li.valid && li.licensee == "Render Farm" && contains(li.message, "REAFILM_LICENSE_KEY"));
     setenv(detail::kLicenseEnvVar, "CELL1-INVALID", 1);
     CHECK(current().licensee == "Studio X");
     unsetenv(detail::kLicenseEnvVar);
+    // the pre-rename variable still works when the new one is unset
+    setenv(detail::kLegacyLicenseEnvVar, devKey("Old Farm", kT0 - 86400).c_str(), 1);
+    li = current();
+    CHECK(li.valid && li.licensee == "Old Farm" && contains(li.message, "CELLULOID_LICENSE_KEY"));
+    unsetenv(detail::kLegacyLicenseEnvVar);
 #endif
     // a leftover Trial-edition (evaluation) key in the user file does not shadow a paid key
     writeText(user, devKey("Evaluator", kT0 - 86400, 0, Edition::Trial) + "\n");

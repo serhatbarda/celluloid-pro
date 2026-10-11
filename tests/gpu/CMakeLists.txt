@@ -1,4 +1,4 @@
-# Celluloid Pro - GPU backend tests (owned by the gpu role).
+# Reafilm Pro - GPU backend tests (owned by the gpu role).
 #   From the top level (after add_subdirectory(src/gpu)):   add_subdirectory(tests/gpu)
 #   Standalone:                                              tests/gpu/build.sh [build-dir]
 # Tests (ctest; labels: gpu-device = needs a GPU/POCL device, linux-only = Linux workbench tools):
@@ -12,7 +12,7 @@
 #   gpu_parity         production plans: CPU backend vs reference vs every GPU device (needs core+engine)
 cmake_minimum_required(VERSION 3.20)
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-  project(celluloid_gpu_tests LANGUAGES C CXX)
+  project(reafilm_gpu_tests LANGUAGES C CXX)
   set(CMAKE_CXX_STANDARD 17)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
   enable_testing()
@@ -40,15 +40,15 @@ add_test(NAME gpu_flatten
 # ABI test kernel set, flattened for OpenCL and Metal
 cel_embed_kernel_source(
   ROOT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/abi/AbiOpenCL.cl" SYMBOL cel_opencl_abi
-  OUTPUT_CPP "${_gen}/AbiOpenCLSource.cpp" OUTPUT_FLAT "${_gen}/celluloid_abi.cl"
+  OUTPUT_CPP "${_gen}/AbiOpenCLSource.cpp" OUTPUT_FLAT "${_gen}/reafilm_abi.cl"
   BASE_DIR "${CEL_GPU_TEST_REPO}"
   DEPENDS_DIRS "${CEL_GPU_TEST_REPO}/src/kernels" "${CEL_GPU_TEST_REPO}/src/gpu/kernels")
 cel_embed_kernel_source(
   ROOT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/abi/AbiMetal.metal" SYMBOL cel_metal_abi
-  OUTPUT_CPP "${_gen}/AbiMetalSource.cpp" OUTPUT_FLAT "${_gen}/celluloid_abi.metal"
+  OUTPUT_CPP "${_gen}/AbiMetalSource.cpp" OUTPUT_FLAT "${_gen}/reafilm_abi.metal"
   BASE_DIR "${CEL_GPU_TEST_REPO}"
   DEPENDS_DIRS "${CEL_GPU_TEST_REPO}/src/kernels" "${CEL_GPU_TEST_REPO}/src/gpu/kernels")
-add_custom_target(celgpu_test_kernel_sources DEPENDS "${_gen}/celluloid_abi.cl" "${_gen}/celluloid_abi.metal")
+add_custom_target(celgpu_test_kernel_sources DEPENDS "${_gen}/reafilm_abi.cl" "${_gen}/reafilm_abi.metal")
 
 add_executable(test_gpu_abi test_gpu_abi.cpp test_env_opencl.cpp test_env_cuda.cpp
   GpuTestEnv.h RefBackend.h abi/AbiKernels.h abi/AbiKernelList.h)
@@ -93,8 +93,8 @@ add_test(NAME gpu_abi COMMAND test_gpu_abi)
 set_tests_properties(gpu_abi PROPERTIES LABELS "gpu-device" SKIP_RETURN_CODE 77)
 
 # --- offline syntax checks of the flattened sources ---------------------------------------------
-set(_flat_cl "${_gen}/celluloid_abi.cl")
-set(_flat_metal "${CEL_GPU_METAL_FLAT_SOURCE}" "${_gen}/celluloid_abi.metal")
+set(_flat_cl "${_gen}/reafilm_abi.cl")
+set(_flat_metal "${CEL_GPU_METAL_FLAT_SOURCE}" "${_gen}/reafilm_abi.metal")
 if(CEL_ENABLE_OPENCL)
   list(APPEND _flat_cl "${CEL_GPU_OPENCL_FLAT_SOURCE}")
 endif()

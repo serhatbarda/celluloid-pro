@@ -1,4 +1,4 @@
-// Celluloid Pro - core colour science unit tests (plain C++ harness, no framework).
+// Reafilm Pro - core colour science unit tests (plain C++ harness, no framework).
 //   build: tests/core/build.sh   (or add_subdirectory(tests/core) -> target test_core, ctest "core")
 //   run:   test_core [--golden <file>] [--quick]
 #include "core/Core.h"
@@ -503,10 +503,10 @@ static void testCube(const std::string& dir) {
     std::printf("[.cube export]\n");
     Pipeline P;
     P.prepare(LookParams());
-    std::string path = dir + "/cel_test_\xc3\xa4\xc3\xb6\xc3\xbc/Celluloid_test.cube";   // non-ASCII folder (UTF-8)
+    std::string path = dir + "/cel_test_\xc3\xa4\xc3\xb6\xc3\xbc/Reafilm_test.cube";   // non-ASCII folder (UTF-8)
     std::string err;
     double t0 = nowMs();
-    bool ok = writeCubeLUT(P, 33, path, "Celluloid test", &err);
+    bool ok = writeCubeLUT(P, 33, path, "Reafilm test", &err);
     double t1 = nowMs();
     CHECK(ok, "writeCubeLUT failed: %s", err.c_str());
     std::ifstream f(std::filesystem::u8path(path));   // UTF-8 path (Windows: not the ANSI code page)

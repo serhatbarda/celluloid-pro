@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU tests: CUDA environment (own stream on device 0, like a host would pass).
+// Reafilm Pro - GPU tests: CUDA environment (own stream on device 0, like a host would pass).
 #include "GpuTestEnv.h"
 
 #if defined(CEL_TEST_HAVE_CUDA)

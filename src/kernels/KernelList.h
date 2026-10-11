@@ -1,4 +1,4 @@
-/* Celluloid Pro - the list of all kernels (X-macro).  Shared file:
+/* Reafilm Pro - the list of all kernels (X-macro).  Shared file:
  *   - COLOR section: owned by the core agent (names fixed below; bodies in ColorKernels.h)
  *   - TEXTURE section: owned by the texture agent (add entries as needed; bodies in TextureKernels.h)
  *   - LICENSE section: owned by the license agent (bodies in LicenseKernels.h)

@@ -1,4 +1,4 @@
-// Celluloid Pro - license key wire format (shared by the plugin, tools/licensegen and the tests).
+// Reafilm Pro - license key wire format (shared by the plugin, tools/licensegen and the tests).
 //
 // A license key is the text
 //

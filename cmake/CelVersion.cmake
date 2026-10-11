@@ -1,4 +1,4 @@
-# Celluloid Pro - build identification.
+# Reafilm Pro - build identification.
 #   CEL_BUILD_ID   : -DCEL_BUILD_ID=... (CI passes the commit), else the git commit of the source tree, else "dev"
 #   CEL_BUILD_DATE : UTC date of the configure run (honours SOURCE_DATE_EPOCH for reproducible builds)
 if(NOT CEL_BUILD_ID)

@@ -1,4 +1,4 @@
-// Celluloid Pro - Linux workbench MOCK of the tiny Foundation subset used by src/gpu/metal and
+// Reafilm Pro - Linux workbench MOCK of the tiny Foundation subset used by src/gpu/metal and
 // tests/gpu/test_env_metal.mm, for `clang -fsyntax-only -fobjc-arc` only (check_mm_mock.sh).
 // Not Apple's header; signatures follow the public Apple documentation.
 #pragma once

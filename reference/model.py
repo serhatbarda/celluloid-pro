@@ -1,4 +1,4 @@
-"""Celluloid Pro -- NumPy reference implementation of the spectral film model (float64).
+"""Reafilm Pro -- NumPy reference implementation of the spectral film model (float64).
 
 This mirrors src/core (host bakes) + src/kernels/ColorKernels.h (per-pixel evaluation)
 function by function, with the same LUT grids and interpolation rules, so that the C++

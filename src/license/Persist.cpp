@@ -1,15 +1,19 @@
-// Celluloid Pro - license persistence and the cached, thread-safe current() status.
+// Reafilm Pro - license persistence and the cached, thread-safe current() status.
 //
 // Sources, in order of precedence (the first VALID paid-edition key wins; a valid Trial-edition
 // evaluation key counts only when no source holds a paid key, so a leftover evaluation key in the
 // user file never re-watermarks a machine licensed by the environment or machine-wide):
-//   1. per-user key file   macOS   ~/Library/Application Support/Celluloid/license.key
-//                          Windows %APPDATA%\Celluloid\license.key   (FOLDERID_RoamingAppData)
-//                          Linux   $XDG_CONFIG_HOME/celluloid/license.key or ~/.config/celluloid/...
-//   2. environment variable CELLULOID_LICENSE_KEY (render nodes, containers)
-//   3. machine-wide file   macOS   /Library/Application Support/Celluloid/license.key
-//                          Windows %PROGRAMDATA%\Celluloid\license.key  (FOLDERID_ProgramData)
-//                          Linux   /etc/celluloid/license.key
+//   1. per-user key file   macOS   ~/Library/Application Support/Reafilm/license.key
+//                          Windows %APPDATA%\Reafilm\license.key   (FOLDERID_RoamingAppData)
+//                          Linux   $XDG_CONFIG_HOME/reafilm/license.key or ~/.config/reafilm/...
+//   2. environment variable REAFILM_LICENSE_KEY (render nodes, containers)
+//   3. machine-wide file   macOS   /Library/Application Support/Reafilm/license.key
+//                          Windows %PROGRAMDATA%\Reafilm\license.key  (FOLDERID_ProgramData)
+//                          Linux   /etc/reafilm/license.key
+// Pre-rename (Celluloid Pro) locations stay readable as fallbacks: when a new-name file is
+// missing, the same file in the old "Celluloid" / "celluloid" folder is read instead, and
+// CELLULOID_LICENSE_KEY is used when REAFILM_LICENSE_KEY is unset or empty. saveKey() always
+// writes the new location; removeKey() deletes the per-user key from both.
 // If no source is valid, the status explains the first source that is present but invalid
 // (e.g. "expired"), else it is the trial status.
 //
@@ -101,13 +105,13 @@ fs::path knownFolder(REFKNOWNFOLDERID id, const wchar_t* envFallback) {
     }
     return r;
 }
-fs::path defaultUserFile() {
+fs::path defaultUserFile(bool legacy) {
     fs::path base = knownFolder(FOLDERID_RoamingAppData, L"APPDATA");
-    return base.empty() ? fs::path() : base / L"Celluloid" / L"license.key";
+    return base.empty() ? fs::path() : base / (legacy ? L"Celluloid" : L"Reafilm") / L"license.key";
 }
-fs::path defaultMachineFile() {
+fs::path defaultMachineFile(bool legacy) {
     fs::path base = knownFolder(FOLDERID_ProgramData, L"PROGRAMDATA");
-    return base.empty() ? fs::path() : base / L"Celluloid" / L"license.key";
+    return base.empty() ? fs::path() : base / (legacy ? L"Celluloid" : L"Reafilm") / L"license.key";
 }
 #else
 fs::path homeDir() {
@@ -120,19 +124,23 @@ fs::path homeDir() {
     return fs::path();
 }
   #if defined(__APPLE__)
-fs::path defaultUserFile() {
+fs::path defaultUserFile(bool legacy) {
     fs::path h = homeDir();
-    return h.empty() ? fs::path() : h / "Library" / "Application Support" / "Celluloid" / "license.key";
+    return h.empty() ? fs::path()
+                     : h / "Library" / "Application Support" / (legacy ? "Celluloid" : "Reafilm") / "license.key";
 }
-fs::path defaultMachineFile() { return fs::path("/Library/Application Support/Celluloid/license.key"); }
+fs::path defaultMachineFile(bool legacy) {
+    return fs::path("/Library/Application Support") / (legacy ? "Celluloid" : "Reafilm") / "license.key";
+}
   #else
-fs::path defaultUserFile() {
+fs::path defaultUserFile(bool legacy) {
+    const char* dir = legacy ? "celluloid" : "reafilm";
     const char* x = std::getenv("XDG_CONFIG_HOME");
-    if (x && x[0] == '/') return fs::path(x) / "celluloid" / "license.key";   // XDG: must be absolute
+    if (x && x[0] == '/') return fs::path(x) / dir / "license.key";   // XDG: must be absolute
     fs::path h = homeDir();
-    return h.empty() ? fs::path() : h / ".config" / "celluloid" / "license.key";
+    return h.empty() ? fs::path() : h / ".config" / dir / "license.key";
 }
-fs::path defaultMachineFile() { return fs::path("/etc/celluloid/license.key"); }
+fs::path defaultMachineFile(bool legacy) { return fs::path(legacy ? "/etc/celluloid" : "/etc/reafilm") / "license.key"; }
   #endif
 #endif
 
@@ -162,13 +170,17 @@ int64_t clockNow(const State& s) {
     return static_cast<int64_t>(std::time(nullptr));
 }
 
-struct Paths { fs::path user, machine; };
+// userLegacy / machineLegacy: pre-rename locations, read only when the new file is missing
+// (empty with test overrides).
+struct Paths { fs::path user, machine, userLegacy, machineLegacy; };
 
 Paths currentPaths(const State& s) {
-    if (s.overridePaths) return {s.userOverride, s.machineOverride};
+    if (s.overridePaths) return {s.userOverride, s.machineOverride, fs::path(), fs::path()};
     Paths p;
-    try { p.user = defaultUserFile(); } catch (...) {}
-    try { p.machine = defaultMachineFile(); } catch (...) {}
+    try { p.user = defaultUserFile(false); } catch (...) {}
+    try { p.machine = defaultMachineFile(false); } catch (...) {}
+    try { p.userLegacy = defaultUserFile(true); } catch (...) {}
+    try { p.machineLegacy = defaultMachineFile(true); } catch (...) {}
     return p;
 }
 
@@ -263,16 +275,31 @@ std::string envVar(const char* name) {
 struct Snapshot {
     FileRead    user = FileRead::Missing, machine = FileRead::Missing;
     std::string userText, machineText, envText;
+    std::string envName = detail::kLicenseEnvVar;   // the variable envText came from
     fs::path    userPath, machinePath;
 };
 
+// Reads the new-name file, or the pre-rename one when the new file is missing.
+FileRead readWithFallback(const fs::path& p, const fs::path& legacy, std::string& text, fs::path& used) {
+    used = p;
+    FileRead r;
+    try { r = readSmallFile(p, text); } catch (...) { r = FileRead::Unreadable; }
+    if (r != FileRead::Missing || legacy.empty()) return r;
+    used = legacy;
+    try { r = readSmallFile(legacy, text); } catch (...) { r = FileRead::Unreadable; }
+    if (r == FileRead::Missing) used = p;
+    return r;
+}
+
 Snapshot loadSnapshot(const Paths& p) {
     Snapshot s;
-    s.userPath = p.user;
-    s.machinePath = p.machine;
-    try { s.user = readSmallFile(p.user, s.userText); } catch (...) { s.user = FileRead::Unreadable; }
-    try { s.machine = readSmallFile(p.machine, s.machineText); } catch (...) { s.machine = FileRead::Unreadable; }
+    s.user = readWithFallback(p.user, p.userLegacy, s.userText, s.userPath);
+    s.machine = readWithFallback(p.machine, p.machineLegacy, s.machineText, s.machinePath);
     s.envText = envVar(detail::kLicenseEnvVar);
+    if (s.envText.empty()) {
+        s.envText = envVar(detail::kLegacyLicenseEnvVar);
+        s.envName = detail::kLegacyLicenseEnvVar;
+    }
     return s;
 }
 
@@ -310,7 +337,7 @@ LicenseInfo evaluate(const Snapshot& s, int64_t now) {
     if (envPresent) env = verifyKey(s.envText, now);
     LicenseInfo machine = evaluateFile(s.machine, s.machineText, s.machinePath, now, machinePresent);
 
-    auto fromEnv = [&env]() { env.message += " (from " + std::string(detail::kLicenseEnvVar) + ")"; return env; };
+    auto fromEnv = [&env, &s]() { env.message += " (from " + s.envName + ")"; return env; };
     auto fromMachine = [&machine]() { machine.message += " (machine-wide license)"; return machine; };
     // 1. paid editions first (user, env, machine), 2. then a valid Trial-edition key
     for (int pass = 0; pass < 2; ++pass) {
@@ -321,7 +348,7 @@ LicenseInfo evaluate(const Snapshot& s, int64_t now) {
     }
 
     if (userPresent)    { user.message = "Saved license key: " + user.message; return user; }
-    if (envPresent)     { env.message = std::string(detail::kLicenseEnvVar) + ": " + env.message; return env; }
+    if (envPresent)     { env.message = s.envName + ": " + env.message; return env; }
     if (machinePresent) { machine.message = "Machine-wide license key: " + machine.message; return machine; }
     return trialInfo();
 }
@@ -437,7 +464,7 @@ bool saveKey(const std::string& key, std::string* err) {
         {
             std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
             if (!f) return setErr(err, "Cannot write to " + pathToUtf8(dir) + " (check folder permissions).");
-            f << "# Celluloid Pro license key (" << li.licensee << ", " << fmt::editionName(li.edition) << ")\n"
+            f << "# Reafilm Pro license key (" << li.licensee << ", " << fmt::editionName(li.edition) << ")\n"
               << canon << "\n";
             f.flush();
             if (!f) {
@@ -477,19 +504,20 @@ bool removeKey(std::string* err) {
             paths = currentPaths(s);
             now = clockNow(s);
         }
-        if (!paths.user.empty()) {
+        for (const fs::path& file : {paths.user, paths.userLegacy}) {   // new and pre-rename location
+            if (file.empty()) continue;
             std::error_code ec;
-            const bool existed = fs::exists(fs::symlink_status(paths.user, ec));
+            const bool existed = fs::exists(fs::symlink_status(file, ec));
             if (existed) {
                 retryFs([&](std::error_code& e) {
                     std::error_code e2;
-                    if (!fs::remove(paths.user, e) && !e && fs::exists(fs::symlink_status(paths.user, e2)))
+                    if (!fs::remove(file, e) && !e && fs::exists(fs::symlink_status(file, e2)))
                         e = std::make_error_code(std::errc::device_or_resource_busy);
                 }, ec);
                 if (ec) {
                     std::lock_guard<std::mutex> lk(s.m);
                     invalidateLocked(s);
-                    return setErr(err, "Cannot remove " + pathToUtf8(paths.user) + ": " + ec.message());
+                    return setErr(err, "Cannot remove " + pathToUtf8(file) + ": " + ec.message());
                 }
             }
         }

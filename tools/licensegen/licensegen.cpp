@@ -1,4 +1,4 @@
-// licensegen - Celluloid Pro license key tool (keypairs, signing, verification, PublicKey.h).
+// licensegen - Reafilm Pro license key tool (keypairs, signing, verification, PublicKey.h).
 // See tools/licensegen/README.md.  Exit codes: 0 = OK / key valid, 1 = key invalid, 2 = usage or I/O error.
 #include "../../src/license/KeyFormat.h"
 #include "../../src/license/KeySigner.h"
@@ -37,7 +37,7 @@ using namespace cel::lic;
 namespace {
 
 const char* kUsage =
-"licensegen - Celluloid Pro license key tool\n"
+"licensegen - Reafilm Pro license key tool\n"
 "\n"
 "  licensegen keygen [--out-dir DIR] [--name NAME] [--force]\n"
 "      New Ed25519 signing keypair: NAME.private.key (secret!) + NAME.public.key.\n"
@@ -306,8 +306,8 @@ int cmdKeygen(const Args& a) {
     if (!sign::osRandomBytes(seed, sizeof(seed))) return fail("the operating system RNG is unavailable");
     sign::derivePublicKey(seed, pub);
     const std::string label = dev
-        ? "Celluloid Pro DEVELOPMENT signing key - NOT FOR PRODUCTION. Committed to the repository on purpose."
-        : "Celluloid Pro PRODUCTION license signing key";
+        ? "Reafilm Pro DEVELOPMENT signing key - NOT FOR PRODUCTION. Committed to the repository on purpose."
+        : "Reafilm Pro PRODUCTION license signing key";
     std::string privText = fmt::privateKeyFileText(seed, label);
     fmt::secureWipe(seed, sizeof(seed));
     std::string err;
@@ -316,8 +316,8 @@ int cmdKeygen(const Args& a) {
     const bool okPriv = writeNewFile(privPath, privText, true, a.has("--force"), err);
     fmt::secureWipe(&privText[0], privText.size());
     if (!okPriv) return fail(err);
-    if (!writeNewFile(pubPath, fmt::publicKeyFileText(pub, dev ? "Celluloid Pro DEVELOPMENT public key"
-                                                               : "Celluloid Pro production public key"),
+    if (!writeNewFile(pubPath, fmt::publicKeyFileText(pub, dev ? "Reafilm Pro DEVELOPMENT public key"
+                                                               : "Reafilm Pro production public key"),
                       false, a.has("--force"), err))
         return fail(err);
     std::cout << "private key: " << privPath.string() << (dev ? "  (DEVELOPMENT)" : "  (KEEP SECRET, BACK IT UP)") << "\n"
@@ -357,7 +357,7 @@ int cmdPubkey(const Args& a) {
     if (!loadPrivateKey(keyPath, seed, err)) return fail(err);
     sign::derivePublicKey(seed, pub);
     fmt::secureWipe(seed, sizeof(seed));
-    std::cout << fmt::publicKeyFileText(pub, "Celluloid Pro public key (derived from " + keyPath + ")");
+    std::cout << fmt::publicKeyFileText(pub, "Reafilm Pro public key (derived from " + keyPath + ")");
     return 0;
 }
 
@@ -405,7 +405,7 @@ int cmdSign(const Args& a) {
     }
     if (!a.get("--id", p.id) && !sign::randomLicenseId(p.id)) return fail("the operating system RNG is unavailable");
     if (p.product != fmt::kProduct)
-        std::cerr << "licensegen: warning: product '" << p.product << "' will be rejected by Celluloid Pro\n";
+        std::cerr << "licensegen: warning: product '" << p.product << "' will be rejected by Reafilm Pro\n";
     if (p.edition == Edition::Trial)
         std::cerr << "licensegen: note: Trial edition keys keep the watermark on\n";
 

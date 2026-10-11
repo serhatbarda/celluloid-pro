@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the Celluloid Pro plugin icon (128x128 RGBA PNG) from scratch.
+"""Generate the Reafilm Pro plugin icon (128x128 RGBA PNG) from scratch.
 
 Original artwork, computed procedurally: a strip of motion-picture film (sprocket holes along
 both edges) with a seven-blade lens iris in the frame, the aperture glowing with a warm

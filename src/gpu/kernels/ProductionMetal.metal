@@ -1,4 +1,4 @@
-/* Celluloid Pro - root of the flattened Metal Shading Language library (production kernel set).
+/* Reafilm Pro - root of the flattened Metal Shading Language library (production kernel set).
  * Flattened at build time by cmake/FlattenKernels.cmake into an embedded string. */
 #include "../../kernels/AllKernels.h"
 #include "Probe.h"

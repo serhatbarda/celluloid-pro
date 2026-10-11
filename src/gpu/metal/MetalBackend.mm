@@ -1,4 +1,4 @@
-// Celluloid Pro - Metal backend (owned by the gpu role). See src/gpu/README.md.
+// Reafilm Pro - Metal backend (owned by the gpu role). See src/gpu/README.md.
 //
 // Memory management: ARC (this file must be compiled with -fobjc-arc; enforced below). Objective-C
 // objects held in C++ structs/containers are __strong and released automatically. Handles passed
@@ -304,7 +304,7 @@ bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float
 
     id<MTLCommandBuffer> cb = [queue commandBuffer];
     if (!cb) return fail(err, "could not create a command buffer on the host queue");
-    cb.label = @"Celluloid Pro";
+    cb.label = @"Reafilm Pro";
 
     // The state key is committed to the lane only after [cb commit] (an early return before the
     // commit leaves the blit unexecuted: the key must not claim the upload happened)
@@ -342,7 +342,7 @@ bool MetalBackend::executeImpl(const engine::Plan& plan, const std::vector<float
     }
     id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];   // serial dispatch type
     if (!enc) return fail(err, "could not create a compute command encoder");
-    enc.label = @"Celluloid Pro passes";
+    enc.label = @"Reafilm Pro passes";
     for (size_t p = 0; p < fs.passes.size(); ++p) {
         const ScheduledPass& sp = fs.passes[p];
         id<MTLComputePipelineState> pso = psos[size_t(sp.kernel)];

@@ -1,4 +1,4 @@
-// Celluloid Pro - colour science core: name lists, Pipeline::prepare (state assembly, grey
+// Reafilm Pro - colour science core: name lists, Pipeline::prepare (state assembly, grey
 // balance, HDR calibration), CPU wrappers around the kernel functions, .cube export.
 // The model is documented in SPEC section 4, docs/STOCKS.md and reference/model.py.
 #include "Core.h"
@@ -1137,7 +1137,7 @@ bool writeCubeLUT(const Pipeline& pipe, int size, const std::string& path, const
     os << "TITLE \"" << t << "\"\n";
     char buf[128];
     if (shaper) {
-        os << "# Created by Celluloid Pro. Input: scene-linear Rec.2020 through a 1D log2 shaper "
+        os << "# Created by Reafilm Pro. Input: scene-linear Rec.2020 through a 1D log2 shaper "
               "(-8.5 .. +8.5 stops around 18 % grey); output: encoded display values.\n";
         std::snprintf(buf, sizeof(buf), "LUT_1D_SIZE %d\nLUT_1D_INPUT_RANGE %.9g %.9g\n", kShaperSize, kShLo, kShHi);
         os << buf;
@@ -1149,7 +1149,7 @@ bool writeCubeLUT(const Pipeline& pipe, int size, const std::string& path, const
             os << buf;
         }
     } else {
-        os << "# Created by Celluloid Pro. Input: encoded camera code values [0,1]; output: encoded display values.\n";
+        os << "# Created by Reafilm Pro. Input: encoded camera code values [0,1]; output: encoded display values.\n";
         os << "LUT_3D_SIZE " << N << "\n";
         os << "DOMAIN_MIN 0.0 0.0 0.0\nDOMAIN_MAX 1.0 1.0 1.0\n";
     }

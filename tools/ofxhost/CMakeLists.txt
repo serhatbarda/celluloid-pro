@@ -163,12 +163,12 @@ if(OFXHOST_BUILD_SDK_PLUGINS)
   endif()
 endif()
 
-# ---------------------------------------------------------------- Celluloid plug-in: end-to-end smoke test
+# ---------------------------------------------------------------- Reafilm Pro plug-in: end-to-end smoke test
 # Loads the built bundle through the real OFX entry points on every platform (CI: macOS universal
 # bundle, Windows Win64 DLL): describe + GPU flags vs self test, CPU render vs the committed
 # reference, trial LUT refusal; ofx_smoke_gpu renders through the plug-in's Metal (macOS) or OpenCL
 # (Linux/POCL) path with host-created queues and buffers and compares with the CPU (2e-4).
-if(DEFINED CEL_BUNDLE_DIR AND TARGET celluloid_ofx)
+if(DEFINED CEL_BUNDLE_DIR AND TARGET reafilm_ofx)
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
     set(_smoke "${CMAKE_CURRENT_SOURCE_DIR}/smoke/ofx_smoke.py")
@@ -201,8 +201,8 @@ if(DEFINED CEL_BUNDLE_DIR AND TARGET celluloid_ofx)
   endif()
 endif()
 
-# ---------------------------------------------------------------- Celluloid plug-in: GPU self test at describe
-if(_ofxhost_linux AND DEFINED CEL_BUNDLE_DIR AND TARGET celluloid_ofx)
+# ---------------------------------------------------------------- Reafilm Pro plug-in: GPU self test at describe
+if(_ofxhost_linux AND DEFINED CEL_BUNDLE_DIR AND TARGET reafilm_ofx)
   add_test(NAME ofx_gpu_selftest_logged
     COMMAND "${CMAKE_COMMAND}" -DHOST=$<TARGET_FILE:ofxhost> "-DBUNDLE=${CEL_BUNDLE_DIR}"
             "-DOUT=${CMAKE_CURRENT_BINARY_DIR}/selftest_params.json"
@@ -210,12 +210,12 @@ if(_ofxhost_linux AND DEFINED CEL_BUNDLE_DIR AND TARGET celluloid_ofx)
   set_tests_properties(ofx_gpu_selftest_logged PROPERTIES LABELS "ofx;linux-only" TIMEOUT 300)
 endif()
 
-# ---------------------------------------------------------------- Celluloid render tests (opt-in)
+# ---------------------------------------------------------------- Reafilm Pro render tests (opt-in)
 # ctest -L render runs tools/render_tests/run_all.sh --quick against the bundle of the main build
 # (or OFXHOST_RENDER_TEST_BUNDLE). Opt-in because it renders hundreds of frames and its §6 look
 # checks are acceptance criteria, not unit tests.
-option(OFXHOST_RENDER_TESTS "Register the Celluloid render tests with CTest (label 'render')" OFF)
-set(OFXHOST_RENDER_TEST_BUNDLE "" CACHE PATH "Celluloid.ofx.bundle for the render tests (default: the main build's bundle)")
+option(OFXHOST_RENDER_TESTS "Register the Reafilm Pro render tests with CTest (label 'render')" OFF)
+set(OFXHOST_RENDER_TEST_BUNDLE "" CACHE PATH "ReafilmPro.ofx.bundle for the render tests (default: the main build's bundle)")
 if(OFXHOST_RENDER_TESTS)
   set(_rt_bundle "${OFXHOST_RENDER_TEST_BUNDLE}")
   if(NOT _rt_bundle AND DEFINED CEL_BUNDLE_DIR)
@@ -228,8 +228,8 @@ if(OFXHOST_RENDER_TESTS)
   if(CEL_DEV_LICENSE)
     list(APPEND _rt_args --dev-license)
   endif()
-  add_test(NAME celluloid_render_tests
+  add_test(NAME reafilm_render_tests
     COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/../render_tests/run_all.sh" "${_rt_bundle}" "${CMAKE_BINARY_DIR}/render-tests" ${_rt_args})
-  set_tests_properties(celluloid_render_tests PROPERTIES LABELS render TIMEOUT 7200
+  set_tests_properties(reafilm_render_tests PROPERTIES LABELS render TIMEOUT 7200
     ENVIRONMENT "OFXHOST=$<TARGET_FILE:ofxhost>")
 endif()

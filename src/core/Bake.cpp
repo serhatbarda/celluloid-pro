@@ -1,4 +1,4 @@
-// Celluloid Pro - spectral bakes + process-wide cache. Mirrors reference/model.py.
+// Reafilm Pro - spectral bakes + process-wide cache. Mirrors reference/model.py.
 #include "Bake.h"
 #include "../kernels/ColorState.h"
 #include <algorithm>

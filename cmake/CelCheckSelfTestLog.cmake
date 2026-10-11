@@ -1,8 +1,8 @@
-# ctest helper: run ofxhost on the plug-in with CELLULOID_LOG=1 and require the describe-time GPU
+# ctest helper: run ofxhost on the plug-in with REAFILM_LOG=1 and require the describe-time GPU
 # self test in the log (regression guard: CEL_HAVE_GPU_API must reach the plug-in build, otherwise
 # compiled-in GPU backends are declared without being tested).
-#   cmake -DHOST=<ofxhost> -DBUNDLE=<Celluloid.ofx.bundle> -DOUT=<json> -P CelCheckSelfTestLog.cmake
-set(ENV{CELLULOID_LOG} 1)
+#   cmake -DHOST=<ofxhost> -DBUNDLE=<ReafilmPro.ofx.bundle> -DOUT=<json> -P CelCheckSelfTestLog.cmake
+set(ENV{REAFILM_LOG} 1)
 execute_process(COMMAND "${HOST}" "${BUNDLE}" --list-params-json "${OUT}"
                 RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
 if(NOT rc EQUAL 0)

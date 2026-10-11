@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Celluloid Pro - standalone build + run of the GPU tests (Linux/macOS workbench).
+# Reafilm Pro - standalone build + run of the GPU tests (Linux/macOS workbench).
 #   tests/gpu/build.sh [build-dir] [extra cmake args...]
 # e.g. tests/gpu/build.sh /tmp/cel-gpu/build -DCEL_ENABLE_CUDA=ON
 set -euo pipefail

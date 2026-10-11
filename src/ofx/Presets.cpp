@@ -1,4 +1,4 @@
-// Celluloid Pro - look preset table and resolver. See Presets.h for the format and rules.
+// Reafilm Pro - look preset table and resolver. See Presets.h for the format and rules.
 #include "Presets.h"
 #include "Params.h"
 

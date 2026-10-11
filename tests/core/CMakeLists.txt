@@ -1,4 +1,4 @@
-# Celluloid Pro - core unit tests. Use via add_subdirectory(tests/core) (needs target celcore,
+# Reafilm Pro - core unit tests. Use via add_subdirectory(tests/core) (needs target celcore,
 # which is created here from src/core if the parent project has not defined it).
 cmake_minimum_required(VERSION 3.20)
 get_filename_component(CEL_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)

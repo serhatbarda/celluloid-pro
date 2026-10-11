@@ -1,4 +1,4 @@
-// Celluloid Pro - texture unit tests (texture agent).
+// Reafilm Pro - texture unit tests (texture agent).
 // Grain statistics, determinism, animation, resolution independence, halation/bloom energy,
 // acutance, vignette, weave, tone map, NaN robustness, edge cases (1x1, odd sizes, negative and
 // padded strides), plan structure, buffer pool reuse, and timings at 1080p / 2160p.

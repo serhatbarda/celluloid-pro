@@ -1,4 +1,4 @@
-# Celluloid Pro - small CMake helpers.
+# Reafilm Pro - small CMake helpers.
 
 # cel_set_warnings(<target>)
 #   -Wall -Wextra on GCC/Clang, /W4 on MSVC; -Werror / /WX when
@@ -36,7 +36,7 @@ function(cel_collect_sources out)
     file(GLOB srcs CONFIGURE_DEPENDS ${globs})
   endif()
   if(NOT srcs)
-    message(FATAL_ERROR "Celluloid: no sources for component '${A_COMPONENT}' (looked in ${A_DIRS})")
+    message(FATAL_ERROR "Reafilm: no sources for component '${A_COMPONENT}' (looked in ${A_DIRS})")
   endif()
   list(SORT srcs)
   set(${out} ${srcs} PARENT_SCOPE)
@@ -45,6 +45,6 @@ endfunction()
 # cel_require_target(<target>): fail clearly when a component's CMakeLists.txt did not define it.
 function(cel_require_target t)
   if(NOT TARGET ${t})
-    message(FATAL_ERROR "Celluloid: the component build did not define the target '${t}' (see SPEC §11)")
+    message(FATAL_ERROR "Reafilm: the component build did not define the target '${t}' (see SPEC §11)")
   endif()
 endfunction()

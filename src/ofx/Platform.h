@@ -1,4 +1,4 @@
-// Celluloid Pro - small platform helpers for the OFX shell (paths, folders, file names).
+// Reafilm Pro - small platform helpers for the OFX shell (paths, folders, file names).
 // All strings are UTF-8; on Windows they are converted to UTF-16 at the OS boundary.
 #pragma once
 #include <string>
@@ -9,7 +9,7 @@ namespace cel { namespace ofxp {
 // Windows: the Known Folder "Documents"). Never empty (falls back to the home/current folder).
 std::string documentsDirectory();
 
-// "<Documents>/Celluloid LUTs/" with the platform's separator and a trailing separator.
+// "<Documents>/Reafilm LUTs/" with the platform's separator and a trailing separator.
 std::string defaultLutDirectory();
 
 // Expands a leading "~" to the home folder and trims surrounding white space and quotes
@@ -28,5 +28,9 @@ std::string fileComponent(const std::string& label);
 
 // Value of an environment variable ("" if unset).
 std::string envVar(const char* name);
+
+// Product setting from the environment: REAFILM_<suffix>, or the pre-rename CELLULOID_<suffix>
+// when the new name is unset or empty (e.g. productEnv("LOG")).
+std::string productEnv(const char* suffix);
 
 }} // namespace cel::ofxp

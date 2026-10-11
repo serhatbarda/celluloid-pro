@@ -1,4 +1,4 @@
-/* Celluloid Pro - GPU ABI test kernels (portable dialect, see src/kernels/Portable.h). */
+/* Reafilm Pro - GPU ABI test kernels (portable dialect, see src/kernels/Portable.h). */
 #ifndef CEL_TEST_ABI_KERNELS_H
 #define CEL_TEST_ABI_KERNELS_H
 #include "../../../src/kernels/KernelABI.h"

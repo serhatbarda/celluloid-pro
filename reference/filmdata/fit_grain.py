@@ -1,4 +1,4 @@
-"""Fit Celluloid's dual-emulsion dye-cloud grain model to the published KODAK VISION3 diffuse RMS
+"""Fit Reafilm's dual-emulsion dye-cloud grain model to the published KODAK VISION3 diffuse RMS
 granularity curves (vision3_texture.json, see digitise_kodak.py).
 
 Model (== src/kernels/GrainKernels.h, celg_*):

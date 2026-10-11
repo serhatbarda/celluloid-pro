@@ -1,4 +1,4 @@
-# Celluloid Pro - licensing (SPEC §9).
+# Reafilm Pro - licensing (SPEC §9).
 #   cel_monocypher  vendored Monocypher 4.0.3 (Ed25519, RFC 8032), C99
 #   cellic          verifyKey / saveKey / removeKey / current  (linked into the plugin of the licensed
 #                   build, -DCEL_LICENSING=ON; built and tested in every configuration)
@@ -43,7 +43,7 @@ endif()
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/PublicKey.h" _cel_pubkey_h)
 if(_cel_pubkey_h MATCHES "kProductionKeyProvisional = true")
-  message(STATUS "Celluloid licensing: PROVISIONAL production key in src/license/PublicKey.h "
+  message(STATUS "Reafilm licensing: PROVISIONAL production key in src/license/PublicKey.h "
                  "(regenerate with tools/licensegen before the first commercial release)")
 endif()
 

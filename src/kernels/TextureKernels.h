@@ -1,4 +1,4 @@
-/* Celluloid Pro - texture kernels (gate weave, acutance, halation, bloom, vignette, grain; film
+/* Reafilm Pro - texture kernels (gate weave, acutance, halation, bloom, vignette, grain; film
  * damage in DamageKernels.h, included at the end).
  * Owner: texture agent.  Portable dialect (see Portable.h): compiled as C++17, OpenCL C 1.2,
  * CUDA and Metal.  Uniform ABI (KernelABI.h): every kernel writes ONE output pixel (x, y).

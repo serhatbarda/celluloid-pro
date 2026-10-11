@@ -1,4 +1,4 @@
-/* Celluloid Pro - GPU ABI test kernel set (X-macro list). Every entry is a kernel with the
+/* Reafilm Pro - GPU ABI test kernel set (X-macro list). Every entry is a kernel with the
  * uniform ABI exercising one aspect of the backends (args layout, strides, 4 inputs, state
  * buffer, size changes, math parity). Used by tests/gpu/test_gpu_abi.cpp only. */
 CEL_KERNEL(t_gradient)   /* no inputs: function of (x, y, f[0..3], i[0..1]) */

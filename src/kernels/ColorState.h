@@ -1,4 +1,4 @@
-/* Celluloid Pro - colour state buffer layout (owned by core).
+/* Reafilm Pro - colour state buffer layout (owned by core).
  *
  * core::Pipeline::prepare() fills ONE float buffer: a fixed 128-float header followed by the
  * LUT blocks whose offsets (in floats, from the start of the buffer) are stored in the header.

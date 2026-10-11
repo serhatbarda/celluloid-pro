@@ -1,4 +1,4 @@
-// Celluloid Pro - spectral foundations (host side, double precision). Mirrors reference/spectral.py.
+// Reafilm Pro - spectral foundations (host side, double precision). Mirrors reference/spectral.py.
 #pragma once
 #include <array>
 

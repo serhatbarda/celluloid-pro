@@ -1,4 +1,4 @@
-// Celluloid Pro - licensing (offline, Ed25519-signed keys).  FIXED (architect). See SPEC §9.
+// Reafilm Pro - licensing (offline, Ed25519-signed keys).  FIXED (architect). See SPEC §9.
 #pragma once
 #include <cstdint>
 #include <string>
@@ -22,11 +22,12 @@ struct LicenseInfo {
 LicenseInfo verifyKey(const std::string& key, int64_t nowUnix);
 
 // Persisted activation: per-user config file
-//   macOS:   ~/Library/Application Support/Celluloid/license.key
-//   Windows: %APPDATA%\Celluloid\license.key
-//   Linux:   $XDG_CONFIG_HOME/celluloid/license.key (or ~/.config/...)
+//   macOS:   ~/Library/Application Support/Reafilm/license.key
+//   Windows: %APPDATA%\Reafilm\license.key
+//   Linux:   $XDG_CONFIG_HOME/reafilm/license.key (or ~/.config/...)
 // (also checks a machine-wide location for studio deployments: /Library/Application Support/
-//  Celluloid/, %PROGRAMDATA%\Celluloid\, /etc/celluloid/)
+//  Reafilm/, %PROGRAMDATA%\Reafilm\, /etc/reafilm/; the pre-rename "Celluloid"/"celluloid"
+//  folders are read as fallbacks, see Persist.cpp)
 bool saveKey(const std::string& key, std::string* err);
 bool removeKey(std::string* err);
 

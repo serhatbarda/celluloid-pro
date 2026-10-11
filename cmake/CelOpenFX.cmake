@@ -1,4 +1,4 @@
-# Celluloid Pro - OpenFX SDK (headers + C++ Support library), pinned (SPEC §11).
+# Reafilm Pro - OpenFX SDK (headers + C++ Support library), pinned (SPEC §11).
 #
 # The sources come from FetchContent at the pinned commit. To build offline or against a local
 # clone, pass -DFETCHCONTENT_SOURCE_DIR_OPENFX=<path> (e.g. external-openfx-ref/). Only the C

@@ -1,4 +1,4 @@
-// Celluloid Pro - curated look presets (data-driven).
+// Reafilm Pro - curated look presets (data-driven).
 //
 // A preset is a complete look recipe: a name, a one-line description and a list of
 // (parameter id, value) pairs. Values are strings so the table stays readable and robust:

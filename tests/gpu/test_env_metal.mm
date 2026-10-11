@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU tests: Metal environment (own device queue, shared-storage images), ARC.
+// Reafilm Pro - GPU tests: Metal environment (own device queue, shared-storage images), ARC.
 // Built only on Apple with CEL_ENABLE_METAL; lets `ctest -R gpu_` exercise the Metal backend on a
 // Mac (including Apple-silicon CI runners, which expose a Metal device).
 #import <Foundation/Foundation.h>

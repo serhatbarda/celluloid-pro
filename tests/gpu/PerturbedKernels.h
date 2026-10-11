@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU tests: production kernels with worst-case GPU math (PerturbedKernels.cpp).
+// Reafilm Pro - GPU tests: production kernels with worst-case GPU math (PerturbedKernels.cpp).
 #pragma once
 #include "RefBackend.h"
 #include <vector>

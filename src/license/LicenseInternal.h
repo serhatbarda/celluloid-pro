@@ -1,4 +1,4 @@
-// Celluloid Pro - licensing internals: trusted-key selection, key-file locations and test hooks.
+// Reafilm Pro - licensing internals: trusted-key selection, key-file locations and test hooks.
 // Not part of the fixed interface (License.h); used by the OFX shell (paths for messages),
 // tools/licensegen and tests/license.
 #pragma once
@@ -30,8 +30,10 @@ std::string canonicalKey(const std::string& key);
 // Key file locations (UTF-8). Empty string if the location cannot be determined.
 std::string userKeyFilePath();
 std::string machineKeyFilePath();
-// Environment variable that may hold a key (render farms): CELLULOID_LICENSE_KEY.
-constexpr const char* kLicenseEnvVar = "CELLULOID_LICENSE_KEY";
+// Environment variable that may hold a key (render farms): REAFILM_LICENSE_KEY, or the
+// pre-rename CELLULOID_LICENSE_KEY when the new one is unset or empty.
+constexpr const char* kLicenseEnvVar = "REAFILM_LICENSE_KEY";
+constexpr const char* kLegacyLicenseEnvVar = "CELLULOID_LICENSE_KEY";
 
 // Drops the cached status; the next current() reloads everything.
 void invalidateCache();

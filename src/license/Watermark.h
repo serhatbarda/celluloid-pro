@@ -1,4 +1,4 @@
-// Celluloid Pro - host-side helper for the trial watermark pass (kernel: cel_k_watermark in
+// Reafilm Pro - host-side helper for the trial watermark pass (kernel: cel_k_watermark in
 // src/kernels/LicenseKernels.h). Header-only; for the plan builder (src/engine) and the OFX shell.
 //
 // The watermark pass is the LAST pass of a frame: in0 = the finished, encoded output image,

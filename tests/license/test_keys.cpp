@@ -470,7 +470,7 @@ CEL_TEST(compiled_in_keys_and_dev_isolation) {
     CHECK_MSG(haveDevSeed, "cannot read " + devFile);
     if (!haveDevSeed) return;
     fmt::Payload p = basePayload();
-    p.licensee = "Celluloid Developer";
+    p.licensee = "Reafilm Developer";
     std::string key, err;
     CHECK(sign::signLicenseKey(p, devSeed, key, &err));
     const LicenseInfo li = verifyKey(key, kNow);

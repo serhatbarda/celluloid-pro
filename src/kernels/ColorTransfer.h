@@ -1,4 +1,4 @@
-/* Celluloid Pro - camera / display transfer functions (portable dialect, owned by core).
+/* Reafilm Pro - camera / display transfer functions (portable dialect, owned by core).
  *
  * Input decodes (code value -> scene-linear, 18% grey -> 0.18) with the constants from the
  * manufacturers' published documents (also mirrored in reference/model.py):

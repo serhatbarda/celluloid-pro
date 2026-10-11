@@ -1,4 +1,4 @@
-// Celluloid Pro - colour science core (per-pixel, no spatial operations).
+// Reafilm Pro - colour science core (per-pixel, no spatial operations).
 // Interface owned by the architect. Host-side implementation in src/core/*.cpp; the per-pixel
 // math lives in src/kernels/ColorKernels.h (portable dialect, shared with GPU backends).
 // See SPEC.md section 4 for the model and section 6 for the look targets.

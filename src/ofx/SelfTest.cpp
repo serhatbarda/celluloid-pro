@@ -1,4 +1,4 @@
-// Celluloid Pro - self test of the OFX parameter registry and the look-preset table.
+// Reafilm Pro - self test of the OFX parameter registry and the look-preset table.
 // Checks the registry against SPEC §7 (ids, groups, ranges, defaults, hints), the choice lists
 // against the core enumerations, every preset against the registry, and the path helpers.
 #include "Params.h"
@@ -275,10 +275,10 @@ int main() {
 #endif
     check(!defaultLutDirectory().empty(), "default LUT directory");
     const std::string lutDefault = findParam("lutPath") ? findParam("lutPath")->defString : "";
-    // empty = <Documents>/Celluloid LUTs/ of the exporting user, resolved at export time (no per-user
+    // empty = <Documents>/Reafilm LUTs/ of the exporting user, resolved at export time (no per-user
     // absolute path in the cached descriptor or in saved projects)
     check(lutDefault.empty(), "lutPath default is empty (resolved at export time)");
-    check(defaultLutDirectory().find("Celluloid LUTs") != std::string::npos, "default LUT folder is <Documents>/Celluloid LUTs/");
+    check(defaultLutDirectory().find("Reafilm LUTs") != std::string::npos, "default LUT folder is <Documents>/Reafilm LUTs/");
 
     std::printf("ofx self test: %d checks, %d failures (%zu params, %zu presets)\n", g_checks, g_fail, defs.size(),
                 lookPresets().size());

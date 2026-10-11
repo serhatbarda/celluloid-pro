@@ -1,4 +1,4 @@
-// Celluloid Pro - texture test utilities (images, running plans on the CPU backend, PNG output).
+// Reafilm Pro - texture test utilities (images, running plans on the CPU backend, PNG output).
 #pragma once
 #include "engine/Engine.h"
 #include "texture/TexturePlan.h"

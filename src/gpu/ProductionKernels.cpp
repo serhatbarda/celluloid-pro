@@ -1,4 +1,4 @@
-// Celluloid Pro - the production kernel set (KernelList.h) for the GPU backends.
+// Reafilm Pro - the production kernel set (KernelList.h) for the GPU backends.
 // Entry names are generated from the X-macro list; the sources are the embedded flattened
 // programs (generated .cpp files, see CMakeLists.txt) and the CUDA entry table (CudaKernels.cu).
 #include "GpuCommon.h"

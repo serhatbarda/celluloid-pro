@@ -1,4 +1,4 @@
-// Celluloid Pro - frame engine: a frame is a Plan (list of passes over buffers) executed by a
+// Reafilm Pro - frame engine: a frame is a Plan (list of passes over buffers) executed by a
 // Backend (CPU, OpenCL, CUDA, Metal).  FIXED (architect).
 #pragma once
 #include "../kernels/KernelABI.h"

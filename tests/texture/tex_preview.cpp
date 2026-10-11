@@ -1,4 +1,4 @@
-// Celluloid Pro - texture preview renders (texture agent). Writes PNG contact sheets so the look
+// Reafilm Pro - texture preview renders (texture agent). Writes PNG contact sheets so the look
 // of grain, halation, bloom, acutance and weave can be judged by eye at 100%.
 //   tex_preview <outdir> [grain|glow|acut|weave|all]
 #include "TexTestUtil.h"

@@ -1,4 +1,4 @@
-// Celluloid Pro - CUDA backend (owned by the gpu role). See src/gpu/README.md.
+// Reafilm Pro - CUDA backend (owned by the gpu role). See src/gpu/README.md.
 //
 // The host (DaVinci Resolve) makes its CUDA context current on the render thread and passes
 // device pointers + (optionally) its cudaStream_t. We link the CUDA runtime statically; the

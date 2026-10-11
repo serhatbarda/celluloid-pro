@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Celluloid Pro - Linux workbench: Objective-C++ (ARC) syntax/type check of the Metal backend and
+# Reafilm Pro - Linux workbench: Objective-C++ (ARC) syntax/type check of the Metal backend and
 # the Metal test environment against MOCK Foundation/Metal headers (metal_syntax/objc_mock).
 # Catches C++/ARC/type errors (e.g. __autoreleasing vs __strong out-pointers) without a Mac; it
 # cannot catch misspelled Metal API names beyond the mocked subset (macOS CI compiles for real).

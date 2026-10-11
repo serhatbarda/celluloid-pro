@@ -1,4 +1,4 @@
-# Celluloid Pro - test of cmake/FlattenKernels.cmake. Run: cmake -DREPO=<repo> -DOUT=<dir> -P run_flatten_test.cmake
+# Reafilm Pro - test of cmake/FlattenKernels.cmake. Run: cmake -DREPO=<repo> -DOUT=<dir> -P run_flatten_test.cmake
 set(script "${REPO}/cmake/FlattenKernels.cmake")
 set(fx "${REPO}/tests/gpu/flatten")
 file(MAKE_DIRECTORY "${OUT}")

@@ -1,4 +1,4 @@
-// Celluloid Pro - CPU backend (texture agent).
+// Reafilm Pro - CPU backend (texture agent).
 //
 // Executes any engine::Plan by calling the portable kernel functions (src/kernels/AllKernels.h)
 // directly: one switch over KernelId selects a row-loop instantiated per kernel (so each kernel

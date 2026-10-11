@@ -1,7 +1,7 @@
 #!/bin/sh
-# Celluloid Pro: make sure the installed plug-in is readable by every user and not quarantined.
+# Reafilm Pro: make sure the installed plug-in is readable by every user and not quarantined.
 TARGET="${3:-/}"
-PLUGIN="${TARGET%/}/Library/OFX/Plugins/Celluloid.ofx.bundle"
+PLUGIN="${TARGET%/}/Library/OFX/Plugins/ReafilmPro.ofx.bundle"
 if [ -d "$PLUGIN" ]; then
   /bin/chmod -R a+rX "$PLUGIN"
   /usr/bin/xattr -dr com.apple.quarantine "$PLUGIN" 2>/dev/null || true

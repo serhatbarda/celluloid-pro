@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""End-to-end OFX smoke test of a built Celluloid.ofx.bundle through the real plug-in binary
+"""End-to-end OFX smoke test of a built ReafilmPro.ofx.bundle through the real plug-in binary
 (describe, createInstance, parameters, a push button, the render action), run in CI on the shipping
 platforms (macOS universal bundle, Windows Win64 DLL) and on the Linux workbench. Standard library only.
 
-    python3 ofx_smoke.py --host <ofxhost> --bundle <Celluloid.ofx.bundle> --work <dir> [--gpu metal|opencl]
+    python3 ofx_smoke.py --host <ofxhost> --bundle <ReafilmPro.ofx.bundle> --work <dir> [--gpu metal|opencl]
 
 Checks
   1. describe: identifier, contexts, parameter count; GPU support is declared for exactly the APIs
-     whose describe-time self test passed (CELLULOID_LOG=1 log lines "<API> self test: ok|...").
+     whose describe-time self test passed (REAFILM_LOG=1 log lines "<API> self test: ok|...").
   2. CPU render of a 64x48 test pattern (Full mode, defaults, no license key): finite, alpha passed
      through, and equal to the committed reference render within 2e-3 - the personal build (default,
      no watermark) against reference_gradient_64x48_personal.f32, the licensed build
@@ -73,7 +73,7 @@ def main():
     os.makedirs(cfg, exist_ok=True)
     # no license key: the licensed build runs as a trial (watermark is part of its reference), the
     # personal build never watermarks; keep the user's real key out
-    env = {"CELLULOID_LOG": "1", "XDG_CONFIG_HOME": cfg, "CELLULOID_LICENSE_KEY": ""}
+    env = {"REAFILM_LOG": "1", "XDG_CONFIG_HOME": cfg, "REAFILM_LICENSE_KEY": "", "CELLULOID_LICENSE_KEY": ""}
 
     print("[describe]")
     js = os.path.join(a.work, "describe.json")

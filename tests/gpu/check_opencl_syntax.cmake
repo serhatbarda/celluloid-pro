@@ -1,4 +1,4 @@
-# Celluloid Pro - offline OpenCL C 1.2 syntax check of flattened sources with clang (no device needed).
+# Reafilm Pro - offline OpenCL C 1.2 syntax check of flattened sources with clang (no device needed).
 # (__OPENCL_VERSION__ is defined by every OpenCL runtime compiler; clang alone needs it explicitly)
 # cmake -DCLANG=<clang> -DFILES=<a.cl;b.cl> -P check_opencl_syntax.cmake
 set(rc_all 0)

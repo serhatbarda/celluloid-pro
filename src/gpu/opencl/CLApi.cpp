@@ -1,4 +1,4 @@
-// Celluloid Pro - dynamically loaded OpenCL API. See CLApi.h.
+// Reafilm Pro - dynamically loaded OpenCL API. See CLApi.h.
 #include "CLApi.h"
 #include <cstdlib>
 #include <mutex>

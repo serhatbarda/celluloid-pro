@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Celluloid Pro CI: licence gate for releases of the LICENSED build (tags v*, CEL_LICENSING=ON).
+# Reafilm Pro CI: licence gate for releases of the LICENSED build (tags v*, CEL_LICENSING=ON).
 # Normal main/PR builds and the personal build never run it.
-#   release_gate.sh <build dir> <path/Celluloid.ofx.bundle>
+#   release_gate.sh <build dir> <path/ReafilmPro.ofx.bundle>
 # Refuses to publish when
 #   - src/license/PublicKey.h still holds the PROVISIONAL production key (its private half was
 #     generated on a development machine; regenerate with tools/licensegen on the owner's machine),

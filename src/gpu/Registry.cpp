@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU backend registry: engine::openclBackend()/cudaBackend()/metalBackend(),
+// Reafilm Pro - GPU backend registry: engine::openclBackend()/cudaBackend()/metalBackend(),
 // factories, and the "not compiled in" implementations for disabled APIs.
 #include "GpuCommon.h"
 

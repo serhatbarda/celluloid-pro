@@ -1,4 +1,4 @@
-/* Celluloid Pro - uniform kernel ABI.  FIXED (architect).
+/* Reafilm Pro - uniform kernel ABI.  FIXED (architect).
  *
  * Every pass of a frame is one kernel invocation over an output image. ALL kernels share the
  * signature below, so each GPU backend can generate its entry points from KernelList.h with one

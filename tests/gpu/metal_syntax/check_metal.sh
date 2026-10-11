@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Celluloid Pro - macOS CI: compile flattened MSL sources with Apple's offline Metal compiler.
+# Reafilm Pro - macOS CI: compile flattened MSL sources with Apple's offline Metal compiler.
 # Usage: check_metal.sh <file.metal>...   (run after `cmake --build <dir> --target celgpu_kernel_sources`;
-# the files are <build>/src/gpu/generated/celluloid_production.metal and, when tests are built,
-# <build>/tests/gpu/generated/celluloid_abi.metal)
+# the files are <build>/src/gpu/generated/reafilm_production.metal and, when tests are built,
+# <build>/tests/gpu/generated/reafilm_abi.metal)
 # Compiles with the same language version (Metal 2.3 = macOS 11 baseline) and math mode as the
 # runtime (MTLCompileOptions: languageVersion 2.3, no fast math). Fails on any error; warnings are
 # printed (and fail with CEL_METAL_WERROR=1).

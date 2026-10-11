@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Celluloid Pro CI: read the product version from CMakeLists.txt, derive the build id, and make
+# Reafilm Pro CI: read the product version from CMakeLists.txt, derive the build id, and make
 # sure a release tag matches the version. Writes version= and build_id= to $GITHUB_OUTPUT.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-version=$(sed -nE 's/^project\(CelluloidPro VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$ROOT/CMakeLists.txt" | head -1)
+version=$(sed -nE 's/^project\(ReafilmPro VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$ROOT/CMakeLists.txt" | head -1)
 [[ -n "$version" ]] || { echo "cannot read the project version from CMakeLists.txt" >&2; exit 1; }
 sha="${GITHUB_SHA:-$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo dev)}"
 build_id="${sha:0:10}"

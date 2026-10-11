@@ -1,4 +1,4 @@
-"""Celluloid Pro reference model -- spectral foundations (NumPy, float64).
+"""Reafilm Pro reference model -- spectral foundations (NumPy, float64).
 
 Shared by the stock designer, the table generators and the golden-data generator.
 Everything here has an exact C++ counterpart in src/core (see the function comments).

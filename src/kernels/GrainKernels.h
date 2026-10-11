@@ -1,4 +1,4 @@
-/* Celluloid Pro - exposure-coupled dye-cloud grain (v1.2, texture agent).  Portable dialect.
+/* Reafilm Pro - exposure-coupled dye-cloud grain (v1.2, texture agent).  Portable dialect.
  *
  * Shared by the colour pass (ColorKernels.h: cel_k_color / cel_k_display_finish evaluate the grain
  * per pixel from the TRUE layer exposures of the film model) and by the diagnostic grain field

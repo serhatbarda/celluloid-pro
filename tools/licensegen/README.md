@@ -1,6 +1,6 @@
-# Celluloid Pro licensing and `licensegen`
+# Reafilm Pro licensing and `licensegen`
 
-Celluloid Pro uses **offline, signed license keys**. A key is a line of text such as
+Reafilm Pro uses **offline, signed license keys**. A key is a line of text such as
 
     CELL1-AEBA2Y3FNRWHK3DPNFSC24DSN4QUUYLOMUQEG33MN52XE2LTOQQDY2TBNZSUAZLYMFWXA3DF...
 
@@ -12,7 +12,7 @@ and is the only thing that can issue keys.
 
 Without a valid key the plug-in runs as a **trial**: every feature is on except LUT export
 (a .cube would carry the whole colour pipeline without the watermark), and renders carry a
-small "CELLULOID PRO — TRIAL" badge in the bottom-right corner and a faint diagonal band.
+small "REAFILM PRO — TRIAL" badge in the bottom-right corner and a faint diagonal band.
 
 - [What offline keys can and cannot do](#what-offline-keys-can-and-cannot-do)
 - [Building licensegen](#building-licensegen)
@@ -34,7 +34,7 @@ Please read this before you sell anything.
 - **A key can be copied.** The same key works on any number of computers. The `seats` field is
   shown to the customer ("Studio, 10 seats"), but it is not enforced: seat limits rely on the
   customer's honesty and on the licence agreement. Real enforcement would need an online
-  activation server, which Celluloid Pro does not have (yet).
+  activation server, which Reafilm Pro does not have (yet).
 - **A key cannot be revoked.** Once issued, a perpetual key stays valid. If a key leaks (for
   example on a forum), the remedy is to rotate the signing key in a later release (see
   [Key rotation](#key-rotation)) and send all honest customers new keys. Keys with an expiry
@@ -185,7 +185,7 @@ def on_order_paid(order):                       # called by your webhook handler
     key = issue_key(SEED, licensee=f"{order.name} <{order.email}>"[:128], edition=edition,
                     license_id=f"ORDER-{order.number}", seats=seats)   # perpetual by default
     order.license_key = key                     # persist BEFORE sending the e-mail
-    send_mail(order.email, "Your Celluloid Pro license", LICENSE_MAIL.format(key=key, name=order.name))
+    send_mail(order.email, "Your Reafilm Pro license", LICENSE_MAIL.format(key=key, name=order.name))
     return key
 ```
 
@@ -200,13 +200,13 @@ check the shop's HMAC signature header. Anyone who can call it can mint licenses
 
 **Suggested e-mail text:**
 
-> Thank you for buying Celluloid Pro!
+> Thank you for buying Reafilm Pro!
 >
 > Your license key (copy the whole line):
 >
 >     {key}
 >
-> To activate: in DaVinci Resolve, add Celluloid Pro to a node, open the **License** group in
+> To activate: in DaVinci Resolve, add Reafilm Pro to a node, open the **License** group in
 > the Inspector, paste the key into **License Key** and click **Activate**. The trial
 > watermark disappears immediately. The key is stored for your user account; copy it to every
 > computer you are licensed for.
@@ -226,12 +226,16 @@ The key is stored as a small text file:
 
 | platform | per user (written by Activate) | machine-wide (studios, read-only for the plug-in) |
 |----------|-------------------------------|---------------------------------------------------|
-| macOS    | `~/Library/Application Support/Celluloid/license.key` | `/Library/Application Support/Celluloid/license.key` |
-| Windows  | `%APPDATA%\Celluloid\license.key` | `%PROGRAMDATA%\Celluloid\license.key` |
-| Linux    | `$XDG_CONFIG_HOME/celluloid/license.key` or `~/.config/celluloid/license.key` | `/etc/celluloid/license.key` |
+| macOS    | `~/Library/Application Support/Reafilm/license.key` | `/Library/Application Support/Reafilm/license.key` |
+| Windows  | `%APPDATA%\Reafilm\license.key` | `%PROGRAMDATA%\Reafilm\license.key` |
+| Linux    | `$XDG_CONFIG_HOME/reafilm/license.key` or `~/.config/reafilm/license.key` | `/etc/reafilm/license.key` |
+
+Compatibility with the Celluloid Pro releases: when a file above is missing, the same file in the
+old `Celluloid` (macOS, Windows) or `celluloid` (Linux) folder is read instead. Activate always
+writes the new location; Deactivate removes the per-user key from both.
 
 Order of precedence: the first **valid paid** key wins (Indie, Pro, Studio), checked in this
-order: the per-user file, then the environment variable `CELLULOID_LICENSE_KEY` (for render
+order: the per-user file, then the environment variable `REAFILM_LICENSE_KEY` (old name `CELLULOID_LICENSE_KEY` as a fallback; for render
 nodes and containers), then the machine-wide file. A valid Trial-edition (evaluation) key is
 used only when no source holds a paid key, so a leftover evaluation key in a user's settings
 never re-watermarks a machine that is licensed machine-wide. If none is valid, the status explains the first invalid one (for
@@ -240,7 +244,7 @@ with `#` are comments, so administrators can annotate machine-wide files.
 
 **Studio deployment:** copy a Studio key to the machine-wide path, for example with your
 configuration management (the file may be a symlink). Then every user on that machine is
-licensed without activating. On Windows, `%PROGRAMDATA%\Celluloid` needs administrator rights
+licensed without activating. On Windows, `%PROGRAMDATA%\Reafilm` needs administrator rights
 to write.
 
 The plug-in re-reads the files at most every 1.5 s, outside the render threads' critical path

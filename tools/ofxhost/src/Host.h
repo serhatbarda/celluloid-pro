@@ -36,7 +36,7 @@ const char* gpuModeName(GpuMode m);
 
 struct HostOptions {
     std::string hostName = "de.serhatbarda.ofxhost";
-    std::string hostLabel = "Celluloid ofxhost (headless test host)";
+    std::string hostLabel = "Reafilm ofxhost (headless test host)";
     int threads = 0;                    // 0 = hardware concurrency
     bool answerYes = true;              // reply to kOfxMessageQuestion
     NotifyMode pluginEditNotify = NotifyMode::Sync;

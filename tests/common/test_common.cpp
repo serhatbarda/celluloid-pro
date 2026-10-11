@@ -1,4 +1,4 @@
-// Celluloid Pro - tests for cel::parallelRows (persistent pool) and the inline CPU math of
+// Reafilm Pro - tests for cel::parallelRows (persistent pool) and the inline CPU math of
 // Portable.h (cel_floor / cel_fmin / cel_fmax must equal the C library functions).
 #include "common/Common.h"
 #include "kernels/Portable.h"

@@ -1,4 +1,4 @@
-// Celluloid Pro - platform helpers for the OFX shell.
+// Reafilm Pro - platform helpers for the OFX shell.
 #include "Platform.h"
 
 #include <cctype>
@@ -85,6 +85,11 @@ std::string envVar(const char* name) {
 #endif
 }
 
+std::string productEnv(const char* suffix) {
+    const std::string v = envVar(("REAFILM_" + std::string(suffix)).c_str());
+    return v.empty() ? envVar(("CELLULOID_" + std::string(suffix)).c_str()) : v;
+}
+
 std::string documentsDirectory() {
 #if defined(_WIN32)
     PWSTR p = nullptr;
@@ -106,7 +111,7 @@ std::string documentsDirectory() {
 }
 
 std::string defaultLutDirectory() {
-    std::string d = joinPath(documentsDirectory(), "Celluloid LUTs");
+    std::string d = joinPath(documentsDirectory(), "Reafilm LUTs");
     d.push_back(kSep);
     return d;
 }

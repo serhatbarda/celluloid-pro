@@ -1,9 +1,9 @@
-# Celluloid Pro - Windows installer builder (Inno Setup).
+# Reafilm Pro - Windows installer builder (Inno Setup).
 #
-#   pwsh installers/windows/build_installer.ps1 -BundleDir build\Celluloid.ofx.bundle -Version 1.0.0 -OutDir dist `
+#   pwsh installers/windows/build_installer.ps1 -BundleDir build\ReafilmPro.ofx.bundle -Version 1.0.0 -OutDir dist `
 #        [-CertPfx path\to\cert.pfx -CertPassword ***]
 #
-# With a certificate, the plug-in DLL (Celluloid.ofx), the installer and its uninstaller are
+# With a certificate, the plug-in DLL (ReafilmPro.ofx), the installer and its uninstaller are
 # Authenticode-signed (SHA-256, RFC 3161 timestamp). Without one, everything stays unsigned
 # (SmartScreen will warn on download).
 param(
@@ -19,8 +19,8 @@ Set-StrictMode -Version Latest
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BundleDir = (Resolve-Path $BundleDir).Path
-if ((Split-Path -Leaf $BundleDir) -ne "Celluloid.ofx.bundle") { throw "BundleDir must point to Celluloid.ofx.bundle" }
-$dll = Join-Path $BundleDir "Contents\Win64\Celluloid.ofx"
+if ((Split-Path -Leaf $BundleDir) -ne "ReafilmPro.ofx.bundle") { throw "BundleDir must point to ReafilmPro.ofx.bundle" }
+$dll = Join-Path $BundleDir "Contents\Win64\ReafilmPro.ofx"
 if (-not (Test-Path $dll)) { throw "missing $dll" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $OutDir = (Resolve-Path $OutDir).Path
@@ -45,24 +45,24 @@ if ($sign) {
     $signtool = Find-Tool "signtool.exe" @("${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe")
     if (-not $signtool) { throw "signtool.exe not found (install the Windows SDK)" }
     Write-Host "== Signing $dll"
-    & $signtool sign /f $CertPfx /p $CertPassword /fd sha256 /tr $TimestampUrl /td sha256 /d "Celluloid Pro" $dll
+    & $signtool sign /f $CertPfx /p $CertPassword /fd sha256 /tr $TimestampUrl /td sha256 /d "Reafilm Pro" $dll
     if ($LASTEXITCODE -ne 0) { throw "signtool failed on the plug-in" }
     & $signtool verify /pa $dll
     if ($LASTEXITCODE -ne 0) { throw "signature verification failed" }
 }
 
-$iss = Join-Path $here "CelluloidPro.iss"
+$iss = Join-Path $here "ReafilmPro.iss"
 $isccArgs = @("/Q", "/DAppVersion=$Version", "/DBundleDir=$BundleDir", "/DOutputDir=$OutDir")
 if ($sign) {
     $isccArgs += "/DSignToolName=celsign"
-    $isccArgs += "/Scelsign=`$q$signtool`$q sign /f `$q$CertPfx`$q /p `$q$CertPassword`$q /fd sha256 /tr $TimestampUrl /td sha256 /d `$qCelluloid Pro`$q `$f"
+    $isccArgs += "/Scelsign=`$q$signtool`$q sign /f `$q$CertPfx`$q /p `$q$CertPassword`$q /fd sha256 /tr $TimestampUrl /td sha256 /d `$qReafilm Pro`$q `$f"
 }
 $isccArgs += $iss
 Write-Host "== $iscc (Inno Setup)"
 & $iscc @isccArgs
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
 
-$setup = Join-Path $OutDir "CelluloidPro-$Version-Windows-Setup.exe"
+$setup = Join-Path $OutDir "ReafilmPro-$Version-Windows-Setup.exe"
 if (-not (Test-Path $setup)) { throw "installer not produced: $setup" }
 if ($sign) {
     & $signtool verify /pa $setup

@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU tests: reference executor. A deliberately simple, independent CPU
+// Reafilm Pro - GPU tests: reference executor. A deliberately simple, independent CPU
 // implementation of engine::Backend over a table of kernel functions (single thread, one buffer
 // per plan buffer, no aliasing, any host stride incl. negative). The GPU backends are checked
 // against it pass by pass.

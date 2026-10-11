@@ -1,4 +1,4 @@
-# Celluloid Pro - colour science core library (owned by core).
+# Reafilm Pro - colour science core library (owned by core).
 # Usable via add_subdirectory(src/core) from the top-level project; defines target `celcore`.
 if(NOT TARGET celcore)
   add_library(celcore STATIC

@@ -1,4 +1,4 @@
-# Celluloid Pro — End-User License Agreement (TEMPLATE)
+# Reafilm Pro — End-User License Agreement (TEMPLATE)
 
 > **THIS IS A TEMPLATE, NOT A FINAL AGREEMENT.** It was drafted as a starting point and has **not
 > been reviewed by a lawyer**. Before it is shown to any customer it must be reviewed and adapted by
@@ -11,7 +11,7 @@
 
 ---
 
-**Celluloid Pro End-User License Agreement**
+**Reafilm Pro End-User License Agreement**
 Version `[[EULA VERSION]]`, effective `[[DATE]]`
 
 This End-User License Agreement ("**Agreement**") is between `[[LEGAL NAME OF SELLER]]`,
@@ -27,7 +27,7 @@ accepted, in the shop checkout; the installers can also show it.*
 
 ## 1. Definitions
 
-1.1 "**Software**" means the Celluloid Pro OpenFX plug-in in object-code form, including updates
+1.1 "**Software**" means the Reafilm Pro OpenFX plug-in in object-code form, including updates
 we provide under this Agreement, its documentation, look presets and film-stock data.
 
 1.2 "**License Key**" means the signed text key (beginning with `CELL1-`) that we issue to you and
@@ -122,7 +122,7 @@ licenses are limited by case law (C-128/11 UsedSoft) – have counsel review.]]`
 
 The Software contains third-party components licensed under their own terms (including Monocypher,
 the OpenFX Support library and, on Windows, the NVIDIA CUDA runtime). Their notices are installed
-with the Software in `Celluloid.ofx.bundle/Contents/Resources/Licenses/`. Those terms prevail for the
+with the Software in `ReafilmPro.ofx.bundle/Contents/Resources/Licenses/`. Those terms prevail for the
 respective components.
 
 DaVinci Resolve is a trademark of Blackmagic Design Pty. Ltd. The Software is not affiliated with or

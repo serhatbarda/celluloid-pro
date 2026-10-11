@@ -1,4 +1,4 @@
-/* Celluloid Pro - Metal Shading Language entry points for the uniform kernel ABI (gpu role).
+/* Reafilm Pro - Metal Shading Language entry points for the uniform kernel ABI (gpu role).
  * CEL_GPU_ENTRY(name) defines  kernel void cel_<name>(...)  wrapping cel_k_<name>.
  * Buffer indices (bound generically by src/gpu/metal/MetalBackend.mm):
  *   [[buffer(0)]] constant CelPassArgs (setBytes, per pass)

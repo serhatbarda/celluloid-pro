@@ -1,4 +1,4 @@
-// Celluloid Pro - GPU backends: API-independent machinery. See GpuCommon.h.
+// Reafilm Pro - GPU backends: API-independent machinery. See GpuCommon.h.
 #include "GpuCommon.h"
 #include "kernels/Probe.h"   // C++ build of the probe kernel (reference for the self test)
 
