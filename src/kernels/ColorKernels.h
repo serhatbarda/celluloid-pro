@@ -5,7 +5,8 @@
  *
  * Kernels (KernelList.h), all with the uniform ABI; f[] is not used by these kernels, i[] only by color (below):
  *   decode          in0 = host source RGBA (encoded in LookParams.input)
- *                   out = scene-linear Rec.2020 x 2^exposure, alpha copied from in0
+ *                   out = scene-linear Rec.2020 x 2^exposure, then the v1.3 scene tone (Zones + Filmic
+ *                         Contrast, celc_tone; off by default), alpha copied from in0
  *   color           in0 = scene-linear RGBA (after texture passes); i[1] = 1: in0 is the encoded
  *                         host source and is decoded here (Color Only plan)
  *                   in1 = grain noise field (xyz = R-,G-,B-sensitive layer; zero mean, unit variance)
@@ -165,6 +166,35 @@ CEL_DEVICE CelF3 celc_ns_density(CEL_GLOBAL const float* s, CelF3 l) {
 CEL_DEVICE float celc_logscan_pd(float v) { return (v * 1023.0f - CEL_LOGSCAN_CV0) * CEL_LOGSCAN_STEP; }
 CEL_DEVICE float celc_logscan_code(float pd) { return (CEL_LOGSCAN_CV0 + pd * (1.0f / CEL_LOGSCAN_STEP)) * (1.0f / 1023.0f); }
 
+/* ---- v1.3 Tone: Zones (HDR-palette style) + Filmic Contrast, in scene-linear light after Exposure ----------
+ * x = log2(Y / 0.18) of the scene luminance (Rec.2020), E(x) = the TN table (stops; built in prepare(): the
+ * zone offsets with smooth log2 weights and the contrast about its pivot, integrated with a slope floor so
+ * x + E(x) is strictly increasing). The pixel is scaled by 2^E (ratio-preserving: neutrals stay neutral, hue
+ * and the scene's channel ratios are kept); with Filmic Contrast the channel ratios to the luminance are
+ * additionally raised to kappa = 1 + 0.5 (contrast - 1) and renormalised to the same luminance (half the
+ * per-channel log contrast: the film keeps its own colour density while the tone scale changes). */
+CEL_DEVICE float celc_tone_e(CEL_GLOBAL const float* s, float x) {
+    int n = celc_i(s, CEL_CS_TONE_N), off = celc_i(s, CEL_CS_TONE_OFF);
+    float x0 = s[CEL_CS_TONE_X0], x1 = s[CEL_CS_TONE_X1];
+    if (x < x0) return s[off] + s[CEL_CS_TONE_K0] * (x - x0);
+    if (x > x1) return s[off + n - 1] + s[CEL_CS_TONE_K1] * (x - x1);
+    return celc_lut1(s, off, n, 0, x0, x1, x);
+}
+CEL_DEVICE float celc_tone_q(float q, float k) { return q > 0.0f ? cel_exp2(k * cel_log2(q)) : q; }
+CEL_DEVICE CelF3 celc_tone(CEL_GLOBAL const float* s, CelF3 l) {
+    float Y = CEL_TONE_LW_R * l.x + CEL_TONE_LW_G * l.y + CEL_TONE_LW_B * l.z;
+    float x = cel_clamp(cel_log2(cel_fmax(Y, 1.6763806e-10f) * (1.0f / 0.18f)), -30.0f, 30.0f);
+    float g = cel_exp2(celc_tone_e(s, x));
+    float k = s[CEL_CS_TONE_KAPPA];
+    if (k != 1.0f && Y > 1e-10f) {
+        float iy = 1.0f / Y;
+        CelF3 q = cel_f3(celc_tone_q(l.x * iy, k), celc_tone_q(l.y * iy, k), celc_tone_q(l.z * iy, k));
+        float m = CEL_TONE_LW_R * q.x + CEL_TONE_LW_G * q.y + CEL_TONE_LW_B * q.z;
+        if (m > 0.05f) l = celc_scale(q, Y / m);
+    }
+    return celc_scale(l, g);
+}
+
 CEL_DEVICE CelF3 celc_decode_px(CEL_GLOBAL const float* s, CelF3 e) {
     if (celc_i(s, CEL_CS_STAGE) == 3) {
         /* Print Only: the input is a Log Scan; textures then work on the scene-referred level it maps back
@@ -180,7 +210,12 @@ CEL_DEVICE CelF3 celc_decode_px(CEL_GLOBAL const float* s, CelF3 e) {
     l = celc_mat3(s, CEL_CS_MIN, l);
     if (s[CEL_CS_EMU_ON] > 0.5f) l = celc_emulate(s, l);
     float g = s[CEL_CS_GAIN];
-    return cel_f3(celc_sanitize(l.x * g), celc_sanitize(l.y * g), celc_sanitize(l.z * g));
+    CelF3 r = cel_f3(celc_sanitize(l.x * g), celc_sanitize(l.y * g), celc_sanitize(l.z * g));
+    if (s[CEL_CS_TONE_ON] > 0.5f) {   /* v1.3 Tone: Zones + Filmic Contrast, scene-referred, before the negative */
+        r = celc_tone(s, r);
+        r = cel_f3(celc_sanitize(r.x), celc_sanitize(r.y), celc_sanitize(r.z));
+    }
+    return r;
 }
 
 /* ------------------------------------------------------------------------- spectral exposure */
@@ -324,15 +359,73 @@ typedef struct { CelF3 X; float xref; } CelcFilm;
  *             the scanned positive's densities (dark), like dirt on a print of the scan. */
 /* the print: log10 print-layer exposure h through the negative (PL block, before the printer light
  * offsets), retained silver / neutral density `silver` of the negative -> projected D65 display XYZ */
-CEL_DEVICE CelF3 celc_print_xyz(CEL_GLOBAL const float* s, CelF3 h, float silver, CelF4 dmg, int mono) {
+/* ---- v1.3 Dye Saturation (subtractive): the dye amounts D of the film that is looked at (print, reversal
+ * original or the scan's display densities) are split into the dyes of the NEUTRAL with the same weighted
+ * density t (DN block) and the deviation d = D - N (the colour), which is scaled by S. A neutral density
+ * then restores the colour's luminance (the exponential transmittance would otherwise brighten a scaled
+ * spread), and Richness adds the dye a denser colour carries: rho (S - 1) m on every layer, m = sum of the
+ * smooth positive parts of d (the colour's own excess dye), so a more saturated colour gets deeper and
+ * darker, a less saturated one lighter. Neutrals (d = 0, m = 0), print white (D-min) and black are
+ * unchanged; S = 0 is the neutral of the same luminance. Balance: S x 2^(bal u), u = +1 in the
+ * highlights .. -1 in the shadows. */
+CEL_DEVICE float celc_dsat_pos(float d) { return 0.5f * (d + cel_sqrt(d * d + CEL_DSAT_EPS * CEL_DSAT_EPS)) - 0.5f * CEL_DSAT_EPS; }
+/* display luminance of dye amounts D: proj = 1 spectral projection (print, reversal), 0 = scan (RGB transmittance) */
+CEL_DEVICE float celc_dsat_y(CEL_GLOBAL const float* s, CelF3 D, int proj) {
+    CelF3 v = proj ? celc_project(s, D, 0.0f) : celc_pow10_3(cel_f3(-D.x, -D.y, -D.z));
+    return s[CEL_CS_MXYZ + 3] * v.x + s[CEL_CS_MXYZ + 4] * v.y + s[CEL_CS_MXYZ + 5] * v.z;
+}
+CEL_DEVICE CelF3 celc_dsat(CEL_GLOBAL const float* s, CelF3 D, int proj) {
+    if (!(s[CEL_CS_DSAT_ON] > 0.5f)) return D;
+    float t = celc_dot3(s, CEL_CS_LW, D);
+    float tt = cel_clamp(t, s[CEL_CS_DSAT_T0], s[CEL_CS_DSAT_T1]);
+    CelF3 N = celc_lut1_3(s, celc_i(s, CEL_CS_DSAT_OFF), celc_i(s, CEL_CS_DSAT_N), s[CEL_CS_DSAT_T0], s[CEL_CS_DSAT_T1],
+                          cel_f3(tt, tt, tt));
+    float z = (s[CEL_CS_DSAT_TG] - t) / s[CEL_CS_DSAT_W];
+    float S = s[CEL_CS_DSAT_S] * cel_exp2(s[CEL_CS_DSAT_BAL] * z / cel_sqrt(1.0f + z * z));
+    CelF3 d = cel_f3(D.x - N.x, D.y - N.y, D.z - N.z);
+    float m = celc_dsat_pos(d.x) + celc_dsat_pos(d.y) + celc_dsat_pos(d.z);
+    CelF3 R = cel_f3(N.x + S * d.x, N.y + S * d.y, N.z + S * d.z);
+    /* the scaled spread keeps the colour's projected luminance: a neutral density scales every band's
+     * transmittance alike, so log10(Y'/Y) restores Y exactly (the exponential transmittance would
+     * otherwise brighten a saturated colour) */
+    float y0 = celc_dsat_y(s, D, proj), y1 = celc_dsat_y(s, R, proj);
+    float add = cel_log10(cel_fmax(y1, 1e-30f) / cel_fmax(y0, 1e-30f)) + s[CEL_CS_DSAT_RICH] * (S - 1.0f) * m;
+    return cel_f3(R.x + add, R.y + add, R.z + add);
+}
+
+/* the print's dye amounts (before dye saturation and damage) */
+CEL_DEVICE CelF3 celc_print_dyes(CEL_GLOBAL const float* s, CelF3 h, float silver) {
     h = cel_f3(h.x + s[CEL_CS_OFF] - silver, h.y + s[CEL_CS_OFF + 1] - silver, h.z + s[CEL_CS_OFF + 2] - silver);
-    CelF3 P = celc_lut1_3(s, celc_i(s, CEL_CS_PC_OFF), celc_i(s, CEL_CS_PC_N), s[CEL_CS_PC_U0], s[CEL_CS_PC_U1], h);
+    return celc_lut1_3(s, celc_i(s, CEL_CS_PC_OFF), celc_i(s, CEL_CS_PC_N), s[CEL_CS_PC_U0], s[CEL_CS_PC_U1], h);
+}
+CEL_DEVICE CelF3 celc_print_xyz(CEL_GLOBAL const float* s, CelF3 h, float silver, CelF4 dmg, int mono) {
+    CelF3 P = celc_dsat(s, celc_print_dyes(s, h, silver), 1);
     if (dmg.w > 0.0f) P = celc_dmg_remove(P, celc_dmg_removal(dmg.w, 1, mono));
     float ps = s[CEL_CS_PB] * (s[CEL_CS_LW] * cel_fmax(P.x - s[CEL_CS_PMIN], 0.0f) +
                                s[CEL_CS_LW + 1] * cel_fmax(P.y - s[CEL_CS_PMIN + 1], 0.0f) +
                                s[CEL_CS_LW + 2] * cel_fmax(P.z - s[CEL_CS_PMIN + 2], 0.0f));
     if (dmg.z > 0.0f) ps += dmg.z;
     return celc_mat3(s, CEL_CS_MXYZ, celc_project(s, P, ps));
+}
+
+/* Lab Scan: the developed negative -> display densities of the scanned positive (before dye saturation and damage) */
+CEL_DEVICE CelF3 celc_scan_dd(CEL_GLOBAL const float* s, CelcNeg ng) {
+    CelF3 ls = celc_lut3(s, celc_i(s, CEL_CS_PL_OFF), celc_i(s, CEL_CS_PL_N), s[CEL_CS_PL_MAX], ng.d);
+    int sco = celc_i(s, CEL_CS_SC_OFF), scn = celc_i(s, CEL_CS_SC_N);
+    CelF3 v = cel_f3(celc_lut1(s, sco, scn, 0, s[CEL_CS_SD0], s[CEL_CS_SD1], -ls.x + ng.silver) + s[CEL_CS_OFF],
+                     celc_lut1(s, sco, scn, 1, s[CEL_CS_SD0 + 1], s[CEL_CS_SD1 + 1], -ls.y + ng.silver) + s[CEL_CS_OFF + 1],
+                     celc_lut1(s, sco, scn, 2, s[CEL_CS_SD0 + 2], s[CEL_CS_SD1 + 2], -ls.z + ng.silver) + s[CEL_CS_OFF + 2]);
+    /* lab colour correction: 3x3 + root-polynomial terms (exposure homogeneous, rows sum to 1 so
+     * neutrals stay neutral) */
+    CelF3 lin = celc_pow10_3(v);
+    CelF3 e = celc_mat3(s, CEL_CS_MSCAN, lin);
+    CelF3 rp = cel_f3(cel_sqrt(lin.x * lin.y), cel_sqrt(lin.y * lin.z), cel_sqrt(lin.x * lin.z));
+    CelF3 e2 = celc_mat3(s, CEL_CS_MSCAN2, rp);
+    e = cel_f3(e.x + e2.x, e.y + e2.y, e.z + e2.z);
+    float fl = CEL_SCAN_FLOOR * CEL_SCAN_FLOOR;
+    e = cel_f3(0.5f * (e.x + cel_sqrt(e.x * e.x + fl)), 0.5f * (e.y + cel_sqrt(e.y * e.y + fl)), 0.5f * (e.z + cel_sqrt(e.z * e.z + fl)));
+    CelF3 w = cel_f3(cel_log10(e.x), cel_log10(e.y), cel_log10(e.z));
+    return celc_lut1_3(s, celc_i(s, CEL_CS_PC_OFF), celc_i(s, CEL_CS_PC_N), s[CEL_CS_PC_U0], s[CEL_CS_PC_U1], w);
 }
 
 CEL_DEVICE CelcFilm celc_film_xyz_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise, CelF4 dmg) {
@@ -347,24 +440,9 @@ CEL_DEVICE CelcFilm celc_film_xyz_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF
         CelF3 h = celc_lut3(s, celc_i(s, CEL_CS_PL_OFF), celc_i(s, CEL_CS_PL_N), s[CEL_CS_PL_MAX], ng.d);
         X = celc_print_xyz(s, h, ng.silver, dmg, mono);
     } else if (kind == 2) {
-        X = celc_mat3(s, CEL_CS_MXYZ, celc_project(s, ng.d, ng.silver));
+        X = celc_mat3(s, CEL_CS_MXYZ, celc_project(s, celc_dsat(s, ng.d, 1), ng.silver));
     } else {
-        CelF3 ls = celc_lut3(s, celc_i(s, CEL_CS_PL_OFF), celc_i(s, CEL_CS_PL_N), s[CEL_CS_PL_MAX], ng.d);
-        int sco = celc_i(s, CEL_CS_SC_OFF), scn = celc_i(s, CEL_CS_SC_N);
-        CelF3 v = cel_f3(celc_lut1(s, sco, scn, 0, s[CEL_CS_SD0], s[CEL_CS_SD1], -ls.x + ng.silver) + s[CEL_CS_OFF],
-                         celc_lut1(s, sco, scn, 1, s[CEL_CS_SD0 + 1], s[CEL_CS_SD1 + 1], -ls.y + ng.silver) + s[CEL_CS_OFF + 1],
-                         celc_lut1(s, sco, scn, 2, s[CEL_CS_SD0 + 2], s[CEL_CS_SD1 + 2], -ls.z + ng.silver) + s[CEL_CS_OFF + 2]);
-        /* lab colour correction: 3x3 + root-polynomial terms (exposure homogeneous, rows sum to 1 so
-         * neutrals stay neutral) */
-        CelF3 lin = celc_pow10_3(v);
-        CelF3 e = celc_mat3(s, CEL_CS_MSCAN, lin);
-        CelF3 rp = cel_f3(cel_sqrt(lin.x * lin.y), cel_sqrt(lin.y * lin.z), cel_sqrt(lin.x * lin.z));
-        CelF3 e2 = celc_mat3(s, CEL_CS_MSCAN2, rp);
-        e = cel_f3(e.x + e2.x, e.y + e2.y, e.z + e2.z);
-        float fl = CEL_SCAN_FLOOR * CEL_SCAN_FLOOR;
-        e = cel_f3(0.5f * (e.x + cel_sqrt(e.x * e.x + fl)), 0.5f * (e.y + cel_sqrt(e.y * e.y + fl)), 0.5f * (e.z + cel_sqrt(e.z * e.z + fl)));
-        CelF3 w = cel_f3(cel_log10(e.x), cel_log10(e.y), cel_log10(e.z));
-        CelF3 Dd = celc_lut1_3(s, celc_i(s, CEL_CS_PC_OFF), celc_i(s, CEL_CS_PC_N), s[CEL_CS_PC_U0], s[CEL_CS_PC_U1], w);
+        CelF3 Dd = celc_dsat(s, celc_scan_dd(s, ng), 0);
         if (dmg.w > 0.0f) Dd = celc_dmg_remove(Dd, celc_dmg_removal(dmg.w, 1, mono));
         if (dmg.z > 0.0f) Dd = cel_f3(Dd.x + dmg.z, Dd.y + dmg.z, Dd.z + dmg.z);
         X = celc_mat3(s, CEL_CS_MXYZ, celc_pow10_3(cel_f3(-Dd.x, -Dd.y, -Dd.z)));

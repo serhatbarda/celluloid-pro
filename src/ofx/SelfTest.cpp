@@ -110,6 +110,19 @@ int main() {
         {"filmBlurBreathing", "groupFilmBlur", 0, 1, 0.2},
         {"filmBlurChromatic", "groupFilmBlur", 0, 1, 0.3},
         {"filmBlurSeed", "groupFilmBlur", 0, 9999, 0},
+        // v1.3 Tone (neutral defaults)
+        {"zoneShadows", "groupTone", -4, 4, 0},
+        {"zoneLights", "groupTone", -4, 4, 0},
+        {"zoneHighlights", "groupTone", -4, 4, 0},
+        {"zoneSpecular", "groupTone", -4, 4, 0},
+        {"zoneFalloff", "groupTone", 0.25, 4, 1},
+        {"filmContrast", "groupTone", 0.5, 2, 1},
+        {"contrastPivot", "groupTone", -3, 3, 0},
+        {"rolloffStart", "groupTone", 0.5, 8, 3},
+        {"rolloffSoftness", "groupTone", -1, 1, 0},
+        {"dyeSaturation", "groupTone", 0, 2, 1},
+        {"dyeRichness", "groupTone", 0, 1, 0.25},
+        {"dyeSatBalance", "groupTone", -1, 1, 0},
     };
     for (const Spec& s : spec) {
         const ParamDef* d = findParam(s.id);

@@ -29,13 +29,18 @@
  *                      negative) over X in [NS_X0, NS_X1];              X (strictly increasing); row 3: the scene-
  *                                                                       referred log10 level Y(X) that density maps
  *                                                                       back to (Negative -> Scene, Print Only)
+ *   TN   (tone, v1.3)  1 x N (only when Tone is active): log2 scene    x = log2(Y / 0.18) of the scene luminance ->
+ *                                                                       gain in stops (Zones + Filmic Contrast)
+ *   DN   (dye sat.)    3 x N (only when Dye Saturation is active):     weighted dye density t -> the dye amounts of a
+ *                                                                       NEUTRAL with that t (print, reversal or scan)
  */
 #ifndef CEL_COLOR_STATE_H
 #define CEL_COLOR_STATE_H
 
 #define CEL_CS_MAGIC_VALUE   7341.0f
-#define CEL_CS_LAYOUT_VALUE  6.0f
-#define CEL_CS_HEADER        208   /* v1.2: 128 -> 160; v1.3 WP-1: 160 -> 208 (indices 160..207 below) */
+#define CEL_CS_LAYOUT_VALUE  7.0f   /* v1.3 Tone: 6 -> 7 (header 256, TN / DN blocks) */
+#define CEL_CS_HEADER        256   /* v1.2: 128 -> 160; v1.3 WP-1: 160 -> 208 (indices 160..207 below);
+                                       v1.3 Tone: 208 -> 256 (indices 224..255 below; 208..223 free) */
 
 /* header indices */
 #define CEL_CS_MAGIC        0
@@ -119,6 +124,32 @@
 #define CEL_CS_MASK_ON      187  /* 1 = apply MMASK */
 #define CEL_CS_MMASKI       188  /* 188..196 inverse of MMASK (Print Only: scene level -> film layer level) */
 /* 197..207 free */
+
+/* ---- v1.3 Tone (indices 224..255). 0 / unset = off (bit-identical to the render without it) */
+#define CEL_CS_TONE_ON      224  /* 1 = scene tone (Zones + Filmic Contrast) active, in decode after Exposure */
+#define CEL_CS_TONE_OFF     225  /* TN block: 1 x N, log2 gain E(x) in stops over x = scene stops re 18 % grey */
+#define CEL_CS_TONE_N       226
+#define CEL_CS_TONE_X0      227  /* table domain (stops) */
+#define CEL_CS_TONE_X1      228
+#define CEL_CS_TONE_K0      229  /* dE/dx below X0 (linear extrapolation) */
+#define CEL_CS_TONE_K1      230  /* dE/dx above X1 */
+#define CEL_CS_TONE_KAPPA   231  /* chroma coupling of the contrast: channel ratios to luminance ^ kappa (1 = ratio-preserving) */
+#define CEL_CS_DSAT_ON      232  /* 1 = subtractive (dye) saturation active */
+#define CEL_CS_DSAT_S       233  /* saturation: factor on the dye deviation from the pixel's neutral */
+#define CEL_CS_DSAT_RICH    234  /* richness: neutral dye added per unit of saturation change x the colour excess (celc_dsat) */
+#define CEL_CS_DSAT_BAL     235  /* highlight / shadow balance: S x 2^(bal u), u = +1 highlights .. -1 shadows */
+#define CEL_CS_DSAT_TG      236  /* weighted dye density t of the neutral at 18 % grey */
+#define CEL_CS_DSAT_W       237  /* balance transition width (density) */
+#define CEL_CS_DSAT_OFF     238  /* DN block: 3 x N, dye amounts of the neutral over t in [T0, T1] */
+#define CEL_CS_DSAT_N       239
+#define CEL_CS_DSAT_T0      240
+#define CEL_CS_DSAT_T1      241
+#define CEL_CS_ROLL_ON      242  /* info: 1 = the print curve carries a Film Roll-off (baked into PC, no kernel term) */
+/* 243..255 free */
+#define CEL_TONE_LW_R       0.26270021f   /* Rec.2020 luminance (scene, zone position) */
+#define CEL_TONE_LW_G       0.67799807f
+#define CEL_TONE_LW_B       0.05930172f
+#define CEL_DSAT_EPS        0.02f         /* smooth split of the dye deviation into its +/- parts (density) */
 
 /* Log Scan code values (Cineon-style printing density): code = (CV0 + PD / STEP) / 1023, PD = printing density
  * above the clear (D-min) negative, 0.002 density per 10-bit code value, D-min at code 95 */

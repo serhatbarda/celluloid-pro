@@ -15,6 +15,26 @@ unchanged in a newer one.
   *Negative Only (clean)* is that without any texture, *Texture Only* is the existing mode. Grain,
   halation and damage act in the film layer the stage holds. Default Full Chain: existing projects
   render unchanged. Identical on CPU, OpenCL, CUDA and Metal.
+- **Tone group**: control the highlights without darkening the mid-tones.
+  - **Zones** (Shadows, Lights, Highlights, Specular, each with a Range, plus a shared Zone Falloff),
+    in the style of an HDR wheel palette: exposure for one part of the tonal range, applied to the
+    scene light before the negative. The blend is smooth and never reverses tones, and hue is kept.
+  - **Filmic Contrast** with **Contrast Pivot**: contrast in log exposure about a pivot (default 18 %
+    grey), with film-like saturation.
+  - **Film Roll-off** (Start, Softness): reshapes the print's highlight shoulder as it approaches the
+    clear base, giving it a longer, softer shoulder or a harder one.
+  - **Dye Saturation** (Saturation, Richness, Saturation Balance): subtractive saturation in the film's
+    dyes. More saturation adds dye, so strong colours deepen instead of turning neon, while greys,
+    white and black stay put.
+  - Each part has its own switch, and at the defaults projects render unchanged. Results match across
+    CPU, OpenCL, CUDA and Metal.
+  - The manual's HDR-wheels-style recipe explains why Exposure alone keeps a bright sky bright: the
+    print shoulder squeezes the top five stops into L* 95-99.
+
+### Fixed
+
+- Changing only Pipeline Stage or Scene Encoding in the plug-in could keep rendering the previously
+  prepared look until another colour control changed.
 
 ## [1.2.0] — unreleased
 

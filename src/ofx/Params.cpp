@@ -185,6 +185,82 @@ std::vector<ParamDef> build() {
     b.dbl(id::cameraEmulationStrength, "Strength", 1.0, 0.0, 1.0, 0.01, 2,
           "Blend between the camera's own colour (0) and the full emulation (1).", false);
 
+    // ---------------------------------------------------------------- [Tone] (v1.3)
+    b.beginGroup(id::gTone, "Tone", true,
+                 "Zone exposure, filmic contrast, highlight roll-off and dye saturation - the film responds to them "
+                 "physically.");
+    b.boolean(id::toneEnable, "Enable Zones & Contrast", true,
+              "Switches the zone exposure and Filmic Contrast below on or off without losing their values. Both "
+              "act on the scene light after Exposure and before the negative, so the film's toe and shoulder "
+              "still shape the result. At their defaults (0 stops, contrast 1) they change nothing.",
+              true);
+    const char* zoneNote =
+        " Like Exposure, but only for that part of the tone scale: it acts on the scene light before the film, "
+        "ratio-preserving (colours keep their hue and saturation, greys stay neutral), with a smooth transition "
+        "set by Zone Falloff. Tones can never cross: a strong pull is softened so a brighter area always stays "
+        "brighter.";
+    std::string hSh = std::string("Exposure in stops of everything BELOW Shadows Range (dark areas).") + zoneNote;
+    std::string hLi = std::string("Exposure in stops of everything ABOVE Lights Range (bright mid-tones and "
+                                  "above).") + zoneNote;
+    std::string hHi = std::string("Exposure in stops of everything ABOVE Highlights Range (skies, windows, "
+                                  "bright walls). Pull it down (-) to bring sky detail out of the print's shoulder "
+                                  "into its straight part while faces stay where they are.") + zoneNote;
+    std::string hSp = std::string("Exposure in stops of everything ABOVE Specular Range (practicals, the sun, "
+                                  "glints).") + zoneNote;
+    b.dbl(id::zoneShadows, "Shadows", 0.0, -4.0, 4.0, 0.05, 2, hSh.c_str(), false);
+    b.dbl(id::zoneShadowsRange, "Shadows Range", -2.0, -8.0, 2.0, 0.1, 1,
+          "Where the Shadows zone ends, in stops relative to 18 % grey of the scene (after Exposure).", false);
+    b.dbl(id::zoneLights, "Lights", 0.0, -4.0, 4.0, 0.05, 2, hLi.c_str(), false);
+    b.dbl(id::zoneLightsRange, "Lights Range", 1.0, -2.0, 6.0, 0.1, 1,
+          "Where the Lights zone begins, in stops relative to 18 % grey of the scene.", false);
+    b.dbl(id::zoneHighlights, "Highlights", 0.0, -4.0, 4.0, 0.05, 2, hHi.c_str(), false);
+    b.dbl(id::zoneHighlightsRange, "Highlights Range", 3.0, -1.0, 8.0, 0.1, 1,
+          "Where the Highlights zone begins, in stops relative to 18 % grey of the scene (a bright sky is "
+          "typically +3 to +5 stops).", false);
+    b.dbl(id::zoneSpecular, "Specular", 0.0, -4.0, 4.0, 0.05, 2, hSp.c_str(), false);
+    b.dbl(id::zoneSpecularRange, "Specular Range", 5.0, 0.0, 10.0, 0.1, 1,
+          "Where the Specular zone begins, in stops relative to 18 % grey of the scene.", false);
+    b.dbl(id::zoneFalloff, "Zone Falloff", 1.0, 0.25, 4.0, 0.05, 2,
+          "How softly every zone fades in around its range, in stops. Small = a tight zone, large = a gentle, "
+          "wide blend.", false);
+    b.dbl(id::filmContrast, "Filmic Contrast", 1.0, 0.5, 2.0, 0.01, 2,
+          "Contrast of the scene in log exposure about the Contrast Pivot, before the negative: the film's toe and "
+          "shoulder still roll the ends off, so blacks and whites never clip. 1 = off, higher = punchier, lower = "
+          "flatter. The colour density of the stock is kept (the channels follow half of the contrast change, so "
+          "saturation neither drains nor goes neon).", true);
+    b.dbl(id::contrastPivot, "Contrast Pivot", 0.0, -3.0, 3.0, 0.05, 2,
+          "The tone that Filmic Contrast leaves unchanged, in stops relative to 18 % grey (0 = middle grey).", true);
+    b.boolean(id::rolloffEnable, "Enable Film Roll-off", true,
+              "Switches the Film Roll-off below on or off without losing its values. At Softness 0 it changes "
+              "nothing.",
+              true);
+    b.dbl(id::rolloffStart, "Roll-off Start", 3.0, 0.5, 8.0, 0.1, 1,
+          "Where the reshaped highlight shoulder of the print begins, in stops above 18 % grey of the scene. "
+          "Everything below stays exactly as the print stock renders it.", true);
+    b.dbl(id::rolloffSoftness, "Roll-off Softness", 0.0, -1.0, 1.0, 0.01, 2,
+          "Shape of the print's highlight shoulder above Roll-off Start: + = a longer, softer shoulder (highlights "
+          "compress gently and keep detail, white is reached later), - = a shorter, crisper shoulder (highlights "
+          "reach print white sooner). It reshapes the print stock's own curve, so print white stays the clear "
+          "print and printer points slide along the new curve. 0 = the stock. Print process only.", true);
+    b.boolean(id::dyeSatEnable, "Enable Dye Saturation", true,
+              "Switches Dye Saturation below on or off without losing its values. At Saturation 1 and Balance 0 it "
+              "changes nothing.",
+              true);
+    b.dbl(id::dyeSaturation, "Dye Saturation", 1.0, 0.0, 2.0, 0.01, 2,
+          "Saturation the way dye film makes it: more saturation means more dye in the layers that carry the "
+          "colour, so saturated colours get deeper, denser and darker instead of brighter and neon (unlike RGB "
+          "saturation). It scales each colour's dye difference from a neutral of the same brightness in the "
+          "projected film (print, reversal original or scan), so greys, print white and black stay exactly as "
+          "they are. 1 = the stock, 0 = black & white dyes.", true);
+    b.dbl(id::dyeRichness, "Richness", 0.25, 0.0, 1.0, 0.01, 2,
+          "How much denser (darker) a colour gets as it gains saturation: the extra dye a richer colour carries. "
+          "0 = the dye differences are only spread (the colour keeps its brightness), 0.25 = film-like (strong "
+          "colours deepen a little, skin barely darkens), 0.5 = rich, 1 = very dense. Lowering "
+          "saturation does the reverse. Only acts when Dye Saturation or Balance moves.", true);
+    b.dbl(id::dyeSatBalance, "Saturation Balance", 0.0, -1.0, 1.0, 0.01, 2,
+          "Where the dye saturation acts most: + = more saturation in the highlights and less in the shadows, "
+          "- = the reverse (up to x2 / x0.5 at the ends). 0 = even.", true);
+
     // ---------------------------------------------------------------- [Negative]
     const std::vector<core::NegativeStockInfo> negs = core::negativeStocks();
     std::vector<std::string> negNames;

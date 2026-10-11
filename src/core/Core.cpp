@@ -88,7 +88,18 @@ static constexpr size_t kHoldCacheEntries = 8;
 static bool sameFilm(const LookParams& a, const LookParams& b) {
     return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
            a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.process == b.process &&
-           a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover;
+           a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover &&
+           a.rolloffStart == b.rolloffStart && a.rolloffSoftness == b.rolloffSoftness;   // v1.3: the print curve
+}
+
+// v1.3 Tone: the appended tone fields (Zones, Filmic Contrast, Film Roll-off, Dye Saturation)
+static bool sameTone(const LookParams& a, const LookParams& b) {
+    return a.zoneShadows == b.zoneShadows && a.zoneShadowsRange == b.zoneShadowsRange && a.zoneLights == b.zoneLights &&
+           a.zoneLightsRange == b.zoneLightsRange && a.zoneHighlights == b.zoneHighlights &&
+           a.zoneHighlightsRange == b.zoneHighlightsRange && a.zoneSpecular == b.zoneSpecular &&
+           a.zoneSpecularRange == b.zoneSpecularRange && a.zoneFalloff == b.zoneFalloff && a.filmContrast == b.filmContrast &&
+           a.contrastPivot == b.contrastPivot && a.rolloffStart == b.rolloffStart && a.rolloffSoftness == b.rolloffSoftness &&
+           a.dyeSaturation == b.dyeSaturation && a.dyeRichness == b.dyeRichness && a.dyeSatBalance == b.dyeSatBalance;
 }
 
 static bool sameParams(const LookParams& a, const LookParams& b) {
@@ -99,7 +110,7 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
            a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount && a.cameraEmulation == b.cameraEmulation &&
            a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover && a.stage == b.stage &&
-           a.sceneEncoding == b.sceneEncoding;
+           a.sceneEncoding == b.sceneEncoding && sameTone(a, b);
 }
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
@@ -132,6 +143,44 @@ static LookParams sanitize(LookParams p) {
     if (p.sceneEncoding < 0 || p.sceneEncoding >= int(SceneEncoding::Count)) p.sceneEncoding = 0;
     if (st::negative(p.negStock).kind == st::kReversal) p.stage = 0;
     if (p.stage != 0) p.process = Process::NegativeToPrint;
+    // v1.3 Tone: ranges clamped; a neutral control normalises its companions to the defaults, so every neutral
+    // setting is the same cache key (and the same, untouched state)
+    {
+        const LookParams d;
+        auto num = [](float v, float lo, float hi, float def) { return std::isfinite(v) ? clampf(v, lo, hi) : def; };
+        p.zoneShadows = num(p.zoneShadows, -4.f, 4.f, 0.f);
+        p.zoneLights = num(p.zoneLights, -4.f, 4.f, 0.f);
+        p.zoneHighlights = num(p.zoneHighlights, -4.f, 4.f, 0.f);
+        p.zoneSpecular = num(p.zoneSpecular, -4.f, 4.f, 0.f);
+        p.zoneShadowsRange = num(p.zoneShadowsRange, -8.f, 2.f, d.zoneShadowsRange);
+        p.zoneLightsRange = num(p.zoneLightsRange, -2.f, 6.f, d.zoneLightsRange);
+        p.zoneHighlightsRange = num(p.zoneHighlightsRange, -1.f, 8.f, d.zoneHighlightsRange);
+        p.zoneSpecularRange = num(p.zoneSpecularRange, 0.f, 10.f, d.zoneSpecularRange);
+        p.zoneFalloff = num(p.zoneFalloff, 0.25f, 4.f, d.zoneFalloff);
+        p.filmContrast = num(p.filmContrast, 0.5f, 2.f, 1.f);
+        p.contrastPivot = num(p.contrastPivot, -3.f, 3.f, 0.f);
+        if (p.zoneShadows == 0.f) p.zoneShadowsRange = d.zoneShadowsRange;
+        if (p.zoneLights == 0.f) p.zoneLightsRange = d.zoneLightsRange;
+        if (p.zoneHighlights == 0.f) p.zoneHighlightsRange = d.zoneHighlightsRange;
+        if (p.zoneSpecular == 0.f) p.zoneSpecularRange = d.zoneSpecularRange;
+        if (p.zoneShadows == 0.f && p.zoneLights == 0.f && p.zoneHighlights == 0.f && p.zoneSpecular == 0.f) p.zoneFalloff = d.zoneFalloff;
+        if (p.filmContrast == 1.f) p.contrastPivot = 0.f;
+        p.rolloffStart = num(p.rolloffStart, 0.5f, 8.f, d.rolloffStart);
+        p.rolloffSoftness = num(p.rolloffSoftness, -1.f, 1.f, 0.f);
+        // the print curve is reshaped on the print path only (reversal originals and the lab scan keep theirs)
+        if (p.rolloffSoftness == 0.f || st::negative(p.negStock).kind == st::kReversal || p.process == Process::NegativeScan) {
+            p.rolloffSoftness = 0.f;
+            p.rolloffStart = d.rolloffStart;
+        }
+        p.dyeSaturation = num(p.dyeSaturation, 0.f, 2.f, 1.f);
+        p.dyeRichness = num(p.dyeRichness, 0.f, 1.f, d.dyeRichness);
+        p.dyeSatBalance = num(p.dyeSatBalance, -1.f, 1.f, 0.f);
+        if ((p.dyeSaturation == 1.f && p.dyeSatBalance == 0.f) || st::negative(p.negStock).kind == st::kBW) {
+            p.dyeSaturation = 1.f;
+            p.dyeSatBalance = 0.f;
+            p.dyeRichness = d.dyeRichness;
+        }
+    }
     return p;
 }
 
@@ -334,6 +383,179 @@ static void buildStageAxis(float* s, const LookParams& p, int oNS, int oPL, int 
     s[CEL_CS_MASK_ON] = mono ? 0.f : 1.f;
 }
 
+// ---- v1.3 Tone (SPEC 4.8) ----------------------------------------------------------------------------
+// Zones + Filmic Contrast: one table E(x) of the gain in stops over x = log2(Y / 0.18) of the scene luminance.
+// Zone weights are smooth and monotone in log2: Lights / Highlights / Specular w = (1 + tanh((x - R) / F)) / 2
+// (above their range R), Shadows w = (1 - tanh((x - R) / F)) / 2 (below it), F = Falloff. The zoned level
+// z(x) = x + sum e_i w_i(x) is integrated from its slope with a smooth floor (kToneSlopeMin: a strong pull
+// can never fold a brighter tone below a darker one), anchored at grey, then Filmic Contrast is applied in
+// log exposure about the pivot: y = pivot + c (z - pivot); E = y - x. Off / neutral: no table (bit-identical).
+static constexpr int kToneN = 1025;                 // 1/32 stop per knot, grey is knot 512
+static constexpr double kToneX0 = -16.0, kToneX1 = 16.0;
+static constexpr double kToneSlopeMin = 0.1;
+static double toneSlopeFloor(double f) {   // C1, identity above 2 m, never below m
+    const double m = kToneSlopeMin;
+    if (f >= 2.0 * m) return f;
+    if (f <= 0.0) return m;
+    return m + f * f / (4.0 * m);
+}
+static bool toneActive(const LookParams& p) {
+    return p.zoneShadows != 0.f || p.zoneLights != 0.f || p.zoneHighlights != 0.f || p.zoneSpecular != 0.f || p.filmContrast != 1.f;
+}
+static void buildToneTable(float* s, const LookParams& p, int oTN) {
+    const double e[4] = {p.zoneShadows, p.zoneLights, p.zoneHighlights, p.zoneSpecular};
+    const double r[4] = {p.zoneShadowsRange, p.zoneLightsRange, p.zoneHighlightsRange, p.zoneSpecularRange};
+    const double dir[4] = {-1.0, 1.0, 1.0, 1.0};
+    const double F = p.zoneFalloff;
+    auto zone = [&](double x, double* slope) {   // sum e_i w_i(x) and the slope of x + sum
+        double v = 0.0, d = 1.0;
+        for (int i = 0; i < 4; ++i) {
+            if (e[i] == 0.0) continue;
+            const double th = std::tanh((x - r[i]) / F);
+            v += e[i] * 0.5 * (1.0 + dir[i] * th);
+            d += e[i] * dir[i] * 0.5 / F * (1.0 - th * th);
+        }
+        if (slope) *slope = toneSlopeFloor(d);
+        return v;
+    };
+    const int N = kToneN, kg = (N - 1) / 2;
+    const double dx = (kToneX1 - kToneX0) / (N - 1);
+    std::vector<double> z(static_cast<size_t>(N)), g(static_cast<size_t>(N));
+    for (int k = 0; k < N; ++k) zone(kToneX0 + dx * k, &g[size_t(k)]);
+    z[size_t(kg)] = zone(0.0, nullptr);   // zoned level z(x) = x + sum at grey (x = 0): the direct sum
+    for (int k = kg; k < N - 1; ++k) z[size_t(k + 1)] = z[size_t(k)] + 0.5 * dx * (g[size_t(k)] + g[size_t(k + 1)]);
+    for (int k = kg; k > 0; --k) z[size_t(k - 1)] = z[size_t(k)] - 0.5 * dx * (g[size_t(k)] + g[size_t(k - 1)]);
+    const double c = p.filmContrast, pv = p.contrastPivot;
+    for (int k = 0; k < N; ++k) {
+        const double x = kToneX0 + dx * k;
+        s[oTN + k] = float(pv + c * (z[size_t(k)] - pv) - x);
+    }
+    s[CEL_CS_TONE_ON] = 1.f;
+    s[CEL_CS_TONE_OFF] = float(oTN);
+    s[CEL_CS_TONE_N] = float(N);
+    s[CEL_CS_TONE_X0] = float(kToneX0);
+    s[CEL_CS_TONE_X1] = float(kToneX1);
+    s[CEL_CS_TONE_K0] = float(c * g[0] - 1.0);
+    s[CEL_CS_TONE_K1] = float(c * g[size_t(N - 1)] - 1.0);
+    s[CEL_CS_TONE_KAPPA] = float(c == 1.0 ? 1.0 : 1.0 + 0.5 * (c - 1.0));
+}
+
+// Film Roll-off: the print's highlight shoulder (its approach to D-min) reshaped above Roll-off Start. For
+// each print layer the print exposure u_j(s) of a neutral scene s stops above grey (through the developed
+// negative, grey-balanced light at 0 points) is tabulated; the new curve renders a neutral at s like the stock
+// renders it at S + psi(s - S): P'_j(u) = P_j(u_j(S + psi(s_j(u) - S))). psi(v) = int_0^v 2^(-k sm(t)) dt
+// (sm = smoothstep over the first 1.5 stops, so the shoulder bends in smoothly): far above the start the
+// highlight contrast is 2^-k of the stock's. k > 0 softer / longer (more highlight detail, white later),
+// k < 0 harder (white sooner). Below S the table is untouched; monotone by construction (a composition of
+// monotone maps); the curve ends keep the stock's D-min (white) and D-max. Printer points then slide the
+// exposure along the reshaped curve like a real print.
+static constexpr int kRollN = 897;                  // 1/32 stop over [-4, +24]
+static constexpr double kRollS0 = -4.0, kRollS1 = 24.0;
+static double rollPsi(double v, double k) {
+    if (v <= 0.0) return v;
+    const double T = 1.5;
+    auto slope = [&](double t) { const double a = std::min(t / T, 1.0); return std::exp2(-k * a * a * (3.0 - 2.0 * a)); };
+    const double vv = std::min(v, T);
+    const int n = 48;
+    const double h = vv / n;
+    double acc = slope(0.0) + slope(vv);
+    for (int i = 1; i < n; ++i) acc += (i % 2 ? 4.0 : 2.0) * slope(h * i);
+    double r = acc * h / 3.0;
+    if (v > T) r += std::exp2(-k) * (v - T);
+    return r;
+}
+static void filmRolloff(float* s, const LookParams& p, int oPC, int oPL, int plN, float plMax) {
+    const int N = kRollN;
+    const double ds = (kRollS1 - kRollS0) / (N - 1);
+    std::vector<double> U(size_t(3) * N);
+    for (int k = 0; k < N; ++k) {
+        const float g = float(0.18 * std::exp2(kRollS0 + ds * k));
+        CelcNeg ng = celc_negative(s, cel_f3(g, g, g), cel_f3(0, 0, 0), 0);
+        CelF3 h = celc_lut3(s, oPL, plN, plMax, ng.d);
+        for (int j = 0; j < 3; ++j) {
+            double u = double(celc_comp(h, j)) + s[CEL_CS_OFF + j] - ng.silver;
+            if (k > 0) u = std::min(u, U[size_t(j) * N + k - 1] - 1e-7);   // strictly decreasing (flat neg shoulder)
+            U[size_t(j) * N + k] = u;
+        }
+    }
+    const double S = p.rolloffStart, kk = p.rolloffSoftness;
+    for (int j = 0; j < 3; ++j) {
+        const double* Uj = &U[size_t(j) * N];
+        const double endSlope = std::max((Uj[N - 2] - Uj[N - 1]) / ds, 1e-3);   // -du/ds at the bright end
+        auto uAt = [&](double st) {
+            const double t = (st - kRollS0) / ds;
+            if (t >= N - 1) return Uj[N - 1] - (st - kRollS1) * endSlope;
+            const int i = std::max(0, int(std::floor(t)));
+            return Uj[i] + (Uj[i + 1] - Uj[i]) * (t - i);
+        };
+        auto sAt = [&](double u) {
+            if (u >= Uj[0]) return kRollS0 - 1.0;           // darker than the table: below any start
+            if (u <= Uj[N - 1]) return kRollS1 + (Uj[N - 1] - u) / endSlope;
+            int lo = 0, hi = N - 1;
+            while (hi - lo > 1) {
+                const int m = (lo + hi) / 2;
+                if (Uj[m] >= u) lo = m; else hi = m;
+            }
+            return kRollS0 + ds * (lo + (Uj[lo] - u) / (Uj[lo] - Uj[hi]));
+        };
+        float* row = s + oPC + size_t(j) * kNCurve;
+        const std::vector<double> orig(row, row + kNCurve);
+        for (int i = 0; i < kNCurve; ++i) {
+            const double u = kPrtU0 + (kPrtU1 - kPrtU0) * i / (kNCurve - 1);
+            const double st = sAt(u);
+            if (!(st > S)) continue;
+            const double u2 = uAt(S + rollPsi(st - S, kk));
+            const double t = std::min(std::max((u2 - kPrtU0) / (kPrtU1 - kPrtU0) * (kNCurve - 1), 0.0), double(kNCurve - 1));
+            const int ii = std::min(int(std::floor(t)), kNCurve - 2);
+            row[i] = float(orig[size_t(ii)] + (orig[size_t(ii) + 1] - orig[size_t(ii)]) * (t - ii));
+        }
+    }
+    s[CEL_CS_ROLL_ON] = 1.f;
+}
+
+// Dye Saturation: the dye amounts of a NEUTRAL over its weighted density t (DN block, see celc_dsat). Built
+// from the neutral scene ramp through the same chain (print with the user's printer points, reversal
+// original, or the scan's display densities), so a timed cast stays the neutral and is not saturated.
+static constexpr int kDsatN = 512;
+static bool dyeSatActive(const LookParams& p) { return p.dyeSaturation != 1.f || p.dyeSatBalance != 0.f; }
+static void buildDyeSat(float* s, const LookParams& p, int kind, int oDN) {
+    const int M = 385;                               // 1/16 stop over [-10, +14], grey is sample 160
+    const double x0 = -10.0, dx = 1.0 / 16.0;
+    std::vector<double> T(static_cast<size_t>(M)), D(size_t(3) * M);
+    for (int k = 0; k < M; ++k) {
+        const float g = float(0.18 * std::exp2(x0 + dx * k));
+        CelcNeg ng = celc_negative(s, cel_f3(g, g, g), cel_f3(0, 0, 0), 0);
+        CelF3 d;
+        if (kind == 0) d = celc_print_dyes(s, celc_lut3(s, celc_i(s, CEL_CS_PL_OFF), celc_i(s, CEL_CS_PL_N), s[CEL_CS_PL_MAX], ng.d), ng.silver);
+        else if (kind == 2) d = ng.d;
+        else d = celc_scan_dd(s, ng);
+        double t = celc_dot3(s, CEL_CS_LW, d);
+        if (k > 0) t = std::min(t, T[size_t(k - 1)] - 1e-7);   // brighter = less dye: strictly decreasing
+        T[size_t(k)] = t;
+        for (int j = 0; j < 3; ++j) D[size_t(k) * 3 + j] = celc_comp(d, j);
+    }
+    const double t0 = T[size_t(M - 1)], t1 = T[0];
+    float* tb = s + oDN;
+    int k = 0;
+    for (int i = kDsatN - 1; i >= 0; --i) {          // descending t = ascending k
+        const double t = t0 + (t1 - t0) * i / (kDsatN - 1);
+        while (k < M - 2 && T[size_t(k + 1)] > t) ++k;
+        const double f = std::min(1.0, std::max(0.0, (T[size_t(k)] - t) / (T[size_t(k)] - T[size_t(k + 1)])));
+        for (int j = 0; j < 3; ++j)
+            tb[size_t(j) * kDsatN + i] = float(D[size_t(k) * 3 + j] + (D[size_t(k + 1) * 3 + j] - D[size_t(k) * 3 + j]) * f);
+    }
+    s[CEL_CS_DSAT_ON] = 1.f;
+    s[CEL_CS_DSAT_S] = p.dyeSaturation;
+    s[CEL_CS_DSAT_RICH] = p.dyeRichness;
+    s[CEL_CS_DSAT_BAL] = p.dyeSatBalance;
+    s[CEL_CS_DSAT_TG] = float(T[160]);
+    s[CEL_CS_DSAT_W] = 0.35f;
+    s[CEL_CS_DSAT_OFF] = float(oDN);
+    s[CEL_CS_DSAT_N] = float(kDsatN);
+    s[CEL_CS_DSAT_T0] = float(t0);
+    s[CEL_CS_DSAT_T1] = float(t1);
+}
+
 void Pipeline::prepare(const LookParams& pin) {
     const LookParams p = sanitize(pin);
     Cache& C = *m_cache;
@@ -376,7 +598,11 @@ void Pipeline::prepare(const LookParams& pin) {
     const bool exitStage = p.stage != int(Stage::Full);
     const size_t nNS = exitStage ? size_t(4) * kStageN : 0;
     const size_t oNS = oHN + nHN;
-    const size_t total = oNS + nNS;
+    // v1.3 Tone blocks (ColorState.h TN / DN): only when active
+    const bool toneOn = toneActive(p), dsatOn = dyeSatActive(p);
+    const size_t nTN = toneOn ? size_t(kToneN) : 0, nDN = dsatOn ? size_t(3) * kDsatN : 0;
+    const size_t oTN = oNS + nNS, oDN = oTN + nTN;
+    const size_t total = oDN + nDN;
     const bool sameBlocks = C.valid && C.exp == exp && C.dye == dye && C.proj == proj && m_state.size() == total;
     std::vector<float>& S = m_state;
     if (!sameBlocks) {
@@ -618,6 +844,8 @@ void Pipeline::prepare(const LookParams& pin) {
             for (int j = 0; j < 3; ++j) off[j] -= std::min(0.5, std::max(-0.5, d[size_t(j)]));
         }
         setOff(off);
+        // v1.3 Film Roll-off: the print curve's highlight shoulder, on the grey-balanced print (points 0)
+        if (kind == 0 && p.rolloffSoftness != 0.f) filmRolloff(s, p, int(oPC), int(oPL), dye->lut.n, float(dye->lut.maxv));
     }
 
     // ---- HDR calibration on the balanced state: mid grey -> 15 nits, unroll to peak
@@ -695,6 +923,9 @@ void Pipeline::prepare(const LookParams& pin) {
         else if (kind == 1) o = -0.075 / scanGamma * pts[j];
         s[CEL_CS_OFF + j] = float(o);
     }
+    // v1.3 Dye Saturation: the neutral's dyes with the user's printer points (before the hold's neutral table,
+    // which then sees the same film)
+    if (dsatOn) buildDyeSat(s, p, kind, int(oDN));
     // ---- hue hold neutral table (with the user's printer points): film neutral XYZ (Y = 1) over
     //      the reference log exposure (reference/model.py bake_hold_neutral)
     if (hold) {
@@ -714,6 +945,7 @@ void Pipeline::prepare(const LookParams& pin) {
         s[CEL_CS_HOLD_CHROMA] = float(holdChroma);
     }
     if (exitStage) buildStageAxis(s, p, int(oNS), int(oPL), dye->lut.n, float(dye->lut.maxv));
+    if (toneOn) buildToneTable(s, p, int(oTN));
     s[CEL_CS_GAIN] = gain;
 
     C.exp = exp; C.dye = dye; C.proj = proj;

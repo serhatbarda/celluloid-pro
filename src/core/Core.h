@@ -88,6 +88,24 @@ struct LookParams {
     // ---- v1.3 WP-1 (appended, SPEC 13): pipeline stage exits; defaults = the full chain (v1.2 render)
     int   stage = 0;             // core::Stage
     int   sceneEncoding = 0;     // core::SceneEncoding (Negative -> Scene output)
+
+    // ---- v1.3 Tone (appended, SPEC 13): defaults = neutral, bit-identical to the render without them
+    // Zones (HDR-palette style) + Filmic Contrast: scene-linear, after Exposure, before the negative (SPEC 4.8).
+    // Exposure offsets in stops; ranges = zone positions in stops relative to 18 % grey of the scene luminance.
+    float zoneShadows = 0.f, zoneShadowsRange = -2.f;       // acts BELOW its range
+    float zoneLights = 0.f, zoneLightsRange = 1.f;          // acts ABOVE its range (as Highlights / Specular)
+    float zoneHighlights = 0.f, zoneHighlightsRange = 3.f;
+    float zoneSpecular = 0.f, zoneSpecularRange = 5.f;
+    float zoneFalloff = 1.f;     // stops: width of every zone's transition, 0.25 .. 4
+    float filmContrast = 1.f;    // log-exposure contrast about the pivot, 0.5 .. 2 (1 = off)
+    float contrastPivot = 0.f;   // stops relative to 18 % grey, -3 .. 3
+    // Film Roll-off: the print's highlight shoulder (approach to D-min), Print process only
+    float rolloffStart = 3.f;    // stops above grey where the reshaped shoulder begins, 0.5 .. 8
+    float rolloffSoftness = 0.f; // -1 (harder, reaches white sooner) .. +1 (softer, longer); 0 = the stock
+    // Dye Saturation (subtractive, in the density of the viewed film)
+    float dyeSaturation = 1.f;   // 0 .. 2, 1 = the stock
+    float dyeRichness = 0.25f;   // 0 .. 1: how much more saturation adds dye (0 = same luminance, more = darker, denser colour)
+    float dyeSatBalance = 0.f;   // -1 (shadows) .. +1 (highlights): where the saturation change acts most
 };
 
 // v1.3 WP-1: where the colour chain starts and stops (ORDER = append only). Reversal stocks have no
