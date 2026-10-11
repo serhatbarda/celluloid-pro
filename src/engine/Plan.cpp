@@ -473,7 +473,10 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
         }
     }
     const bool fusedDecode = fs.mode == core::Mode::ColorOnly;
-    const tex::FilmBlurDesign fb = fusedDecode ? tex::FilmBlurDesign{} : tex::designFilmBlur(tp, w, h, ps);
+    // v1.3 stage exits Log Scan / Negative -> Scene end before the projector: no projection focus (film blur)
+    const bool beforeProjection = fs.mode != core::Mode::TextureOnly &&
+                                  (fs.look.stage == int(core::Stage::NegativeLogScan) || fs.look.stage == int(core::Stage::NegativeToScene));
+    const tex::FilmBlurDesign fb = (fusedDecode || beforeProjection) ? tex::FilmBlurDesign{} : tex::designFilmBlur(tp, w, h, ps);
     int colorOut = (fs.watermark || fb.on) ? B.buffer(w, h) : int(BUF_DST);
     PassDesc& cp = fusedDecode ? B.pass(colorK, colorOut, {img, noise, -1}) : B.pass(colorK, colorOut, {img, noise, BUF_SRC, damage});
     cp.args.i[0] = noise >= 0 ? 1 : 0;

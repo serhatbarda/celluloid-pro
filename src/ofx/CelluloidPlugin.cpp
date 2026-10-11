@@ -282,6 +282,18 @@ private:
     double num(const std::string& pid) const;
     int choice(const std::string& pid, double t) const { return int(std::lround(num(pid, t))); }
     bool flag(const std::string& pid, double t) const { return num(pid, t) != 0.0; }
+    // v1.3 WP-1: the Pipeline Stage choice, and the plan mode it implies together with Mode (Texture Only in
+    // either = texture only; Negative Only (clean) = no texture, like Color Only)
+    StageChoice stageChoice(double t) const {
+        return StageChoice(std::min(std::max(choice(id::pipelineStage, t), 0), int(StageChoice::Count) - 1));
+    }
+    core::Mode effectiveMode(double t) const {
+        const core::Mode m = core::Mode(std::min(std::max(choice(id::mode, t), 0), int(core::Mode::Count) - 1));
+        const StageChoice sc = stageChoice(t);
+        if (m == core::Mode::TextureOnly || sc == StageChoice::TextureOnly) return core::Mode::TextureOnly;
+        if (sc == StageChoice::NegativeClean) return core::Mode::ColorOnly;
+        return m;
+    }
     std::string str(const std::string& pid) const;
     void setNum(const std::string& pid, double v);
     void setStr(const std::string& pid, const std::string& v);   // only writes when different
@@ -472,13 +484,21 @@ core::LookParams CelluloidEffect::lookAt(double t) const {
     lp.hdrPeakNits = float(num(id::hdrPeakNits, t));
     lp.hdrUnroll = flag(id::hdrUnrollEnable, t) ? float(num(id::hdrUnroll, t)) : 0.f;
     lp.grainAmount = flag(id::grainEnable, t) ? float(num(id::grainAmount, t)) : 0.f;
+    // v1.3 stage exits (Texture Only has no colour stage; Negative Only (clean) = Negative -> Scene)
+    {
+        const StageChoice sc = stageChoice(t);
+        lp.stage = sc == StageChoice::NegativeClean ? int(core::Stage::NegativeToScene)
+                 : int(sc) < int(core::Stage::Count) ? int(sc) : 0;
+        if (core::Mode(choice(id::mode, t)) == core::Mode::TextureOnly) lp.stage = 0;
+        lp.sceneEncoding = clampIdx(choice(id::sceneEncoding, t), int(core::SceneEncoding::Count));
+    }
     return lp;
 }
 
 engine::FrameSettings CelluloidEffect::frameSettingsAt(double t, int fullWidthPx) const {
     engine::FrameSettings fs;
     fs.look = lookAt(t);
-    fs.mode = core::Mode(std::min(std::max(choice(id::mode, t), 0), int(core::Mode::Count) - 1));
+    fs.mode = effectiveMode(t);
 
     const core::NegativeStockInfo* st = stockInfo(fs.look.negStock);
     const float halScale = st ? st->halationScale : 1.f;
@@ -551,7 +571,7 @@ bool CelluloidEffect::isIdentity(const OFX::IsIdentityArguments&, OFX::Clip*&, d
 
 void CelluloidEffect::getClipPreferences(OFX::ClipPreferencesSetter& prefs) {
     // Grain/weave make the output change every frame even for a still source.
-    const bool texture = choice(id::mode, 0.0) != int(core::Mode::ColorOnly);
+    const bool texture = effectiveMode(0.0) != core::Mode::ColorOnly;
     const bool animatedGrain = flag(id::grainEnable, 0.0) && flag(id::grainAnimated, 0.0) && num(id::grainAmount) > 0.0;
     const bool weave = flag(id::weaveEnable, 0.0) && num(id::weaveAmount) > 0.0;
     const bool damage = flag(id::damageEnable, 0.0) && flag(id::damageAnimated, 0.0);
@@ -840,6 +860,7 @@ void CelluloidEffect::changedParam(const OFX::InstanceChangedArgs& args, const s
         const ParamDef* d = findParam(name);
         if (d && d->look && !m_applyingPreset) refreshPresetStatus(args.time);
         if (d && (d->type == PType::Bool || name == id::negStock || name == id::process || name == id::mode ||
+                  name == id::pipelineStage ||
                   name == id::outputSpace || name == id::printStock))
             refreshEnabledness(args.time);   // every module switch (and grain/damage sub-switch) is a Bool
     } catch (const OFX::Exception::Suite&) {
@@ -887,7 +908,7 @@ void CelluloidEffect::refreshPresetStatus(double t) {
 }
 
 void CelluloidEffect::refreshEnabledness(double t) {
-    const core::Mode mode = core::Mode(choice(id::mode, t));
+    const core::Mode mode = effectiveMode(t);
     const core::NegativeStockInfo* st = stockInfo(choice(id::negStock, t));
     const bool reversal = st && st->reversal;
     const bool mono = st && st->monochrome;
@@ -948,6 +969,29 @@ void CelluloidEffect::refreshEnabledness(double t) {
     setEnabled(id::hdrPeakNits, pq);
     setEnabled(id::hdrUnrollEnable, colour && hdr);
     setEnabled(id::hdrUnroll, colour && hdr && unrollOn);
+    {   // v1.3 stage exits: grey what a stage does not use (reversal stocks always render the full chain)
+        const StageChoice sc = stageChoice(t);
+        const bool negExit = colour && !reversal && (sc == StageChoice::NegativeLogScan || sc == StageChoice::NegativeToScene ||
+                                                     sc == StageChoice::NegativeClean);
+        const bool printOnly = colour && !reversal && sc == StageChoice::PrintOnly;
+        setEnabled(id::sceneEncoding, negExit && sc != StageChoice::NegativeLogScan);
+        if (negExit || printOnly) setEnabled(id::process, false);
+        if (negExit) {
+            for (const char* p : {id::printerR, id::printerG, id::printerB, id::printExposure, id::printBleach, id::printCrossover,
+                                  id::printEnable, id::outputSpace, id::hdrPeakNits, id::hdrUnrollEnable, id::hdrUnroll,
+                                  id::filmBlurEnable, id::filmBlurRadius, id::filmBlurFrequency, id::filmBlurDuration,
+                                  id::filmBlurBreathing, id::filmBlurChromatic, id::filmBlurSeed})
+                setEnabled(p, false);
+            setEnabled(id::printStock, true);   // printing density is defined by the print stock
+        } else {
+            setEnabled(id::outputSpace, true);
+        }
+        if (printOnly) {
+            setEnabled(id::printStock, true);
+            for (const char* p : {id::inputSpace, id::cameraEmulationEnable, id::cameraEmulation, id::cameraEmulationStrength})
+                setEnabled(p, false);
+        }
+    }
     // texture
     for (const char* p : {id::halationEnable, id::bloomEnable, id::grainEnable, id::acutanceEnable, id::weaveEnable,
                           id::vignetteEnable})
