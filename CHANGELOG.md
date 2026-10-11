@@ -16,6 +16,20 @@ unchanged in a newer one.
   halation and damage act in the film layer the stage holds. Default Full Chain: existing projects
   render unchanged. Identical on CPU, OpenCL, CUDA and Metal.
 
+- **Print lab** (Print group, module switch *Enable Print Lab*), on every print stock and made for
+  the data-sheet prints 2383 / 2393 / 3513DI. Physical lab parameters, not a colour twist:
+  - *Projection White*: D65 adapted, Theatre Xenon unadapted, D60 Sim.
+  - *Process Aim* (Nominal / Rich / Soft) and *Print Contrast*: print development changes the gamma,
+    D-max and fog per layer, and the print is re-timed so grey stays put.
+  - *Rendering*: Contact Print; Release Print through interpositive and internegative on Kodak 2242
+    (curves from the data sheet, LAD aims); Telecine / Scan with a D-min / D-max balance and a black
+    set.
+
+  Off or at the defaults the render is unchanged.
+- **Stock provenance**: every stock says where its data comes from (data sheet, partial data sheet +
+  proxy, designed, or style approximation). This shows in the read-only *Stock Data* and *Print Stock
+  Data* lines and in `docs/STOCKS.md` 5c.
+
 ## [1.2.0] — unreleased
 
 ### Added

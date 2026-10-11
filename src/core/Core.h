@@ -95,7 +95,7 @@ struct LookParams {
     float printContrast = 0.f;   // -1 .. 1: print development in process-aim units, added to printAim
 };
 
-// v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 3.1
+// v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 5c.1
 enum class ProjectionWhite : int {
     D65 = 0,             // projector white adapted to D65 (CAT16), the v1.2 rendering (default)
     TheatreXenon,        // unadapted: the xenon projector's own white, as measured off the screen

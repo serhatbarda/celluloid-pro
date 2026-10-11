@@ -437,11 +437,120 @@ Default look (250D + P6, emulation on) on the look-dev probe: grey 0.389, slope 
 the target ranges: hue shifts of green / cyan / magenta (about +20 deg on the VISION3 stocks), the
 skin hue rise from -2 to +2 stops (+16 deg, target 3-10) and the largest dL of the C*30 colours.
 
+## 5c. Print lab and stock provenance (v1.3)
+
+### 5c.1 Print lab model
+
+The Print group's lab block (Enable Print Lab, Projection White, Process Aim, Print Contrast, Rendering)
+changes how the print is made and shown with physical lab parameters, on every print stock. With the
+block off, or at its defaults (D65, Nominal, 0, Contact Print), the render is the v1.2 print bit for bit
+(`tests/core` checks this). The data live in `reference/stocks.json["lab"]` (written by
+`reference/datasheets/build_lab.py`); `reference/model.py` and `src/core/Bake.cpp` implement the same
+equations and agree to 6e-6 on the golden cases.
+
+**Projection white.** The spectral projection under the projector lamp gives CIE XYZ, and the white
+then decides how it is shown:
+
+- 0 D65 (Adapted): CAT16 from the lamp white (clear print base) to D65. This is the v1.2 path.
+- 1 Theatre Xenon (Unadapted): no adaptation, so the lamp's own white through the clear base is the
+  white, as a colorimeter reads it off the screen.
+- 2 D60 Sim: CAT16 to the ACES white x 0.32168, y 0.33767.
+
+A white other than D65 is shown on a D65 display. It is scaled so that its largest Rec.709 channel is
+1, the same scaling a D60 sim uses. The automatic grey balance then puts 18 % grey on that white rather
+than on D65. On 250D 5207 and 2383, grey is 0.393 / 0.376 / 0.371 (R/G/B) unadapted and
+0.393 / 0.384 / 0.371 for D60.
+
+**Process aim and print contrast.** One development unit `u = aimStep[aim] + Print Contrast`, with
+aimStep Nominal 0, Rich +1 and Soft -1. Each print layer's characteristic curve then becomes:
+
+    w = u * aimLayer[layer]            aimLayer = R 1.0, G 0.8, B 1.2
+    gamma' = gamma * (1 + 0.12 w)      straight-line contrast
+    R'     = R     * (1 + 0.06 w)      density span above fog (D-max)
+    fog'   = fog + 0.01 max(w, 0)      forced development raises fog
+
+The bottom (yellow-forming, blue-sensitive) layer reacts most to developer activity and the top layer
+least. The lab re-times the print, so the grey balance keeps 18 % grey at the print's aim. The values
+are our model of an ECP-2 lab's tolerance band and are not taken from a data sheet. On 5207 / 2383 the
+output slope at grey (per stop) is 0.191 / 0.198 / 0.205 for Soft / Nominal / Rich, and the -8 stop
+black is 0.039 / 0.032 / 0.026.
+
+**Rendering.**
+
+- Contact Print: the camera negative printed directly.
+- Release Print (IP / IN): the printer LUT (log exposure per print layer) goes through two generations
+  of VISION Color Intermediate 2242. The characteristic curves were digitised from the Kodak data sheet
+  and fitted like the other stocks, with rms 0.003 D. Each generation is timed so that the negative's
+  18 % grey at normal development lands on the LAD aim: master positive 1.15 / 1.60 / 1.70 and duplicate
+  negative 1.00 / 1.45 / 1.55 (R/G/B, Status M):
+
+      D_MP = H2242(x_MP + (logH - logH_ref))
+      D_DN = H2242(x_DN - (D_MP - aim_MP))
+      logH' = logH_ref - (D_DN - aim_DN)
+
+  The 2242 toe and shoulder soften the print's ends (slope 0.188 vs 0.198 on 2383; the black lifts
+  slightly) and shift the colour a little per layer. Monochrome negatives use the green curve.
+- Telecine / Scan: every print layer's curve is mapped linearly from its own D-min..D-max onto the
+  green layer's, so both ends sit on the grey axis. The black is then set just above D-max:
+  `D2 = Dmin_G - log10((T - 0.97 Tb) / (1 - 0.97 Tb))`, where `T = 10^-(D1 - Dmin_G)` and `Tb` is the
+  D-max transmission. The result has neutral, slightly deeper blacks.
+
+The projection table's density range is raised automatically when a rich aim, a print contrast or the
+telecine black reach beyond the stock's nominal D-max.
+
+### 5c.2 Stock provenance
+
+Every stock carries a provenance tag. It appears in the UI as the read-only labels Stock Data and Print
+Stock Data, and in the table below (`reference/datasheets/build_lab.py`):
+
+- **data sheet**: modelled from the manufacturer's public technical data. The values are fitted to the
+  published curves, not measured from film.
+- **partial data sheet + proxy**: part of the data comes from the data sheet and the rest is borrowed
+  from a named proxy stock.
+- **designed**: a Celluloid original, not a real stock.
+- **style approximation**: the look of a real stock that has no public data, designed from a related
+  stock.
+
+| # | Negative | Class | Provenance |
+|---|---|---|---|
+| 0 | CN 50D Fine Daylight | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 1 | CN 200T Studio Tungsten | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 2 | CN 250D Soft Daylight | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 3 | CN 500T High Speed | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 4 | CN 800T No-Backing | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 5 | CN Vintage 85 | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 6 | C41 Portrait 400 | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 7 | C41 Consumer 200 | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 8 | RV 100 Slide | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 9 | BW 400 Panchromatic | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 10 | BW 100 Fine | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 11 | Kodak Vision3 50D 5203 | data sheet | Data sheet: Kodak H-1-5203 (2022): spectral sensitivity, characteristic curves; dyes from H-1-5219t (VISION3 dye set). ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
+| 12 | Kodak Vision3 250D 5207 | data sheet | Data sheet: Kodak H-1-5207 (2015): spectral sensitivity, characteristic curves; dyes from H-1-5219t (VISION3 dye set). ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
+| 13 | Kodak Vision3 200T 5213 | data sheet | Data sheet: Kodak H-1-5213 (2010): spectral sensitivity, characteristic curves, spectral dye density. ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
+| 14 | Kodak Vision3 500T 5219 | data sheet | Data sheet: Kodak H-1-5219t (2015): spectral sensitivity, characteristic curves, spectral dye density. ECN-2. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
+| 15 | Fujifilm Eterna 250D 8563 | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral sensitivity and dyes borrowed from VISION3 250D (proxy). Discontinued; modelled as fresh stock. |
+| 16 | Kodak Portra 400 | partial data sheet + proxy | Partial data sheet: Kodak E-4050 (2016): characteristic curves, spectral sensitivity; dyes borrowed from the VISION3 set (proxy; not published). C-41. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
+| 17 | Kodak Ektachrome E100 | data sheet | Data sheet: Kodak E-4024 (2009, E100G): characteristic curves, spectral sensitivity, spectral dye density. E-6. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
+| 18 | Kodachrome 64 Style | style approximation | Style approximation: no public Kodachrome data; designed from the Ektachrome E100 data (higher contrast, deeper D-max, shorter cyan dye). Not measured from Kodachrome. |
+
+| # | Print | Class | Provenance |
+|---|---|---|---|
+| 0 | P1 Standard Projection | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 1 | P2 Low Contrast | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 2 | P3 Rich Contrast | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 3 | P4 Faded Archive | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 4 | P5 Silver Retention | designed | Designed (Celluloid original): parametric spectra and curves, not a real stock. |
+| 5 | Kodak Vision 2383 | data sheet | Data sheet: Kodak H-1-2383 (2022): spectral sensitivity, Status A curves, spectral dye density. ECP-2 nominal; lab aim, projection and rendering are set in this group. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
+| 6 | Kodak Vision Premier 2393 | partial data sheet + proxy | Data sheet: Kodak H-1-2393 (1998): spectral sensitivity, characteristic curves; dyes from 2383 (not published for 2393). ECP-2 nominal. |
+| 7 | Fujifilm Eterna-CP 3513DI | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal. |
+| 8 | P6 Modern Print | designed | Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the default-look target). |
+
 ## 6. Editing the stocks
 
 The single source of truth is `reference/stocks.json`. After editing it:
 
 ```
+python3 reference/datasheets/build_lab.py   # v1.3: lab model + provenance tags into stocks.json
 python3 reference/gen_tables.py      # -> src/core/StockData.inc (C++ table)
 python3 reference/golden.py          # -> reference/golden/core_golden.txt (C++ vs NumPy test data)
 python3 reference/report.py          # -> this file (needs numpy)

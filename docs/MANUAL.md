@@ -723,6 +723,42 @@ Notes: reversal (slide) stocks have no negative stage, so every stage renders th
 them. In the negative stages Process, the print timing controls, Output and Film Blur are greyed:
 they belong to the print. Print Only ignores Camera Log and Camera Emulation (the input is a scan).
 
+### The print lab: projection, process aim, release prints (v1.3)
+
+The lab block in the **Print** group sets how the print is made and shown. It works on every print
+stock and makes most difference on the data-sheet prints (Kodak Vision 2383, Vision Premier 2393 and
+Fujifilm Eterna-CP 3513DI). With **Enable Print Lab** off, or with every setting at its default, the
+print looks exactly as it did in v1.2.
+
+- **Projection White**:
+  - **D65 (Adapted)**: the classic film-out preview on a video display.
+  - **Theatre Xenon (Unadapted)**: what a light meter reads off a xenon-lit cinema screen, with a
+    warmer, slightly yellow white. Use it to judge the print as an audience sees it.
+  - **D60 Sim**: the ACES D60 white on a D65 display.
+- **Process Aim**: the lab's development within its tolerance band.
+  - **Rich**: more gamma, a deeper D-max and denser blacks.
+  - **Soft**: less of each, with open blacks and gentler colour.
+
+  **Print Contrast** fine-tunes the aim in the same units. The lab re-times the print, so middle grey
+  stays put and only the contrast around it changes.
+- **Rendering**:
+  - **Contact Print**: printed straight from the camera negative.
+  - **Release Print (IP / IN)**: duplicated twice on Kodak 2242 intermediate film first, as a
+    theatrical release print is. The toe and shoulder get a little softer and the colour shifts
+    slightly.
+  - **Telecine / Scan**: the print transferred on a telecine, with neutral blacks and highlights and
+    the black set just above the print's D-max.
+
+**Stock Data** (Negative group) and **Print Stock Data** (Print group) are read-only lines that say
+where the selected stock's numbers come from:
+
+- a manufacturer data sheet, fitted rather than measured from film
+- a partial data sheet, with the rest borrowed from a named proxy stock
+- a Celluloid design
+- a style approximation
+
+The full list is in [STOCKS.md](STOCKS.md), section 5c.
+
 ---
 
 ## 8. LUT export

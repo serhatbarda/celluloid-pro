@@ -50,7 +50,7 @@ PRT = {
 }
 
 LAB = {
-    'source': 'v1.3 print lab model (docs/STOCKS.md 3.1): projection whites (CIE D65; ACES D60 = x 0.32168 y 0.33767; '
+    'source': 'v1.3 print lab model (docs/STOCKS.md 5c.1): projection whites (CIE D65; ACES D60 = x 0.32168 y 0.33767; '
               'the projector lamp itself); process aim = development change of the print within a lab tolerance band '
               '(our values); duplication on VISION Color Intermediate 2242 (Kodak H-1-5242t, 2008: Status M curves, '
               'LAD aims MP 1.15/1.60/1.70, DN 1.00/1.45/1.55); telecine black set.',

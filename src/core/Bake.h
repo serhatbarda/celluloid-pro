@@ -42,7 +42,7 @@ struct DyeLutBake { Lut lut; };                         // N^3 x 3 log10 exposur
 struct ProjBake { Lut lut; /* spectral PJ table K x 7, n = K, maxv = dye domain */ spec::Mat3 cat; double pmin[3]; std::vector<float> pcurve;   // pcurve: print curves 3 x kNCurve
                   spec::Vec3 white = {0.3127 / 0.3290, 1.0, (1.0 - 0.3127 - 0.3290) / 0.3290}; };      // v1.3: display XYZ of the projection white (grey-balance target)
 
-// v1.3 print lab / projection conditions (stocks::LabDef, docs/STOCKS.md 3.1). Defaults = the v1.2 print path.
+// v1.3 print lab / projection conditions (stocks::LabDef, docs/STOCKS.md 5c.1). Defaults = the v1.2 print path.
 enum RenderKind { kRenderContact = 0, kRenderRelease = 1, kRenderTelecine = 2, kRenderCount };
 struct PrintVariant {
     int white = 0;          // stocks::LabDef::whites index (0 = D65 adapted)
