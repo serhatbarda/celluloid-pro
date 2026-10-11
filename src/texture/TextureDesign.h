@@ -148,6 +148,9 @@ struct HalationLook {
 // only extreme energies compressed; annular PSF). > 0: the v1.1 soft-knee gate (unchanged).
 HalationLook halationLook(float amount, float thresholdStops, float hue);
 constexpr double kHalRingGainPerAmount = 0.10;  // physical mode: amount 0.5 = 5 % of the red light halates
+// physical mode highlight emphasis (stops over 18 % grey of red-weighted light): the halating share
+// is x1/(1 + (k/yh)^2), half at k, ~0.08 for a +4.2-stop overcast sky, ~0.95 for a +8-stop practical
+constexpr double kHalEmphasisStops = 5.95;
 constexpr float kBloomMixPerAmount = 0.10f;  // bloom mix s = amount * this
 constexpr float kBloomBMax = 48.f;           // bloom source compression
 

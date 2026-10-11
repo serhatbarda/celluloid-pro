@@ -240,7 +240,7 @@ void testGrainTemporal() {
 }
 
 void testGrainResolution() {
-    section("grain: resolution independence (autocorrelation width ~ pixelScale)");
+    section("grain: resolution independence (autocorrelation width ~ pixelScale, pixel aperture)");
     const GrainFormat fs[3] = {GrainFormat::Super8, GrainFormat::Mm16, GrainFormat::Super35};
     for (GrainFormat f : fs) {
         // v1.2: the grain is finer than v1.1 (fine emulsion octave below a pixel at pixelScale 1, where
@@ -255,10 +255,28 @@ void testGrainResolution() {
         CHECK(std::fabs(h2 / h1 - 2.0) < 2.0 * tol, "%s ratio %f", cel::tex::grainFormatName(f), h2 / h1);
         CHECK(std::fabs(hb2 / hb1 - 2.0) < 2.0 * tol, "%s blue ratio %f", cel::tex::grainFormatName(f), hb2 / hb1);
     }
-    // per-pixel variance is the same at any scale
-    Moments m = moments(grainField(1500, 1500, grainParams(GrainFormat::Mm16, 0.5f, 3, 3.3f)));
+    // v1.2 pixel aperture: the per-pixel variance is calibrated at pixelScale 1 and follows the pixel's
+    // film area elsewhere, so a pixelScale 0.5 field carries the grain of the 2x box-downsampled
+    // pixelScale 1 field; at a large pixelScale it rises only a little (the clouds are resolved)
     const double gv = cel::tex::kGrainGain * cel::tex::kGrainGain;
-    CHECK(std::fabs(m.var[1] / gv - 1.0) < 0.04, "variance at pixelScale 3.3: %f", m.var[1]);
+    Moments m1 = moments(grainField(1500, 1500, grainParams(GrainFormat::Mm16, 0.5f, 3, 1.f)));
+    CHECK(std::fabs(m1.var[1] / gv - 1.0) < 0.04, "variance at pixelScale 1: %f", m1.var[1]);
+    Moments m = moments(grainField(1500, 1500, grainParams(GrainFormat::Mm16, 0.5f, 3, 3.3f)));
+    std::printf("  grain variance / calibrated: pixelScale 1 %.3f, 3.3 %.3f\n", m1.var[1] / gv, m.var[1] / gv);
+    CHECK(m.var[1] / gv > 0.98 && m.var[1] / gv < 1.25, "variance at pixelScale 3.3: %f", m.var[1]);
+    for (GrainFormat f : {GrainFormat::Mm16, GrainFormat::Super35}) {
+        Img full = grainField(1024, 1024, grainParams(f, 0.5f, 3, 1.f));
+        Img half = grainField(512, 512, grainParams(f, 0.5f, 3, 0.5f));
+        Img ds(512, 512);
+        for (int y = 0; y < 512; ++y)
+            for (int x = 0; x < 512; ++x)
+                for (int c = 0; c < 3; ++c)
+                    ds.at(x, y)[c] = 0.25f * (full.at(2 * x, 2 * y)[c] + full.at(2 * x + 1, 2 * y)[c] +
+                                              full.at(2 * x, 2 * y + 1)[c] + full.at(2 * x + 1, 2 * y + 1)[c]);
+        double r = std::sqrt(moments(half).var[1] / moments(ds).var[1]);
+        std::printf("  %-12s std pixelScale 0.5 / downsampled pixelScale 1: %.3f\n", cel::tex::grainFormatName(f), r);
+        CHECK(std::fabs(r - 1.0) < 0.12, "%s grain at pixelScale 0.5 vs downsampled 1: %f", cel::tex::grainFormatName(f), r);
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -761,12 +779,18 @@ void testV12Texture() {
             for (size_t i = 0; i < o.px.size(); i += 4) dev = std::max(dev, double(std::fabs(o.px[i] - v)) / v);
             CHECK(dev < 1e-4, "physical halation shifts a uniform field %.2f by %g", v, dev);
         }
-        // threshold-free and linear in the light (below the +9 stop compressor)
+        // threshold-free, with the smooth highlight emphasis e = yh / (1 + (k / yh)^2) (below the +9
+        // stop compressor): no cut-off anywhere, full share for practicals
         Img a1 = spot(0.5f, 12), a2 = spot(1.01f, 12);
         double e1 = added(a1, textured(a1, tp), 0), e2 = added(a2, textured(a2, tp), 0);
-        std::printf("  physical halation: added red for a 0.5 / 1.0 spot %.4f / %.4f (ratio %.4f)\n", e1, e2, e2 / e1);
+        double kk = cel::tex::halationLook(0.5f, 0.f, 0.f).knee;
+        auto emph = [&](double y) { return y / (1.0 + (kk / y) * (kk / y)); };
+        double want = emph(1.01) / emph(0.5);
+        std::printf("  physical halation: added red for a 0.5 / 1.0 spot %.4f / %.4f (ratio %.4f, model %.4f)\n", e1, e2, e2 / e1, want);
         CHECK(e1 > 0.0, "physical halation must not have a threshold (%g)", e1);
-        CHECK(std::fabs(e2 / e1 - 2.0) < 0.06, "physical halation must be linear in the light: %f", e2 / e1);
+        CHECK(std::fabs(e2 / e1 / want - 1.0) < 0.03, "physical halation follows the emphasis law: %f vs %f", e2 / e1, want);
+        CHECK(emph(0.18 * 256.0) / (0.18 * 256.0) > 0.9 && emph(0.18 * 18.4) / (0.18 * 18.4) < 0.12,
+              "halation emphasis: full share for a +8-stop practical, small for a +4.2-stop sky");
         // the added light is warm: R >> G, no blue (hue 0), never magenta; chroma activity: faint
         // halation (weak sources, the outer tail) is deeper red than strong halation near bright sources
         Img s = spot(20.f, 3), so = textured(s, tp);

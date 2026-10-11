@@ -289,6 +289,16 @@ GrainDesign designGrain(const TextureParams& tp, int w, int h, float pixelScale)
     grainAmplitudes(d.w, d.aFast, d.aSlow);
     d.aFast *= c0 / c1;
     d.aSlow *= f0 / f1;
+    // pixel aperture (Selwyn): the amplitudes are calibrated for 1920 px across the gate; a pixel that
+    // covers more film (lower resolution, render scale < 1) averages more clouds, so the per-pixel
+    // fluctuation follows var ~ 1 / (sigma^2 + pixel^2 / 12) with the cloud sigma in 1920-px units --
+    // a 0.5 render then carries the grain of the downsampled full-resolution frame
+    auto aperture = [&](double sigmaPx) {
+        double sr = sigmaPx / ps;
+        return std::sqrt((sr * sr + 1.0 / 12.0) / (sr * sr + 1.0 / (12.0 * ps * ps)));
+    };
+    d.aFast *= aperture(c1);
+    d.aSlow *= aperture(f1);
     d.mono = tp.grainMonochrome;
     // kernel argument block (GrainKernels.h)
     float* f = d.f;
@@ -384,7 +394,7 @@ HalationLook halationLook(float amount, float thresholdStops, float hue) {
         for (int c = 0; c < 3; ++c) L.tint[c] = float(A[i0][c] + (A[i0 + 1][c] - A[i0][c]) * t);
         L.gain = float(am * kHalRingGainPerAmount);   // fraction of the red-weighted light
         L.threshold = 0.f;
-        L.knee = 0.f;
+        L.knee = float(0.18 * std::exp2(kHalEmphasisStops));   // highlight emphasis, linear units
         L.emax = float(0.18 * 512.0);                  // compress only beyond +9 stops
         L.srcW[0] = 0.85f; L.srcW[1] = 0.15f; L.srcW[2] = 0.0f;
         // chroma activity: the green share of the tint runs from x0.5 (faint light: the outer tail,

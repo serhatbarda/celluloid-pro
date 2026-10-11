@@ -969,8 +969,10 @@ class Suite:
             self.check(g, "grain present, zero-mean (S35 default)", st["std"] > 0.002 and abs(st["mean"]) < 0.25 * st["std"],
                        "std %.4f mean %+.5f" % (st["std"], st["mean"]))
             cc = np.mean([st["rg"], st["rb"], st["gb"]])
-            self.check(g, "grain layers strongly correlated (mostly luminance grain, 0.90 nominal)", 0.72 <= cc <= 0.97,
-                       "rg %.2f rb %.2f gb %.2f" % (st["rg"], st["rb"], st["gb"]), "0.90 (+-0.15)")
+            # v1.2 grain: the layers share 0.98 of the cloud field variance (neutral grain reads as
+            # luminance grain; saturated colours decorrelate through their different layer exposures)
+            self.check(g, "grain layers strongly correlated on grey (mostly luminance grain, 0.98 shared)", 0.93 <= cc <= 0.995,
+                       "rg %.2f rb %.2f gb %.2f" % (st["rg"], st["rb"], st["gb"]), "0.93..0.995")
         order = []
         for name, pt in GRAIN_FORMATS[:4]:
             f = next((x for x in fmts if re.search(pt, x, re.I)), None)

@@ -176,8 +176,9 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_s2d(float x, float x0, float p, float Yk
 
 /* ---- halation / bloom sources ---------------------------------------------------------------
  * Halation energy: light that reaches the film base and is reflected back into the (mostly red
- * sensitive) bottom layer.  Weighted towards red light.  T <= 0 (v1.2 default, physical): linear,
- * e = yh emax / (emax + yh).  Otherwise (optional gate) above the threshold T the energy is the
+ * sensitive) bottom layer.  Weighted towards red light.  T <= 0 (v1.2 default, physical): linear
+ * with a highlight emphasis k (linear units, see below), e' = yh / (1 + (k / yh)^2),
+ * e = e' emax / (emax + e').  Otherwise (optional gate) above the threshold T the energy is the
  * linear excess (halation is a fixed fraction of the light, so a +8-stop practical carries ~40x the
  * energy of a +4-stop sky) eased in by a knee in STOPS over the threshold:
  *     s = log2(yh / T),   e = (yh - T) * s^2 / (s^2 + k^2)        (k = knee in stops, 2; C1 at s = 0)
@@ -186,9 +187,15 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_s2d(float x, float x0, float p, float Yk
  * towards emax. */
 CEL_DEVICE CEL_TXH_INLINE float cel_txh_hal_energy(CelF4 v, float T, float k, float emax, float wr, float wg, float wb) {
     float yh = cel_txh_max(wr * v.x + wg * v.y + wb * v.z, 0.0f);
-    /* v1.2 physical halation (T <= 0): a fixed fraction of ALL the light, no threshold, only extreme
-     * energies compressed */
-    if (!(T > 0.0f)) return yh * emax / (emax + yh);
+    /* v1.2 physical halation (T <= 0): a fixed fraction of the light, no threshold; k > 0 = highlight
+     * emphasis in LINEAR units, e = yh / (1 + (k / yh)^2) (full share from about a stop over k, x0.08
+     * for an overcast sky 1.75 stops under k), so broad mid-bright areas do not tint the dark objects
+     * next to them; only extreme energies compressed */
+    if (!(T > 0.0f)) {
+        float e = yh;
+        if (k > 0.0f) { float q = k / cel_txh_max(yh, 1e-20f); e = yh / (1.0f + q * q); }
+        return e * emax / (emax + e);
+    }
     if (!(yh > T)) return 0.0f;
     float s = cel_log2(yh / T);
     float s2 = s * s;
