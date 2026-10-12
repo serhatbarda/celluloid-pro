@@ -567,6 +567,12 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     tp.halationRadius = float(num(id::halationRadius, t));
     tp.halationThreshold = float(num(id::halationThreshold, t));
     tp.halationHue = float(num(id::halationHue, t));
+    tp.halationSaturation = float(num(id::halationSaturation, t));   // v1.3 chroma halation + Aura
+    tp.halationBackground = float(num(id::halationBackground, t));
+    tp.auraEnabled = flag(id::auraEnable, t);
+    tp.auraRadius = float(num(id::auraRadius, t));
+    tp.auraStrength = float(num(id::auraStrength, t));
+    tp.auraGreen = float(num(id::auraGreen, t));
     tp.bloomAmount = flag(id::bloomEnable, t) ? float(num(id::bloomAmount, t)) * bloomScale : 0.f;
     tp.bloomRadius = float(num(id::bloomRadius, t));
     tp.vignette = flag(id::vignetteEnable, t) ? float(num(id::vignette, t)) : 0.f;
@@ -577,6 +583,10 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     tp.grainAnimated = flag(id::grainAnimated, t);
     tp.grainSeed = int(std::lround(num(id::grainSeed, t)));
     tp.grainMonochrome = mono;
+    tp.grainColour = float(num(id::grainColour, t));   // v1.3 grain colour + tonal balance
+    tp.grainShadows = float(num(id::grainShadows, t));
+    tp.grainMids = float(num(id::grainMids, t));
+    tp.grainHighlights = float(num(id::grainHighlights, t));
     // film damage / film blur (v1.1): a switched-off sub-module (dust, scratches, hair) renders like
     // amount 0; the master switch off skips the damage passes entirely
     tp.damageEnabled = flag(id::damageEnable, t);
@@ -611,6 +621,25 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
         tp.damageEnabled = false;
         tp.blurEnabled = false;
     }
+    // v1.3 Film Breath: per-frame exposure / development / printer-light variation, a deterministic
+    // sequence in (seed, frame) computed here once per frame and applied to the colour look. Not in Color
+    // Only (a LUT cannot vary per frame) nor in Texture Only (no colour pipeline).
+    if (fs.mode != core::Mode::ColorOnly && fs.mode != core::Mode::TextureOnly && flag(id::breathEnable, t)) {
+        tex::FilmBreathParams bp;
+        bp.enabled = true;
+        bp.profile = tex::BreathProfile(std::min(std::max(choice(id::breathProfile, t), 0), int(tex::BreathProfile::Count) - 1));
+        bp.exposure = float(num(id::breathExposure, t));
+        bp.development = float(num(id::breathDevelopment, t));
+        bp.printer = float(num(id::breathPrinter, t));
+        bp.period = float(num(id::breathPeriod, t));
+        bp.seed = int(std::lround(num(id::breathSeed, t)));
+        fs.breath = tex::filmBreathAt(bp, t);
+        fs.look.exposure += fs.breath.exposure;
+        fs.look.filmContrast = std::min(2.f, std::max(0.5f, fs.look.filmContrast * fs.breath.contrast));
+        fs.look.printerR += fs.breath.printer[0];
+        fs.look.printerG += fs.breath.printer[1];
+        fs.look.printerB += fs.breath.printer[2];
+    }
     fs.watermark = renderNeedsWatermark();   // always false in the personal build
     return fs;
 }
@@ -626,7 +655,8 @@ void ReafilmEffect::getClipPreferences(OFX::ClipPreferencesSetter& prefs) {
     const bool weave = flag(id::weaveEnable, 0.0) && num(id::weaveAmount) > 0.0;
     const bool damage = flag(id::damageEnable, 0.0) && flag(id::damageAnimated, 0.0);
     const bool blur = flag(id::filmBlurEnable, 0.0);
-    prefs.setOutputFrameVarying(texture && (animatedGrain || weave || damage || blur));
+    const bool breath = flag(id::breathEnable, 0.0) && effectiveMode(0.0) != core::Mode::TextureOnly;   // v1.3
+    prefs.setOutputFrameVarying(texture && (animatedGrain || weave || damage || blur || breath));
 }
 
 void ReafilmEffect::render(const OFX::RenderArguments& args) {
@@ -654,6 +684,7 @@ void ReafilmEffect::render(const OFX::RenderArguments& args) {
     if (w <= 0 || h <= 0) return;
 
     engine::FrameSettings fs = frameSettingsAt(args.time, w);
+    fs.tex.renderScale = (std::isfinite(args.renderScale.x) && args.renderScale.x > 0.0) ? float(std::min(1.0, args.renderScale.x)) : 1.f;
     if (abort()) return;
 
     std::lock_guard<std::mutex> lock(m_pipeMutex);
@@ -1088,14 +1119,19 @@ void ReafilmEffect::refreshEnabledness(double t) {
     for (const char* p : {id::halationEnable, id::bloomEnable, id::grainEnable, id::acutanceEnable, id::weaveEnable,
                           id::vignetteEnable})
         setEnabled(p, texture);
-    for (const char* p : {id::halationAmount, id::halationRadius, id::halationThreshold, id::halationHue})
+    for (const char* p : {id::halationAmount, id::halationRadius, id::halationThreshold, id::halationHue,
+                          id::halationSaturation, id::halationBackground, id::auraEnable})
         setEnabled(p, texture && halOn);
+    for (const char* p : {id::auraRadius, id::auraStrength, id::auraGreen})   // v1.3 Aura (needs halation)
+        setEnabled(p, texture && halOn && flag(id::auraEnable, t));
     for (const char* p : {id::bloomAmount, id::bloomRadius}) setEnabled(p, texture && bloomOn);
     for (const char* p : {id::acutanceAmount, id::acutanceRadius}) setEnabled(p, texture && acutOn);
     for (const char* p : {id::weaveAmount, id::weaveSpeed}) setEnabled(p, texture && weaveOn);
     setEnabled(id::vignette, texture && vigOn);
-    for (const char* p : {id::grainAmount, id::grainSize, id::grainSoftness, id::grainAnimated, id::grainSeed})
+    for (const char* p : {id::grainAmount, id::grainSize, id::grainSoftness, id::grainAnimated, id::grainSeed,
+                          id::grainShadows, id::grainMids, id::grainHighlights})
         setEnabled(p, texture && grainOn);
+    setEnabled(id::grainColour, texture && grainOn && !mono);   // a monochrome stock has one grain field
     setEnabled(id::grainFormat, texture);   // the gauge drives grain, film resolution, halation and acutance
     setEnabled(id::filmResolutionEnable, texture);
     setEnabled(id::integrate, texture);
@@ -1113,6 +1149,20 @@ void ReafilmEffect::refreshEnabledness(double t) {
     for (const char* p : {id::filmBlurRadius, id::filmBlurFrequency, id::filmBlurDuration, id::filmBlurBreathing,
                           id::filmBlurChromatic, id::filmBlurSeed})
         setEnabled(p, blurOn);
+    {   // v1.3 Film Breath: varies the colour look per frame, so only in Full mode (not in Color Only - a LUT -
+        // nor Texture Only); exposure everywhere in the chain, development on the scene (not Print Only),
+        // printer lights where the printer controls apply
+        const StageChoice sc = stageChoice(t);
+        const bool full = colour && texture;
+        const bool brOn = full && flag(id::breathEnable, t);
+        const bool negExit = !reversal && (sc == StageChoice::NegativeLogScan || sc == StageChoice::NegativeToScene ||
+                                           sc == StageChoice::NegativeClean);
+        const bool alexaStage = sc == StageChoice::AlexaRec709 && flag(id::alexaDisplayEnable, t);
+        setEnabled(id::breathEnable, full);
+        for (const char* p : {id::breathProfile, id::breathExposure, id::breathPeriod, id::breathSeed}) setEnabled(p, brOn);
+        setEnabled(id::breathDevelopment, brOn && sc != StageChoice::PrintOnly);
+        setEnabled(id::breathPrinter, brOn && printOn && !reversal && !mono && !negExit && !alexaStage);
+    }
 }
 
 void ReafilmEffect::refreshLicenseStatus() { setStr(id::licenseStatus, licenseStatus()); }

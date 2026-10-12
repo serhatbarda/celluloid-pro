@@ -237,21 +237,45 @@ uint32_t grainFrameSeed(int grainSeed, bool animated, double time) {
     return hashU32(uint32_t(grainSeed) * 0x9e3779b1U ^ hashU32(uint32_t(frame) * 0x85ebca6bU + 0x632be5abU));
 }
 
+double grainSharedVar(float grainColour) {
+    double c = std::isfinite(grainColour) ? std::min(1.5, std::max(0.0, double(grainColour))) : 1.0;
+    return 1.0 - (1.0 - kGrainSharedVar) * c * c;
+}
+
 namespace {
+// v1.3 clumped cloud kernel: (1 - m) G(s) + m G(kGrainClumpRel s), both clamped to the 7-tap radius
+Gauss1D clumpKernel(double s) {
+    Gauss1D a = gaussKernel(std::min(kMaxBlurSigma, s));
+    if (!(s > 1e-3)) return a;
+    Gauss1D b = gaussKernel(std::min(kMaxBlurSigma, kGrainClumpRel * s));
+    Gauss1D g;
+    g.radius = std::max(a.radius, b.radius);
+    g.variance = 0.0; g.sumSq = 0.0;
+    for (int k = 0; k <= 7; ++k) {
+        double v = (1.0 - kGrainClumpMix) * double(a.w[k]) + kGrainClumpMix * double(b.w[k]);
+        if (k > g.radius) v = 0.0;
+        g.w[k] = float(v);
+        g.variance += (k == 0 ? 0.0 : 2.0) * double(k) * double(k) * v;
+        g.sumSq += (k == 0 ? 1.0 : 2.0) * v * v;
+    }
+    return g;
+}
+
 GrainOctave designOctave(const double sigmaFull[4], int w, int h, uint32_t seed) {
     GrainOctave o;
     o.used = true;
     o.seed = seed;
     for (int c = 0; c < 4; ++c) o.sigmaFull[c] = sigmaFull[c];
     double sgreen = sigmaFull[1];
-    double D = std::max(1.0, sgreen / kGrainGridSigma);
+    // v1.3: the green clump scale must fit the 7-tap kernel too, so the clumps scale with the gauge
+    double D = std::max(1.0, std::max(sgreen / kGrainGridSigma, sgreen * kGrainClumpRel / kMaxBlurSigma));
     D = std::min(D, double(std::max(w, h)));                  // never coarser than the frame
     o.spacing = D;
     double up = D > 1.0 ? 1.0 / 3.0 : 0.0;
     int R = 0;
     for (int c = 0; c < 4; ++c) {
         double s = sigmaFull[c] / D;
-        o.g[c] = gaussKernel(std::min(kMaxBlurSigma, std::sqrt(std::max(0.0, s * s - up))));
+        o.g[c] = clumpKernel(std::sqrt(std::max(0.0, s * s - up)));
         R = std::max(R, o.g[c].radius);
         double sd = noiseStd1D(o.g[c], D);
         o.norm[c] = float(1.0 / (sd * sd));
@@ -270,8 +294,8 @@ GrainDesign designGrain(const TextureParams& tp, int w, int h, float pixelScale)
     double ps = (std::isfinite(pixelScale) && pixelScale > 0.f) ? double(pixelScale) : 1.0;
     // softness: wider clouds (HF roll-off) and a softer cloud edge (indicator width)
     const double sigmaScale = 1.0 + 0.35 * S;
-    d.w = 0.45 + 0.40 * S;
-    const double cRef = grainFormatSigma(tp.grainFormat) * size * sigmaScale;          // @1920
+    d.w = kGrainWidth0 + kGrainWidthSoft * S;
+    const double cRef = grainFormatSigma(tp.grainFormat) * kGrainCloudScale * size * sigmaScale;   // @1920
     const double fRef = std::max(kGrainFineRel * cRef, std::min(cRef, kGrainFineMinPx));
     // Integrate: the print / scan system blurs the grain like the image (Gaussian clouds stay
     // Gaussian: sigma^2 adds); a blurred field keeps rms ~ 1 / sigma (2D)
@@ -281,11 +305,20 @@ GrainDesign designGrain(const TextureParams& tp, int w, int h, float pixelScale)
     const double c1 = std::sqrt(c0 * c0 + gs * gs), f1 = std::sqrt(f0 * f0 + gs * gs);
     uint32_t seed = grainFrameSeed(tp.grainSeed, tp.grainAnimated, tp.time);
     double sc[4], sf[4];
-    for (int c = 0; c < 4; ++c) { sc[c] = c1 * kGrainRelSigma[c]; sf[c] = f1 * kGrainRelSigma[c]; }
+    // v1.3 scan aperture (film-referenced like the clouds: 0.6 px of a 1920 px frame): softens the
+    // cloud shape only; the RMS stays (the octave norm re-normalises, the amplitudes are unchanged)
+    const double rs = (std::isfinite(tp.renderScale) && tp.renderScale > 0.f) ? std::min(1.0, double(tp.renderScale)) : 1.0;
+    const double scan = kGrainScanSigmaPx * rs;
+    for (int c = 0; c < 4; ++c) {
+        double a = c1 * kGrainRelSigma[c], b = f1 * kGrainRelSigma[c];
+        sc[c] = std::sqrt(a * a + scan * scan);
+        sf[c] = std::sqrt(b * b + scan * scan);
+    }
     d.coarse = designOctave(sc, w, h, seed);
     d.fine = designOctave(sf, w, h, hashU32(seed ^ 0x2545f491U));
-    d.cs = std::sqrt(kGrainSharedVar);
-    d.ci = std::sqrt(1.0 - kGrainSharedVar);
+    const double shared = grainSharedVar(tp.grainColour);
+    d.cs = std::sqrt(shared);
+    d.ci = std::sqrt(1.0 - shared);
     grainAmplitudes(d.w, d.aFast, d.aSlow);
     d.aFast *= c0 / c1;
     d.aSlow *= f0 / f1;
@@ -293,13 +326,24 @@ GrainDesign designGrain(const TextureParams& tp, int w, int h, float pixelScale)
     // covers more film (lower resolution, render scale < 1) averages more clouds, so the per-pixel
     // fluctuation follows var ~ 1 / (sigma^2 + pixel^2 / 12) with the cloud sigma in 1920-px units --
     // a 0.5 render then carries the grain of the downsampled full-resolution frame
+    // v1.3: the scan aperture (sigma `scan` output px) is part of what one pixel averages; with it in the
+    // law a 4K / 6K frame carries more per-pixel grain than HD, and box-downsampled to HD it carries the
+    // calibrated (HD) grain - fit-to-screen viewing of a 6K timeline shows the nominal grain
     auto aperture = [&](double sigmaPx) {
-        double sr = sigmaPx / ps;
-        return std::sqrt((sr * sr + 1.0 / 12.0) / (sr * sr + 1.0 / (12.0 * ps * ps)));
+        double sr = sigmaPx / ps, k = (scan / ps) * (scan / ps);
+        return std::sqrt((sr * sr + k + 1.0 / 12.0) / (sr * sr + k + 1.0 / (12.0 * ps * ps)));
     };
     d.aFast *= aperture(c1);
     d.aSlow *= aperture(f1);
     d.mono = tp.grainMonochrome;
+    // v1.3 tonal balance: the mids gain scales both amplitudes; shadows / highlights relative to it
+    auto gainOf = [](float v) { return std::isfinite(v) ? std::min(4.0, std::max(0.0, double(v))) : 1.0; };
+    const double gS = gainOf(tp.grainShadows), gH = gainOf(tp.grainHighlights);
+    const double gM = std::max(0.01, gainOf(tp.grainMids));
+    if (gM != 1.0) { d.aFast *= gM; d.aSlow *= gM; }
+    d.tonal = gS != gM || gH != gM;
+    d.toneShadow = float(gS / gM - 1.0);
+    d.toneHigh = float(gH / gM - 1.0);
     // kernel argument block (GrainKernels.h)
     float* f = d.f;
     f[0] = float(1.0 / d.coarse.spacing); f[1] = float(d.coarse.margin);
@@ -319,16 +363,33 @@ GrainDesign designGrain(const TextureParams& tp, int w, int h, float pixelScale)
 }
 
 // ---- glow ------------------------------------------------------------------------------------------
+namespace {
+struct GlowScale { int group; double sigma, weight; };
+GlowDesign glowFromScales(const std::vector<GlowScale>& sc, int w, int h);
+} // namespace
+
 GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h, bool halRing) {
-    GlowDesign gd;
-    struct Scale { int group; double sigma, weight; };
-    std::vector<Scale> sc;
+    std::vector<GlowScale> sc;
     auto ok = [](double v) { return std::isfinite(v) && v > 0.0; };
     if (bloom && ok(bloomRadiusPx))
         for (int i = 0; i < kBloomScales; ++i) sc.push_back({0, bloomRadiusPx * kBloomRel[i], kBloomW[i]});
     if (hal && ok(halRadiusPx))
         for (int i = 0; i < kHalScales; ++i)
             sc.push_back({1, halRadiusPx * (halRing ? kHalRingRel[i] : kHalRel[i]), halRing ? kHalRingW[i] : kHalW[i]});
+    return glowFromScales(sc, w, h);
+}
+
+// v1.3 Aura: one smooth, wide lobe (group 1 = the halation channel of GlowLevel)
+GlowDesign designAura(double auraRadiusPx, int w, int h) {
+    std::vector<GlowScale> sc;
+    if (std::isfinite(auraRadiusPx) && auraRadiusPx > 0.0)
+        for (int i = 0; i < kAuraScales; ++i) sc.push_back({1, auraRadiusPx * kAuraRel[i], kAuraW[i]});
+    return glowFromScales(sc, w, h);
+}
+
+namespace {
+GlowDesign glowFromScales(const std::vector<GlowScale>& sc, int w, int h) {
+    GlowDesign gd;
     if (sc.empty()) return gd;
     // deepest useful level: stop once the image is a single pixel
     int maxLevel = 1;
@@ -338,7 +399,7 @@ GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadi
     // scales collapse onto one level for tiny radii)
     std::vector<double> wsum[2], vsum[2];
     for (int g = 0; g < 2; ++g) { wsum[g].assign(size_t(maxLevel) + 1, 0.0); vsum[g].assign(size_t(maxLevel) + 1, 0.0); }
-    for (const Scale& s : sc) {
+    for (const GlowScale& s : sc) {
         double sigma = std::min(s.sigma, 1.0e6);
         int l = 1;
         while (l < maxLevel && sigma * std::ldexp(1.0, -l) > 2.45) ++l;
@@ -376,6 +437,7 @@ GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadi
     }
     return gd;
 }
+} // namespace
 
 HalationLook halationLook(float amount, float thresholdStops, float hue) {
     HalationLook L{};
@@ -462,6 +524,63 @@ WeaveOffset weaveOffset(double time, float amount, float speed) {
     o.dx = 0.28 * am * axis(0xcc9e2d51U);
     o.rot = 1.0e-4 * am * axis(0xe6546b64U);
     return o;
+}
+
+// ---- Film Breath (v1.3) -------------------------------------------------------------------------------
+// Each profile: period scale, share of the per-frame (white) jitter in the variance, and the size of the
+// exposure / development / printer variation per unit Amount.
+//   Lab          slow, smooth drift between takes / processing batches
+//   Projector    lamp and shutter flicker: faster, a little frame-to-frame jitter
+//   Old Camera   a worn camera motor: uneven shutter, clear frame-to-frame jitter
+//   Hand-cranked strong, fast, uneven exposure from frame to frame
+namespace {
+struct BreathShape { double periodScale, jitter, exposure, development, printer; };
+BreathShape breathShape(BreathProfile p) {
+    switch (p) {
+        case BreathProfile::Projector:   return {0.5, 0.30, 1.0, 0.5, 0.6};
+        case BreathProfile::OldCamera:   return {0.6, 0.50, 1.6, 0.8, 1.0};
+        case BreathProfile::HandCranked: return {0.35, 0.70, 2.6, 1.0, 1.0};
+        case BreathProfile::Lab:
+        default:                         return {1.0, 0.08, 1.0, 1.0, 1.0};
+    }
+}
+} // namespace
+
+double breathSequence(BreathProfile profile, double period, int seed, uint32_t channel, double frame) {
+    if (!std::isfinite(frame)) return 0.0;
+    const BreathShape sh = breathShape(profile);
+    double P = std::isfinite(period) ? std::min(1000.0, std::max(2.0, period)) : 24.0;
+    P *= sh.periodScale;
+    P = std::max(1.0, P);
+    frame = std::max(-2.0e9, std::min(2.0e9, std::floor(frame + 0.5)));
+    const uint32_t base = hashU32(uint32_t(seed) * 0x9e3779b1U ^ hashU32(channel * 0x85ebca6bU + 0x5bd1e995U));
+    const double W[3] = {1.0, 0.7, 0.5};
+    double v = 0.0, n2 = 0.0;
+    for (int k = 0; k < 3; ++k) {
+        v += W[k] * smoothNoise(frame / (P * std::ldexp(1.0, -k)), hashU32(base + uint32_t(k) * 0x27d4eb2dU));
+        n2 += W[k] * W[k];
+    }
+    v /= std::sqrt(n2);
+    double j = sh.jitter;
+    double white = hashGauss(hashU32(uint32_t(int32_t(frame)) * 0xcc9e2d51U ^ base));
+    return std::sqrt(1.0 - j) * v + std::sqrt(j) * white;
+}
+
+FilmBreath filmBreathAt(const FilmBreathParams& bp, double time) {
+    FilmBreath b;
+    if (!bp.enabled || !std::isfinite(time)) return b;
+    const BreathShape sh = breathShape(bp.profile);
+    auto amt = [](float v, float hi) { return std::isfinite(v) ? std::min(double(hi), std::max(0.0, double(v))) : 0.0; };
+    const double e = amt(bp.exposure, 1.f), d = amt(bp.development, 0.5f), pr = amt(bp.printer, 4.f);
+    auto seq = [&](uint32_t ch) { return breathSequence(bp.profile, bp.period, bp.seed, ch, time); };
+    if (e > 0.0) b.exposure = float(e * sh.exposure * seq(1));
+    if (d > 0.0) b.contrast = float(std::min(2.0, std::max(0.5, 1.0 + d * sh.development * seq(2))));
+    if (pr > 0.0) {
+        double common = seq(3);
+        for (int c = 0; c < 3; ++c)
+            b.printer[c] = float(pr * sh.printer * (common + 0.5 * seq(4 + uint32_t(c))) / std::sqrt(1.25));
+    }
+    return b;
 }
 
 // ---- Texture-Only tone map ---------------------------------------------------------------------------

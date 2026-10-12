@@ -486,7 +486,28 @@ std::vector<ParamDef> build() {
           "the glow eases in over about a stop and a half).",
           true);
     b.dbl(id::halationHue, "Halation Hue", 0.0, -1.0, 1.0, 0.01, 2,
-          "Colour of the glow: -1 deep red, 0 the classic red-orange, +1 orange-yellow.", true);
+          "Colour of the glow: how much of the reflected light re-exposes the green layer as well as the red. "
+          "-1 deep red, 0 the classic red-orange, +1 orange-yellow.", true);
+    // v1.3 chroma halation + Aura
+    b.dbl(id::halationSaturation, "Halation Saturation", 1.0, 0.0, 2.0, 0.01, 2,
+          "Colour strength of the glow. 0 = a neutral, uncoloured glow, 1 = the film's natural red-orange, "
+          "2 = deeper colour. The brightness of the glow stays the same.", true);
+    b.dbl(id::halationBackground, "Halation Background", 0.0, -1.0, 1.0, 0.01, 2,
+          "How the glow's colour reacts to what is behind it. Above 0 the glow is more colourful over dark "
+          "backgrounds and paler over bright ones (as on a projected print); below 0 the other way round. "
+          "0 = the same colour everywhere.", true);
+    b.boolean(id::auraEnable, "Enable Aura", false,
+              "Adds a second, much wider and fainter glow around strong light sources: light that bounces "
+              "more than once inside the film base. It gives lamps and the sun a soft warm haze around the "
+              "ring. Needs Halation on. Off (the default) costs nothing.",
+              true);
+    b.dbl(id::auraRadius, "Aura Radius", 150.0, 40.0, 400.0, 1.0, 0,
+          "Size of the aura in pixels at 1920 px image width for Super 35 (scaled automatically for other "
+          "resolutions and the Gauge).", true);
+    b.dbl(id::auraStrength, "Aura Strength", 0.5, 0.0, 2.0, 0.01, 2,
+          "Brightness of the aura, relative to the halation amount. 0 = none.", true);
+    b.dbl(id::auraGreen, "Aura Green", 0.35, 0.0, 1.0, 0.01, 2,
+          "Share of the green layer in the aura: 0 = deep red, higher values turn it orange and yellow.", true);
 
     // ---------------------------------------------------------------- [Bloom]
     b.beginGroup(id::gBloom, "Bloom", false, "Neutral diffusion of highlights.");
@@ -531,6 +552,19 @@ std::vector<ParamDef> build() {
               "Changes the random grain pattern. Give different shots or layers different seeds so their grain "
               "never lines up.",
               false);
+    // v1.3 grain colour and tonal balance
+    b.dbl(id::grainColour, "Grain Colour", 1.0, 0.0, 1.5, 0.01, 2,
+          "How independent the grain of the three colour layers is. 0 = the layers share one grain pattern "
+          "(neutral, almost black-and-white grain), 1 = the stock's natural, slightly coloured grain, 1.5 = "
+          "more colour in the grain (as in an underexposed or pushed negative).", true);
+    b.dbl(id::grainShadows, "Grain Shadows", 1.0, 0.0, 2.0, 0.01, 2,
+          "Grain strength in the shadows (about 1.5 stops under middle grey and darker), relative to the "
+          "stock. 1 = nominal.", true);
+    b.dbl(id::grainMids, "Grain Mids", 1.0, 0.0, 2.0, 0.01, 2,
+          "Grain strength in the mid-tones, relative to the stock. 1 = nominal.", true);
+    b.dbl(id::grainHighlights, "Grain Highlights", 1.0, 0.0, 2.0, 0.01, 2,
+          "Grain strength in the highlights (about 2 stops over middle grey and brighter), relative to the "
+          "stock. 1 = nominal.", true);
 
     // ---------------------------------------------------------------- [Film Resolution] (v1.2)
     b.beginGroup(id::gFilmResolution, "Film Resolution", false,
@@ -670,6 +704,33 @@ std::vector<ParamDef> build() {
           true);
     b.integer(id::filmBlurSeed, "Blur Seed", 0, 0, 9999,
               "Changes when the soft moments happen. Give different shots different seeds.", false);
+
+    // ---------------------------------------------------------------- [Film Breath] (v1.3)
+    b.beginGroup(id::gFilmBreath, "Film Breath", false,
+                 "Small changes from frame to frame in exposure, development and printing, as on real film.");
+    b.boolean(id::breathEnable, "Enable Film Breath", false,
+              "Real film never repeats exactly: the camera shutter, the lab's development and the printer "
+              "lights vary a little over time. Film Breath adds these slow, smooth changes in brightness, "
+              "contrast and colour balance. The same Seed always gives the same result. Off (the default) "
+              "leaves every frame the same.",
+              true);
+    b.choice(id::breathProfile, "Breath Profile", {"Lab", "Projector", "Old Camera", "Hand-cranked"}, 0,
+             "Character of the changes.\nLab: slow, gentle drift between processing batches.\nProjector: "
+             "faster lamp and shutter flicker.\nOld Camera: a worn camera motor - uneven exposure with some "
+             "frame-to-frame flicker.\nHand-cranked: strong, uneven flicker from frame to frame.",
+             true);
+    b.dbl(id::breathExposure, "Exposure Variation", 0.05, 0.0, 0.5, 0.005, 3,
+          "Size of the brightness changes in stops (typical size; the profile can make it larger). 0 = none.",
+          true);
+    b.dbl(id::breathDevelopment, "Development Variation", 0.03, 0.0, 0.3, 0.005, 3,
+          "Size of the contrast changes from the developer (share of the film contrast). 0 = none.", true);
+    b.dbl(id::breathPrinter, "Printer Light Variation", 0.5, 0.0, 3.0, 0.05, 2,
+          "Size of the colour balance changes in printer points (needs the Print stage). 0 = none.", true);
+    b.dbl(id::breathPeriod, "Breath Period", 24.0, 4.0, 240.0, 1.0, 0,
+          "Typical length of one slow change in frames. Short = restless, long = slow drift.", true)
+        .animates = false;
+    b.integer(id::breathSeed, "Breath Seed", 0, 0, 9999,
+              "Changes the random sequence. Give different shots different seeds.", false);
 
     // ---------------------------------------------------------------- [Output]
     const std::vector<std::string> outputs = core::outputSpaceNames();

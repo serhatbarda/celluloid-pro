@@ -42,11 +42,12 @@ const char* grainFormatName(GrainFormat f);
 // Layer sizes relative to the green layer, and the shared (inter-layer) structure.
 constexpr double kGrainRelSigma[4] = {1.12, 1.00, 1.45, 1.00};   // red, green, blue own fields, shared
 // Shared share of every layer's sensitivity field (variance): colour film grain reads as luminance
-// grain (look-dev: below ~0.97 the film's colour separation turns the grain into chroma noise).
-constexpr double kGrainSharedVar = 0.98;
+// grain with a visible but subtle colour component (v1.3: 0.85, was 0.98 - the owner found the v1.2 grain
+// colourless; the three layers have their own silver halide, so their clouds are largely independent).
+constexpr double kGrainSharedVar = 0.85;
 // Fine (slow emulsion) cloud size relative to the coarse one, and its floor (px @1920).
-constexpr double kGrainFineRel = 0.45;
-constexpr double kGrainFineMinPx = 0.35;
+constexpr double kGrainFineRel = 0.25;     // v1.3 (was 0.45): finer slow-emulsion clouds, resolved at 4K-6K
+constexpr double kGrainFineMinPx = 0.0;    // v1.3 (was 0.35): none - the fine clouds follow the gauge, the scan aperture keeps them off the pixel grid
 // Emulsion development curves (stops relative to 18 % grey). Fitted to the KODAK VISION3 granularity
 // curves (reference/filmdata/fit_grain.py, w = 0.6: fast centre -3.25, width 1.56, fog z -1.42; slow
 // centre +2.12, width 4.88; A_fast / A_slow 1.26), then the FAST emulsion is placed for our stocks'
@@ -57,6 +58,30 @@ constexpr double kGrainFineMinPx = 0.35;
 constexpr double kGrainFastCentre = -0.7, kGrainFastWidth = 1.0, kGrainFogZ = -2.1, kGrainFogKappa = 0.6;
 constexpr double kGrainSlowCentre = 2.12, kGrainSlowWidth = 4.88;
 constexpr double kGrainFastSlowRatio = 1.36;   // A_fast / A_slow
+// v1.3 grain structure ("grain looked cheap": pixel-level, single-scale noise at HD):
+//  - scan aperture: every cloud is seen through the scanner's optics and pixel (sigma >= this many
+//    OUTPUT pixels), so the slow emulsion's sub-pixel clouds no longer render as per-pixel white noise.
+//    The amplitude calibration (pixel aperture law) is unchanged: same RMS, softer and rounder grain.
+//  - clumping: the sensitivity field of each emulsion is a mixture of the cloud scale and a scale
+//    kGrainClumpRel x larger (clouds merge into clumps), amplitude weight kGrainClumpMix.
+//  - cloud size: the film's own clouds are kGrainCloudScale x the v1.2 sizes (which were tuned to look
+//    right at HD, where the pixel itself softens them): at 4K-6K the grain stays fine (a few pixels,
+//    finest structure 1-2 px) instead of growing into soft blobs; at HD the scan aperture brings it
+//    back to about the v1.2 size.
+//  The scan aperture is per output pixel at full resolution (render scale < 1: per full-res pixel, so
+//  a proxy carries the downsampled grain).
+constexpr double kGrainCloudScale = 0.5;
+constexpr double kGrainScanSigmaPx = 0.5;
+constexpr double kGrainClumpMix = 0.35;
+constexpr double kGrainClumpRel = 2.0;
+// v1.3 tonal balance zones on the layer exposure (stops re 18 % grey): logistic weights, shadows below
+// kGrainToneShadow, highlights above kGrainToneHigh, slope kGrainToneSlope per stop (GrainKernels.h)
+// soft indicator width w = kGrainWidth0 + kGrainWidthSoft * grainSoftness (v1.3: was 0.45 + 0.40 S; the
+// narrower indicator made the mid-tone grain two-tone / bimodal, a digital look)
+constexpr double kGrainWidth0 = 0.9, kGrainWidthSoft = 0.4;
+constexpr double kGrainToneShadow = -1.5, kGrainToneHigh = 2.0, kGrainToneSlope = 1.6;
+// shared (inter-layer) variance for Grain Colour c: 1 - (1 - kGrainSharedVar) c^2
+double grainSharedVar(float grainColour);
 // overall level: n has unit std at grey times this (the colour pass then scales by the stock's grain
 // sigma, which v1.1 multiplied by sqrt(D - Dmin) ~ 0.8 at grey)
 constexpr double kGrainGain = 1.42;
@@ -84,6 +109,8 @@ struct GrainDesign {
     bool     mono = false;
     float    f[24] = {};         // GrainKernels.h argument block f[0..23]
     int      i[6] = {};          // i[0] = 2, i[3..5]
+    bool     tonal = false;      // v1.3 tonal balance active (colour pass i[6] = 1, f[30], f[31])
+    float    toneShadow = 0.f, toneHigh = 0.f;   // f[30], f[31]: shadow / highlight gain relative to the mids, - 1
 };
 GrainDesign designGrain(const TextureParams& tp, int w, int h, float pixelScale);
 uint32_t    grainFrameSeed(int grainSeed, bool animated, double time);
@@ -135,6 +162,15 @@ constexpr double kHalRingRel[kHalScales] = {0.3, 0.55, 0.85, 1.3, 2.0, 3.2};
 constexpr double kHalRingW[kHalScales]   = {-0.10, 0.18, 0.30, 0.28, 0.20, 0.14};
 GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h, bool halRing = false);
 
+// v1.3 Aura: scale ladder (sigma relative to the aura radius) and weights (sum 1); a broad, smooth
+// lobe without the annular dip of the main halation; gain per unit auraStrength relative to the
+// halation gain
+constexpr int    kAuraScales = 4;
+constexpr double kAuraRel[kAuraScales] = {0.3, 0.55, 1.0, 1.7};
+constexpr double kAuraW[kAuraScales]   = {0.15, 0.30, 0.33, 0.22};
+constexpr double kAuraGainPerStrength = 0.6;
+GlowDesign designAura(double auraRadiusPx, int w, int h);
+
 struct HalationLook {
     float tint[3];               // added light colour (red = 1)
     float gain;                  // per unit halationAmount
@@ -153,6 +189,18 @@ constexpr double kHalRingGainPerAmount = 0.10;  // physical mode: amount 0.5 = 5
 constexpr double kHalEmphasisStops = 5.95;
 constexpr float kBloomMixPerAmount = 0.10f;  // bloom mix s = amount * this
 constexpr float kBloomBMax = 48.f;           // bloom source compression
+
+// v1.3 chroma halation (tx_hb_composite f[26], f[27]): saturation of the tint and the background
+// response: effective saturation = sat * (1 + bg (1 - 2 Y / (Y + 0.18))), Y = the image under the halo
+inline bool halationChromaActive(const TextureParams& tp) {
+    return tp.halationSaturation != 1.f || tp.halationBackground != 0.f;
+}
+
+// ---- Film Breath (v1.3) -------------------------------------------------------------------------------
+// Unit-RMS smoothed sequence in (seed, frame) for one source (channel), profile shaped; continuous in
+// frame for the smooth part, per-frame jitter on top.
+double breathSequence(BreathProfile profile, double period, int seed, uint32_t channel, double frame);
+FilmBreath filmBreathAt(const FilmBreathParams& bp, double time);
 
 // ---- acutance ------------------------------------------------------------------------------------
 struct AcutDesign {

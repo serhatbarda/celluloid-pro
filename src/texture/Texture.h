@@ -83,6 +83,54 @@ struct TextureParams {
     // grain unchanged.
     bool  filmResolution     = false;
     float integrate          = 0.f;   // 0 .. 1
+
+    // ---- v1.3 Texture II (appended, SPEC 13): defaults = neutral, so every existing caller renders
+    // unchanged (the v1.3 grain structure itself changed, see CHANGELOG)
+    // grain colour / tone: inter-layer decorrelation of the dye clouds (0 = one shared structure,
+    // 1 = the data-sheet correlation, 1.5 = more colour grain) and the tonal balance, gains on the
+    // grain of the negative's layer exposure (shadows / mid-tones / highlights; 1 = the model)
+    float grainColour        = 1.f;   // 0 .. 1.5
+    float grainShadows       = 1.f;   // 0 .. 2
+    float grainMids          = 1.f;   // 0 .. 2
+    float grainHighlights    = 1.f;   // 0 .. 2
+    // chroma halation: saturation of the re-exposure light (0 = neutral glow, 1 = the physical
+    // red / green share) and the background response (0 = additive only; 1 = the halo carries more
+    // colour over dark backgrounds and less over bright ones)
+    float halationSaturation = 1.f;   // 0 .. 2
+    float halationBackground = 0.f;   // 0 .. 1
+    // Aura: a second, very wide base-reflection lobe (multiple reflections inside the base) of the
+    // same halation light, with its own radius, strength and green share. Needs halation on.
+    bool  auraEnabled        = false;
+    float auraRadius         = 150.f; // px @1920 (x gauge scale, like the halation radius)
+    float auraStrength       = 0.5f;  // 0 .. 2, relative to the halation amount
+    float renderScale        = 1.f;   // v1.3 host render scale (proxy < 1): the scan aperture is per full-res pixel
+    float auraGreen          = 0.35f; // 0 .. 1 green share of the aura light (red = 1)
+};
+
+// ---- v1.3 Film Breath: per-frame exposure / development / printer-light variation ----------------
+// Evaluated on the host per frame (cel::tex::filmBreathAt) and applied to the colour look of that frame
+// (engine::FrameSettings::breath records the values). Deterministic in (seed, frame), smoothed over
+// time (1/f-like octaves of smooth noise plus per-frame jitter, the share set by the profile).
+enum class BreathProfile : int {   // ORDER IS THE OFX CHOICE-PARAM ORDER, append only
+    Lab = 0,                       // slow, smooth drift between prints / development runs (default)
+    Projector,                     // lamp and shutter flicker: faster, with frame-to-frame jitter
+    OldCamera,                     // irregular camera shutter / motor speed, strong per-frame jitter
+    HandCranked,                   // large slow surges of a hand-cranked camera plus jitter
+    Count
+};
+struct FilmBreathParams {
+    bool  enabled     = false;
+    BreathProfile profile = BreathProfile::Lab;
+    float exposure    = 0.05f;   // stops RMS of the camera exposure jitter (scene, before the negative)
+    float development = 0.03f;   // RMS of the development contrast variation (relative gamma)
+    float printer     = 0.5f;    // printer points RMS of the printer-light variation (per lamp + common)
+    float period      = 24.f;    // frames: time scale of the slowest variation
+    int   seed        = 0;
+};
+struct FilmBreath {
+    float exposure = 0.f;                // stops added to the scene exposure
+    float contrast = 1.f;                // multiplier on the development contrast (filmic contrast)
+    float printer[3] = {0.f, 0.f, 0.f};  // printer points added to the R, G, B lamps
 };
 
 }} // namespace cel::tex

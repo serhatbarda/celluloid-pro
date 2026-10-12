@@ -54,6 +54,17 @@ unchanged in a newer one.
   white tint up to 2.5 -> 0.6 a*. ALEXA Colour is still off by default; projects that had it on look
   different (closer to the ALEXA). The manual's "Looking like an ALEXA" adds an ARRI-look recipe:
   Highlight Latitude, ALEXA Colour and a subtle Bloom.
+- **Texture II**: every part has its own switch or is neutral at its default.
+  - **Halation colour**: *Halation Saturation* (0 = neutral glow, 2 = deep colour) and *Halation
+    Background* (glow colour reacts to what is behind it). New **Aura** (*Enable Aura*, default off;
+    Radius, Strength, Green): a second, much wider and fainter base reflection around strong lights.
+  - **Grain colour and tone**: *Grain Colour* (how independent the colour layers' grain is) and
+    *Grain Shadows / Mids / Highlights* (grain strength per tonal range), applied in the film's
+    density before the print.
+  - **Film Breath group** (*Enable Film Breath*, default off): smooth, repeatable frame-to-frame
+    changes of exposure, development contrast and printer lights. Profiles Lab, Projector, Old
+    Camera and Hand-cranked; Period and Seed.
+  - Off or at the defaults these render unchanged, and all match across CPU, OpenCL, CUDA and Metal.
 
 ### Fixed
 
@@ -85,6 +96,13 @@ unchanged in a newer one.
 
 ### Changed
 
+- **Grain looks different in existing projects** (owner request: the grain looked cheap, too even,
+  colourless and too low-res at 6K). The default grain is now generated at the full output resolution
+  and has fine detail at 4K and 6K, the finest structure one to two pixels across at 6K. Its dye
+  clouds clump, the colour layers share less of their grain so it shows subtle colour that follows the
+  image, and the mid-tones are no longer two-tone. At HD it is about 15 % less strong. A 6K frame
+  scaled down to HD matches an HD render, and proxy renders use the render scale. The parameter IDs
+  are unchanged, and grain costs the same render time.
 - **Renamed to Reafilm Pro.** The plug-in label, the Resolve menu group (*OpenFX › Reafilm*), the
   About and help texts, the bundle (`ReafilmPro.ofx.bundle`, binary `ReafilmPro.ofx`), the
   installers, disk image and zip (`ReafilmPro-<version>-…`), exported LUT names and titles

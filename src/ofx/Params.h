@@ -227,6 +227,25 @@ constexpr const char* latitudeSoftness = "latitudeSoftness";
 constexpr const char* latitudeReconstruct = "latitudeReconstruct";
 constexpr const char* latitudeDesaturate = "latitudeDesaturate";
 constexpr const char* latitudeClip = "latitudeClip";
+// ---- v1.3 Texture II: grain colour / tonal balance, chroma halation + Aura, Film Breath ----
+constexpr const char* grainColour = "grainColour";
+constexpr const char* grainShadows = "grainShadows";
+constexpr const char* grainMids = "grainMids";
+constexpr const char* grainHighlights = "grainHighlights";
+constexpr const char* halationSaturation = "halationSaturation";
+constexpr const char* halationBackground = "halationBackground";
+constexpr const char* auraEnable = "auraEnable";
+constexpr const char* auraRadius = "auraRadius";
+constexpr const char* auraStrength = "auraStrength";
+constexpr const char* auraGreen = "auraGreen";
+constexpr const char* gFilmBreath = "groupFilmBreath";
+constexpr const char* breathEnable = "breathEnable";
+constexpr const char* breathProfile = "breathProfile";       // append only (tex::BreathProfile)
+constexpr const char* breathExposure = "breathExposure";
+constexpr const char* breathDevelopment = "breathDevelopment";
+constexpr const char* breathPrinter = "breathPrinter";
+constexpr const char* breathPeriod = "breathPeriod";
+constexpr const char* breathSeed = "breathSeed";
 } // namespace id
 
 // v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are

@@ -177,6 +177,15 @@ std::vector<Case> makeCases(bool all) {
     add("texture soft (acutance -1, r 0.5, hue -1)", [](Case& c) {
         fullTexture(c.fs); c.fs.tex.acutanceAmount = -1.0f; c.fs.tex.acutanceRadius = 0.5f; c.fs.tex.halationHue = -1.0f;
         c.fs.tex.halationThreshold = 6.0f; });
+    // v1.3 texture II: chroma halation, aura, grain colour and tonal balance
+    add("halation chroma + aura, grain colour/tone", [](Case& c) {
+        fullTexture(c.fs); c.fs.tex.halationSaturation = 1.8f; c.fs.tex.halationBackground = 0.7f;
+        c.fs.tex.auraEnabled = true; c.fs.tex.auraRadius = 400.0f; c.fs.tex.auraStrength = 2.0f; c.fs.tex.auraGreen = 0.8f;
+        c.fs.tex.grainColour = 1.5f; c.fs.tex.grainShadows = 2.0f; c.fs.tex.grainMids = 0.3f; c.fs.tex.grainHighlights = 0.0f; });
+    add("halation neutral (sat 0, bg -1), aura small, mono tone", [](Case& c) {
+        fullTexture(c.fs); c.fs.tex.halationSaturation = 0.0f; c.fs.tex.halationBackground = -1.0f;
+        c.fs.tex.auraEnabled = true; c.fs.tex.auraRadius = 40.0f; c.fs.tex.grainMonochrome = true;
+        c.fs.tex.grainShadows = 0.0f; c.fs.tex.grainHighlights = 2.0f; });
     add("render scale 0.5 (pixelScale)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale *= 0.5f; });
     add("pixelScale 3 (tiny frame of a huge one)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale = 3.0f; });
     add("tiny 7x5", [](Case& c) { c.w = 7; c.h = 5; c.fs = baseSettings(7); fullTexture(c.fs); });

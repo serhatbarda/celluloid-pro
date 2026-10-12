@@ -217,6 +217,7 @@ bool acutOn(const tex::TextureParams& tp) { return std::isfinite(tp.acutanceAmou
 bool halOn(const tex::TextureParams& tp) { return finitePos(tp.halationAmount); }
 bool bloomOn(const tex::TextureParams& tp) { return finitePos(tp.bloomAmount); }
 bool vigOn(const tex::TextureParams& tp) { return finitePos(tp.vignette); }
+bool auraOn(const tex::TextureParams& tp) { return tp.auraEnabled && finitePos(tp.auraStrength); }
 
 // Image texture chain; returns the buffer holding the result (== img when nothing is on).
 void setToneMap(float* f, const tex::ToneMap& tm) {
@@ -313,8 +314,17 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
         double br = (std::isfinite(tp.bloomRadius) ? std::max(0.1, double(tp.bloomRadius)) : 40.0) * ps;
         tex::HalationLook hl = tex::halationLook(tp.halationAmount, tp.halationThreshold, tp.halationHue);
         tex::GlowDesign gd = tex::designGlow(bloom, br, hal, hr, w, h, hl.ring);
+        // v1.3 aura: a second, wide base-reflection lobe on the same pyramid (halation channel only)
+        const bool aura = hal && auraOn(tp);
+        tex::GlowDesign ga;
+        if (aura) {
+            double ar = (std::isfinite(tp.auraRadius) ? std::max(1.0, double(tp.auraRadius)) : 150.0) * ps
+                        * tex::gaugeRadiusScale(tp.grainFormat);
+            ga = tex::designAura(ar, w, h);
+        }
+        const int nDown = std::max(gd.nLevels, ga.nLevels);
         if (gd.nLevels >= 1) {
-            std::vector<int> down(size_t(gd.nLevels) + 1, -1);
+            std::vector<int> down(size_t(nDown) + 1, -1);
             {   // glow source + level 1 in one pass (tx_hb_prefilter -> tx_pyr_down fused)
                 int d1 = B.buffer(tex::levelSize(w, 1), tex::levelSize(h, 1));
                 PassDesc& p = B.pass(KID_tx_hb_prefilter_down, d1, {cur});
@@ -323,7 +333,7 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
                 p.args.f[4] = hl.srcW[0]; p.args.f[5] = hl.srcW[1]; p.args.f[6] = hl.srcW[2];
                 down[1] = d1;
             }
-            for (int l = 2; l <= gd.nLevels; ++l) {
+            for (int l = 2; l <= nDown; ++l) {
                 int d = B.buffer(tex::levelSize(w, l), tex::levelSize(h, l));
                 B.pass(KID_tx_pyr_down, d, {down[size_t(l - 1)]});
                 down[size_t(l)] = d;
@@ -346,8 +356,29 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
                 acc = A; accLevel = l;
             }
             int accUp = addUpV(B, acc, h, std::ldexp(1.0, -gd.finest), 0.0);
+            int auraUp = -1, auraLevel = 0;
+            if (ga.nLevels >= 1) {
+                int aacc = -1, aLevel = 0;
+                for (int l = ga.nLevels; l >= 1; --l) {
+                    const tex::GlowLevel& L = ga.level[size_t(l)];
+                    if (!L.used || L.wHal <= 0.f) continue;
+                    tex::Gauss1D g[4] = {tex::Gauss1D{}, tex::Gauss1D{}, tex::Gauss1D{}, L.gHal};
+                    for (int c = 0; c < 3; ++c) g[c].w[0] = 0.f;
+                    int b = addBlur(B, down[size_t(l)], g);
+                    int A = B.buffer(tex::levelSize(w, l), tex::levelSize(h, l));
+                    PassDesc& p = B.pass(KID_tx_pyr_up_add, A, {aacc, b});
+                    p.args.f[0] = p.args.f[1] = p.args.f[2] = 0.f;
+                    p.args.f[3] = L.wHal;
+                    p.args.f[4] = aacc >= 0 ? float(std::ldexp(1.0, -(aLevel - l))) : 1.f;
+                    p.args.i[0] = aacc >= 0 ? 1 : 0;
+                    p.args.i[1] = 1;
+                    aacc = A; aLevel = l;
+                }
+                if (aacc >= 0) { auraUp = addUpV(B, aacc, h, std::ldexp(1.0, -aLevel), 0.0); auraLevel = aLevel; }
+            }
             int o = B.buffer(w, h);
-            PassDesc& p = B.pass(KID_tx_hb_composite, o, {cur, accUp});
+            PassDesc& p = auraUp >= 0 ? B.pass(KID_tx_hb_composite, o, {cur, accUp, auraUp})
+                                      : B.pass(KID_tx_hb_composite, o, {cur, accUp});
             float* f = p.args.f;
             f[0] = bloom ? std::min(2.f, tp.bloomAmount) * tex::kBloomMixPerAmount : 0.f;
             f[1] = hl.gain;
@@ -364,6 +395,18 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
             p.args.i[1] = hal ? 1 : 0;
             p.args.i[2] = bloom ? 1 : 0;
             p.args.i[3] = vigDone ? 1 : 0;
+            if (hal && tex::halationChromaActive(tp)) {   // v1.3 chroma halation
+                p.args.i[4] = 1;
+                f[26] = std::isfinite(tp.halationSaturation) ? std::min(2.f, std::max(0.f, tp.halationSaturation)) : 1.f;
+                f[27] = std::isfinite(tp.halationBackground) ? std::min(1.f, std::max(-1.f, tp.halationBackground)) : 0.f;
+            }
+            if (auraUp >= 0) {                            // v1.3 aura
+                p.args.i[5] = 1;
+                float st = std::isfinite(tp.auraStrength) ? std::min(2.f, std::max(0.f, tp.auraStrength)) : 0.f;
+                f[28] = hl.gain * st * float(tex::kAuraGainPerStrength);
+                f[29] = std::isfinite(tp.auraGreen) ? std::min(1.f, std::max(0.f, tp.auraGreen)) : 0.35f;
+                f[30] = float(std::ldexp(1.0, -auraLevel));
+            }
             cur = o;
         }
     }
@@ -432,6 +475,11 @@ void setGrainArgs(PassDesc& p, const tex::GrainDesign& d) {
     for (int k = 0; k < 24; ++k) p.args.f[k] = d.f[k];
     p.args.i[0] = d.i[0];
     for (int k = 3; k < 6; ++k) p.args.i[k] = d.i[k];
+    if (d.tonal) {                       // v1.3 tonal balance
+        p.args.i[6] = 1;
+        p.args.f[30] = d.toneShadow;
+        p.args.f[31] = d.toneHigh;
+    }
 }
 
 bool hdrOutput(const FrameSettings& fs) {
@@ -627,7 +675,7 @@ engine::Plan buildGrainPlan(int w, int h, const TextureParams& tp, float stops) 
     GrainGrids g = addGrain(B, tp, w, h, effectivePixelScale(tp, w));
     PassDesc& p = B.pass(KID_tx_grain_finish, BUF_DST, {g.coarse, g.fine});
     setGrainArgs(p, g.d);
-    p.args.f[30] = std::isfinite(stops) ? stops : 0.f;
+    p.args.f[24] = std::isfinite(stops) ? stops : 0.f;
     return B.finish();
 }
 

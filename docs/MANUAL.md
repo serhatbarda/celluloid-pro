@@ -419,7 +419,13 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Halation Amount** (`halationAmount`; 0 … 2; default 0.5; keyframable) — Strength of halation: light that passes through the emulsion, reflects off the film base and re-exposes the red (and a little of the green) layer, creating a warm ring that hugs bright edges and practicals. It is added to the film's exposure, so the film curve shapes it like the image. Scaled by the stock (no-backing stocks glow much more). 0 = off.
 - **Halation Radius** (`halationRadius`; 2 … 80; default 20; keyframable) — Size of the halation ring in pixels at 1920 px image width for Super 35 (automatically scaled for other resolutions, proxy render scales and the Gauge: smaller gauges enlarge the ring).
 - **Halation Threshold** (`halationThreshold`; 0 … 6; default 0; keyframable) — 0 (default) = physical halation: no threshold - light reflects off the film base, so bright edges get a thin warm ring, strongest around practicals, lamps and speculars (their full share from about 6 stops above middle grey; a bright overcast sky contributes little, so it does not tint the dark objects in front of it). Flat areas stay clean because the ring only shows where light spills beyond an edge. Above 0 = an artistic gate: only highlights brighter than this many stops above middle grey halate (the v1.1 behaviour; the glow eases in over about a stop and a half).
-- **Halation Hue** (`halationHue`; -1 … 1; default 0; keyframable) — Colour of the glow: -1 deep red, 0 the classic red-orange, +1 orange-yellow.
+- **Halation Hue** (`halationHue`; -1 … 1; default 0; keyframable) — Colour of the glow: how much of the reflected light re-exposes the green layer as well as the red. -1 deep red, 0 the classic red-orange, +1 orange-yellow.
+- **Halation Saturation** (`halationSaturation`; 0 … 2; default 1; keyframable) — Colour strength of the glow. 0 = a neutral, uncoloured glow, 1 = the film's natural red-orange, 2 = deeper colour. The brightness of the glow stays the same.
+- **Halation Background** (`halationBackground`; -1 … 1; default 0; keyframable) — How the glow's colour reacts to what is behind it. Above 0 the glow is more colourful over dark backgrounds and paler over bright ones (as on a projected print); below 0 the other way round. 0 = the same colour everywhere.
+- **Enable Aura** (`auraEnable`; default off) — Adds a second, much wider and fainter glow around strong light sources: light that bounces more than once inside the film base. It gives lamps and the sun a soft warm haze around the ring. Needs Halation on. Off (the default) costs nothing.
+- **Aura Radius** (`auraRadius`; 40 … 400; default 150; keyframable) — Size of the aura in pixels at 1920 px image width for Super 35 (scaled automatically for other resolutions and the Gauge).
+- **Aura Strength** (`auraStrength`; 0 … 2; default 0.5; keyframable) — Brightness of the aura, relative to the halation amount. 0 = none.
+- **Aura Green** (`auraGreen`; 0 … 1; default 0.35; keyframable) — Share of the green layer in the aura: 0 = deep red, higher values turn it orange and yellow.
 
 ### Bloom
 
@@ -439,6 +445,10 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Grain Softness** (`grainSoftness`; 0 … 1; default 0.5; keyframable) — 0 = crisp, sharply defined dye clouds (like a sharp scan), 1 = soft clumps with soft edges (like an optical print or a softer scan). Integrate (Film Resolution) softens grain and image together.
 - **Animated Grain** (`grainAnimated`; default on) — On: a new grain pattern every frame, like real film. Off: a frozen pattern (useful for stills or for matching a static texture).
 - **Grain Seed** (`grainSeed`; 0 … 9999; default 0; keyframable) — Changes the random grain pattern. Give different shots or layers different seeds so their grain never lines up.
+- **Grain Colour** (`grainColour`; 0 … 1.5; default 1; keyframable) — How independent the grain of the three colour layers is. 0 = the layers share one grain pattern (neutral, almost black-and-white grain), 1 = the stock's natural, slightly coloured grain, 1.5 = more colour in the grain (as in an underexposed or pushed negative).
+- **Grain Shadows** (`grainShadows`; 0 … 2; default 1; keyframable) — Grain strength in the shadows (about 1.5 stops under middle grey and darker), relative to the stock. 1 = nominal.
+- **Grain Mids** (`grainMids`; 0 … 2; default 1; keyframable) — Grain strength in the mid-tones, relative to the stock. 1 = nominal.
+- **Grain Highlights** (`grainHighlights`; 0 … 2; default 1; keyframable) — Grain strength in the highlights (about 2 stops over middle grey and brighter), relative to the stock. 1 = nominal.
 
 ### Film Resolution
 
@@ -490,6 +500,19 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Focus Breathing** (`filmBlurBreathing`; 0 … 1; default 0.2; keyframable) — A continuous, gentle in-and-out drift of focus between the soft moments (share of the Blur Radius). 0 = sharp between them.
 - **Chromatic Softness** (`filmBlurChromatic`; 0 … 1; default 0.3; keyframable) — Colour of the defocus: red and especially blue go softer than green, as with a real projection lens out of focus (faint coloured fringes on edges). 0 = neutral blur.
 - **Blur Seed** (`filmBlurSeed`; 0 … 9999; default 0; keyframable) — Changes when the soft moments happen. Give different shots different seeds.
+
+### Film Breath
+
+*Small changes from frame to frame in exposure, development and printing, as on real film.*
+
+- **Enable Film Breath** (`breathEnable`; default off) — Real film never repeats exactly: the camera shutter, the lab's development and the printer lights vary a little over time. Film Breath adds these slow, smooth changes in brightness, contrast and colour balance. The same Seed always gives the same result. Off (the default) leaves every frame the same.
+- **Breath Profile** (`breathProfile`; default: Lab) — Character of the changes. Lab: slow, gentle drift between processing batches. Projector: faster lamp and shutter flicker. Old Camera: a worn camera motor - uneven exposure with some frame-to-frame flicker. Hand-cranked: strong, uneven flicker from frame to frame.
+  - Options: Lab · Projector · Old Camera · Hand-cranked
+- **Exposure Variation** (`breathExposure`; 0 … 0.5; default 0.05; keyframable) — Size of the brightness changes in stops (typical size; the profile can make it larger). 0 = none.
+- **Development Variation** (`breathDevelopment`; 0 … 0.3; default 0.03; keyframable) — Size of the contrast changes from the developer (share of the film contrast). 0 = none.
+- **Printer Light Variation** (`breathPrinter`; 0 … 3; default 0.5; keyframable) — Size of the colour balance changes in printer points (needs the Print stage). 0 = none.
+- **Breath Period** (`breathPeriod`; 4 … 240; default 24) — Typical length of one slow change in frames. Short = restless, long = slow drift.
+- **Breath Seed** (`breathSeed`; 0 … 9999; default 0; keyframable) — Changes the random sequence. Give different shots different seeds.
 
 ### Output
 
@@ -940,6 +963,31 @@ degrees (ARRI 30), a mid green from 156 to 136 (ARRI 140), the spread of the six
 0.46 to 0.40 (ARRI 0.42), and the tint of whites from up to 2.5 a* to 0.6. What the film keeps as its own:
 greens stay less saturated than on the ALEXA (C* 21 vs 29) and very bright reds turn a little
 further toward crimson.
+
+### Grain, halation colour and Film Breath (Texture II, v1.3)
+
+**Grain since 1.3 looks like scanned film, not a noise overlay.** Each colour layer has its own
+dye clouds, partly shared with the other layers, so the grain carries a little colour and takes on
+the colours of the picture. The clouds clump into irregular groups, and the grain is coarser in the
+shadows than in the highlights. It is generated at the full output resolution: on a 6K timeline
+(for example Fujifilm X-H2S 6.2K open gate) the finest structure is one to two pixels across, and
+at HD or in a proxy render it looks the same relative to the frame. **Existing projects show
+different grain after the update**: finer and more detailed at 4K / 6K, clumpier, with subtle
+colour, and about 15 % less strong at HD. Raise Grain Amount slightly if you want the old strength.
+
+- **Grain Colour**: 0 for neutral, almost black-and-white grain on a colour stock; 1.5 for more
+  colour, as on a pushed or under-exposed negative.
+- **Grain Shadows / Mids / Highlights**: grain strength per tonal range. For a clean face with
+  gritty shadows, try Shadows 1.4, Mids 0.8, Highlights 0.6.
+- **Halation Saturation** and **Halation Background**: 0 saturation gives a neutral glow, 2 a deep
+  red one. A positive Background makes the glow more colourful over dark areas and paler over bright
+  ones.
+- **Enable Aura**: a second, very wide and faint warm haze around strong lights (Halation must be
+  on). Aura Radius 150-250 with Strength 0.3-0.6 is subtle; no-backing stocks suit more.
+- **Film Breath** (off by default): slow, smooth changes in exposure, contrast and printer lights
+  from frame to frame. *Lab* is barely visible drift, *Projector* a faster flicker, *Old Camera*
+  and *Hand-cranked* are stronger and more uneven. The changes repeat exactly for the same Breath
+  Seed and frame, so renders are deterministic. Give each shot its own seed.
 
 ---
 

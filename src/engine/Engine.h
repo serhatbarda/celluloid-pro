@@ -43,6 +43,7 @@ struct FrameSettings {
     core::Mode          mode = core::Mode::Full;
     tex::TextureParams  tex;
     bool                watermark = false; // trial mode (license)
+    tex::FilmBreath     breath;            // v1.3 (appended): Film Breath values of this frame, already applied to `look`
 };
 
 // Build the plan for a frame of size w x h. Texture agent implements this (it owns pass design);

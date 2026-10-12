@@ -503,7 +503,21 @@ CEL_DEVICE void cel_k_tx_hb_prefilter_down(CEL_KERNEL_PARAMS) {
  *   i[0] = 1: Texture-Only (in0 is pseudo-scene; result is mapped back to display-linear and the
  *             vignette is applied in display-linear, like the stand-alone tx_vignette; for SDR
  *             outputs the result is <= 1 by construction of the curve)
- *   i[1] = halation on   i[2] = bloom on   i[3] = vignette on */
+ *   i[1] = halation on   i[2] = bloom on   i[3] = vignette on
+ *   v1.3 chroma halation (i[4] = 1): the added tint t is desaturated / saturated around its luminance
+ *           Yt: t' = Yt + S (t - Yt), S = max(f[26] (1 + f[27] (1 - 2 Y / (Y + 0.18))), 0), Y = the
+ *           luminance of the image under the halo (f[27] > 0: stronger colour over dark backgrounds)
+ *   v1.3 aura (i[5] = 1): in2 = second, wide halation lobe (w channel, finest level column scale f[30],
+ *           upsampled vertically like in1): out += f[28] max(aura.w - E(v), 0) (1, f[29], 0) (same
+ *           chroma rule) */
+CEL_DEVICE CEL_TXH_INLINE CelF3 cel_txh_hal_tint(float tr, float tg, float tb, float Y, CEL_CONSTANT const CelPassArgs* a) {
+    if (a->i[4] == 0) return cel_f3(tr, tg, tb);
+    float yt = 0.2126f * tr + 0.7152f * tg + 0.0722f * tb;
+    float yb = cel_txh_max(Y, 0.0f);
+    float S = a->f[26] * (1.0f + a->f[27] * (1.0f - 2.0f * yb / (yb + 0.18f)));
+    S = cel_txh_max(S, 0.0f);
+    return cel_f3(yt + S * (tr - yt), yt + S * (tg - yt), yt + S * (tb - yt));
+}
 CEL_DEVICE void cel_k_tx_hb_composite(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
     CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
@@ -520,7 +534,19 @@ CEL_DEVICE void cel_k_tx_hb_composite(CEL_KERNEL_PARAMS) {
         float hal = a->f[1] * cel_txh_max(g.w - e, 0.0f);
         float cs = 1.0f;
         if (a->f[24] != 0.0f) cs = 1.0f + a->f[24] * (2.0f * hal / (hal + a->f[25]) - 1.0f);
-        o.x += hal * a->f[2]; o.y += hal * a->f[3] * cs; o.z += hal * a->f[4] * cs;
+        float Y = 0.2126f * v.x + 0.7152f * v.y + 0.0722f * v.z;
+        if (a->i[4] == 0) {
+            o.x += hal * a->f[2]; o.y += hal * a->f[3] * cs; o.z += hal * a->f[4] * cs;
+        } else {
+            CelF3 t = cel_txh_hal_tint(a->f[2], a->f[3] * cs, a->f[4] * cs, Y, a);
+            o.x += hal * t.x; o.y += hal * t.y; o.z += hal * t.z;
+        }
+        if (a->i[5] != 0) {
+            CelF4 ga = cel_txh_sample_bspline_h(in2, a->inStride[2], a->inW[2], a->inH[2], ((float)x + 0.5f) * a->f[30], y);
+            float au = a->f[28] * cel_txh_max(ga.w - e, 0.0f);
+            CelF3 ta = cel_txh_hal_tint(1.0f, a->f[29], 0.0f, Y, a);
+            o.x += au * ta.x; o.y += au * ta.y; o.z += au * ta.z;
+        }
     }
     if (a->i[0] != 0) {
         o.x = cel_txh_s2d(o.x, a->f[18], a->f[19], a->f[20], a->f[21], a->f[22], a->f[23]);
@@ -591,14 +617,14 @@ CEL_DEVICE void cel_k_tx_grain_gen(CEL_KERNEL_PARAMS) {
 }
 
 /* tx_grain_finish (v1.2): DIAGNOSTIC grain field = what the colour pass adds per layer (in units of the
- * stock's grain sigma at grey) when every layer is exposed at s = f[30] stops relative to grey: the
+ * stock's grain sigma at grey) when every layer is exposed at s = f[24] stops relative to grey: the
  * dual-emulsion dye-cloud model of GrainKernels.h (celg_eval) on the coarse (in0) and fine (in1)
  * grids. f[0..23] / i[] = the GrainKernels.h argument block. out = (r, g, b, 0). The production plan
  * does not run this pass: the colour pass evaluates the same function from the true layer exposures. */
 CEL_DEVICE void cel_k_tx_grain_finish(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
     CelgPx g = celg_sample(in0, a->inStride[0], a->inW[0], a->inH[0], in1, a->inStride[1], a->inW[1], a->inH[1], x, y, a);
-    float s = a->f[30];
+    float s = a->f[24];
     CelF3 n = celg_eval(g, cel_f3(s, s, s), a);
     cel_store(out, a->outStride, x, y, cel_f4(n.x, n.y, n.z, 0.0f));
 }

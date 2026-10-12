@@ -37,7 +37,8 @@
  *   f[16] s_fast   f[17] 1 / b_fast   f[18] z_fog   f[19] kappa^2
  *   f[20] s_slow   f[21] 1 / b_slow   f[22] A_fast  f[23] A_slow
  *   f[24..29] Texture-Only tone map (x0, p, Yk, xk, slope, sdr; see TextureKernels.h cel_txh_d2s)
- *   f[30] tx_grain_finish only: exposure s of the diagnostic field
+ *   f[30], f[31], i[6] (v1.3): tonal balance (celg_tone), shadow / highlight gain relative to the mids - 1
+ *   f[24] tx_grain_finish only: exposure s of the diagnostic field
  *   i[0]  2 = grain v2 (this block)        i[3] 1 = B-spline upsample the coarse grid
  *   i[4]  1 = B-spline upsample the fine grid                i[5] 1 = monochrome (one field)
  */
@@ -116,13 +117,24 @@ CEL_DEVICE float celg_layer(float gc, float gf, float shc, float shf, float s, C
 }
 
 /* all three layers (r, g, b = red-, green-, blue-sensitive) at per-layer exposures s (stops re grey) */
+/* v1.3 tonal balance (i[6] = 1): gain 1 + f[30] wS + f[31] wH on the layer exposure s (stops); the
+ * zones are logistic in s: shadows below -1.5, highlights above +2 stops, slope 1.6 / stop
+ * (kGrainTone* of TextureDesign.h) */
+CEL_DEVICE float celg_tone(float s, CEL_CONSTANT const CelPassArgs* a) {
+    float ws = 1.0f / (1.0f + cel_exp(cel_fmin((s + 1.5f) * 1.6f, 60.0f)));
+    float wh = 1.0f / (1.0f + cel_exp(cel_fmin((2.0f - s) * 1.6f, 60.0f)));
+    return 1.0f + a->f[30] * ws + a->f[31] * wh;
+}
 CEL_DEVICE CelF3 celg_eval(CelgPx g, CelF3 s, CEL_CONSTANT const CelPassArgs* a) {
     if (a->i[5] != 0) {
         float m = celg_layer(g.c.y, g.f.y, g.c.w, g.f.w, s.y, a);
+        if (a->i[6] != 0) m *= celg_tone(s.y, a);
         return cel_f3(m, m, m);
     }
-    return cel_f3(celg_layer(g.c.x, g.f.x, g.c.w, g.f.w, s.x, a), celg_layer(g.c.y, g.f.y, g.c.w, g.f.w, s.y, a),
-                  celg_layer(g.c.z, g.f.z, g.c.w, g.f.w, s.z, a));
+    CelF3 n = cel_f3(celg_layer(g.c.x, g.f.x, g.c.w, g.f.w, s.x, a), celg_layer(g.c.y, g.f.y, g.c.w, g.f.w, s.y, a),
+                     celg_layer(g.c.z, g.f.z, g.c.w, g.f.w, s.z, a));
+    if (a->i[6] != 0) n = cel_f3(n.x * celg_tone(s.x, a), n.y * celg_tone(s.y, a), n.z * celg_tone(s.z, a));
+    return n;
 }
 
 /* Texture-Only: exposure (stops re 18 % grey) of a display-linear value through the film-like pseudo

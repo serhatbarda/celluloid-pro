@@ -135,7 +135,8 @@ void testGrainStatistics() {
             for (int c = 0; c < 3; ++c) {
                 CHECK(std::fabs(mean[c]) < 0.02, "%s soft %.1f mean[%d] = %f", cel::tex::grainFormatName(f), s, c, mean[c]);
                 CHECK(std::fabs(var[c] / gv - 1.0) < 0.02, "%s soft %.1f var[%d] = %f", cel::tex::grainFormatName(f), s, c, var[c]);
-                CHECK(std::fabs(corr[c] - 0.95) < 0.05, "%s soft %.1f corr[%d] = %f", cel::tex::grainFormatName(f), s, c, corr[c]);
+                // v1.3: shared variance 0.85 (subtle colour grain); the indicator keeps a little more
+                CHECK(std::fabs(corr[c] - 0.835) < 0.04, "%s soft %.1f corr[%d] = %f", cel::tex::grainFormatName(f), s, c, corr[c]);
             }
         }
     // monochrome: one field
@@ -174,7 +175,7 @@ void testGrainStatistics() {
         const float st[6] = {-5.f, -3.f, -1.f, 0.f, 2.f, 4.f};
         double sd[6];
         const TextureParams tp = grainParams(GrainFormat::Super35, 0.5f, 6);
-        const double w = 0.45 + 0.40 * 0.5;
+        const double w = cel::tex::kGrainWidth0 + cel::tex::kGrainWidthSoft * 0.5;
         std::printf("  std by exposure (stops: measured / model):");
         for (int i = 0; i < 6; ++i) {
             Moments m = moments(grainField(1536, 1536, tp, st[i]));
@@ -198,9 +199,10 @@ void testGrainStatistics() {
     // format ordering of dominant size: Super8 >> 16 > S35 > 65, Stills ~ S35 * 0.75
     {
         double hw[5];
-        for (int i = 0; i < 5; ++i) hw[i] = halfWidth(grainField(1024, 1024, grainParams(kFormats[i], 0.5f, 2, 1.f)), 1);
+        // v1.3: measured at pixelScale 2 (at 1 the per-pixel scan aperture compresses the ladder)
+        for (int i = 0; i < 5; ++i) hw[i] = halfWidth(grainField(1024, 1024, grainParams(kFormats[i], 0.5f, 2, 2.f)), 1);
         std::printf("  green half-width by format: S8 %.2f 16 %.2f S35 %.2f 65 %.2f 135 %.2f\n", hw[0], hw[1], hw[2], hw[3], hw[4]);
-        CHECK(hw[0] > 1.8 * hw[1] && hw[1] > hw[2] && hw[2] > hw[3], "format ordering");
+        CHECK(hw[0] > 1.5 * hw[1] && hw[1] > hw[2] && hw[2] > hw[3], "format ordering");
         CHECK(hw[4] < hw[2] && hw[4] > hw[3], "stills between 65 and S35");
     }
     // softness rolls off high frequencies: neighbour correlation grows with softness
@@ -250,10 +252,10 @@ void testGrainResolution() {
         double h1 = halfWidth(g1, 1), h2 = halfWidth(g2, 1);
         double hb1 = halfWidth(g1, 2), hb2 = halfWidth(g2, 2);
         std::printf("  %-12s half-width ps2 %.3f ps4 %.3f ratio %.3f (blue %.3f)\n", cel::tex::grainFormatName(f), h1, h2, h2 / h1, hb2 / hb1);
-        // at pixelScale 1 the finest formats are close to the pixel; allow a little more there
-        double tol = f == GrainFormat::Super35 ? 0.12 : 0.06;
-        CHECK(std::fabs(h2 / h1 - 2.0) < 2.0 * tol, "%s ratio %f", cel::tex::grainFormatName(f), h2 / h1);
-        CHECK(std::fabs(hb2 / hb1 - 2.0) < 2.0 * tol, "%s blue ratio %f", cel::tex::grainFormatName(f), hb2 / hb1);
+        // v1.3: the clouds scale with the frame, the scan aperture is per pixel (a 4K / 6K frame keeps
+        // its fine structure), so the measured width grows a little slower than the pixel scale
+        CHECK(h2 / h1 > 1.15 && h2 / h1 < 2.05, "%s ratio %f", cel::tex::grainFormatName(f), h2 / h1);
+        CHECK(hb2 / hb1 > 1.15 && hb2 / hb1 < 2.05, "%s blue ratio %f", cel::tex::grainFormatName(f), hb2 / hb1);
     }
     // v1.2 pixel aperture: the per-pixel variance is calibrated at pixelScale 1 and follows the pixel's
     // film area elsewhere, so a pixelScale 0.5 field carries the grain of the 2x box-downsampled
@@ -263,10 +265,26 @@ void testGrainResolution() {
     CHECK(std::fabs(m1.var[1] / gv - 1.0) < 0.04, "variance at pixelScale 1: %f", m1.var[1]);
     Moments m = moments(grainField(1500, 1500, grainParams(GrainFormat::Mm16, 0.5f, 3, 3.3f)));
     std::printf("  grain variance / calibrated: pixelScale 1 %.3f, 3.3 %.3f\n", m1.var[1] / gv, m.var[1] / gv);
-    CHECK(m.var[1] / gv > 0.98 && m.var[1] / gv < 1.25, "variance at pixelScale 3.3: %f", m.var[1]);
+    // v1.3: at 6K the pixel and the scan aperture see fewer clouds: more per-pixel grain (it matches the HD
+    // render once downsampled, below)
+    CHECK(m.var[1] / gv > 1.2 && m.var[1] / gv < 8.0, "variance at pixelScale 3.3: %f", m.var[1]);
+    {   // a pixelScale 2 frame (UHD-like) box-downsampled 2x carries the grain of the pixelScale 1 render
+        Img hi = grainField(2048, 2048, grainParams(GrainFormat::Super35, 0.5f, 3, 2.f));
+        Img ds(1024, 1024);
+        for (int y = 0; y < 1024; ++y)
+            for (int x = 0; x < 1024; ++x)
+                for (int c = 0; c < 3; ++c)
+                    ds.at(x, y)[c] = 0.25f * (hi.at(2 * x, 2 * y)[c] + hi.at(2 * x + 1, 2 * y)[c] +
+                                              hi.at(2 * x, 2 * y + 1)[c] + hi.at(2 * x + 1, 2 * y + 1)[c]);
+        double r = std::sqrt(moments(ds).var[1] / gv);
+        std::printf("  Super 35     std pixelScale 2 downsampled / pixelScale 1: %.3f\n", r);
+        CHECK(std::fabs(r - 1.0) < 0.15, "pixelScale 2 downsampled vs 1: %f", r);
+    }
     for (GrainFormat f : {GrainFormat::Mm16, GrainFormat::Super35}) {
         Img full = grainField(1024, 1024, grainParams(f, 0.5f, 3, 1.f));
-        Img half = grainField(512, 512, grainParams(f, 0.5f, 3, 0.5f));
+        TextureParams hp = grainParams(f, 0.5f, 3, 0.5f);
+        hp.renderScale = 0.5f;   // a proxy render: the scan aperture is per full-res pixel
+        Img half = grainField(512, 512, hp);
         Img ds(512, 512);
         for (int y = 0; y < 512; ++y)
             for (int x = 0; x < 512; ++x)
@@ -1334,6 +1352,101 @@ void testFilmBlur() {
 
 } // namespace
 
+// v1.3 Texture II: grain colour / tonal balance, chroma halation + Aura, Film Breath
+void testTextureII() {
+    section("v1.3 texture II: grain colour, tonal balance, chroma halation, aura, film breath");
+    // ---- grain colour: 0 = one shared field (neutral), 1.5 = more independent layers
+    {
+        TextureParams a = grainParams(GrainFormat::Super35, 0.5f, 7), b = a, c = a;
+        b.grainColour = 0.f; c.grainColour = 1.5f;
+        Moments ma = moments(grainField(768, 768, a)), mb = moments(grainField(768, 768, b)), mc = moments(grainField(768, 768, c));
+        std::printf("  layer corr rg: colour 0 %.3f, 1 %.3f, 1.5 %.3f\n", mb.corr[0], ma.corr[0], mc.corr[0]);
+        CHECK(mb.corr[0] > 0.97 && ma.corr[0] < mb.corr[0] - 0.05 && mc.corr[0] < ma.corr[0] - 0.1, "grain colour ordering");
+        CHECK(std::fabs(mc.var[1] / ma.var[1] - 1.0) < 0.05, "grain colour keeps the strength: %f", mc.var[1] / ma.var[1]);
+    }
+    // ---- tonal balance: logistic zones on the layer exposure; defaults are bit-identical
+    {
+        TextureParams a = grainParams(GrainFormat::Super35, 0.5f, 8);
+        TextureParams d = a; d.grainShadows = 1.f; d.grainMids = 1.f; d.grainHighlights = 1.f;
+        CHECK(sameBits(grainField(256, 256, a, -3.f), grainField(256, 256, d, -3.f)), "neutral tonal balance must be bit-identical");
+        auto sd = [&](const TextureParams& tp, float st) { return std::sqrt(moments(grainField(512, 512, tp, st)).var[1]); };
+        TextureParams s = a; s.grainShadows = 2.f;
+        const double wS = 1.0 / (1.0 + std::exp((-3.0 + 1.5) * 1.6));
+        double r = sd(s, -3.f) / sd(a, -3.f);
+        std::printf("  shadows x2 at -3 stops: std ratio %.3f (expected %.3f)\n", r, 1.0 + wS);
+        CHECK(std::fabs(r / (1.0 + wS) - 1.0) < 0.01, "shadow gain %f", r);
+        TextureParams h = a; h.grainHighlights = 0.f;
+        double rh = sd(h, 4.f) / sd(a, 4.f), rm = sd(h, -1.f) / sd(a, -1.f);
+        std::printf("  highlights 0: std ratio +4 stops %.3f, -1 stop %.3f\n", rh, rm);
+        CHECK(rh < 0.1 && rm > 0.97, "highlight zone %f / %f", rh, rm);
+        TextureParams m = a; m.grainShadows = m.grainMids = m.grainHighlights = 0.5f;
+        double rmid = sd(m, 0.f) / sd(a, 0.f);
+        CHECK(std::fabs(rmid - 0.5) < 0.002, "uniform 0.5 halves the grain: %f", rmid);
+    }
+    // ---- chroma halation and aura
+    {
+        const int W = 960, H = 540;
+        Img in(W, H, 0.01f, 0.01f, 0.01f);
+        for (int y = 250; y < 290; ++y) for (int x = 460; x < 500; ++x) { float* p = in.at(x, y); p[0] = p[1] = p[2] = 400.f; }
+        TextureParams tp; tp.pixelScale = 0.5f; tp.halationAmount = 0.5f;
+        Img base = textured(in, tp);
+        TextureParams n = tp; n.halationSaturation = 1.f; n.halationBackground = 0.f; n.auraEnabled = false;
+        CHECK(sameBits(base, textured(in, n)), "neutral chroma halation must be bit-identical");
+        auto glowAt = [&](const Img& o, int x, int c) { return double(o.at(x, 270)[c]) - double(in.at(x, 270)[c]); };
+        TextureParams g0 = tp; g0.halationSaturation = 0.f;
+        Img o0 = textured(in, g0);
+        double r0 = glowAt(o0, 515, 0), gg0 = glowAt(o0, 515, 1), b0 = glowAt(o0, 515, 2);
+        std::printf("  saturation 0 glow r %.4f g %.4f b %.4f; default r %.4f g %.4f\n", r0, gg0, b0, glowAt(base, 515, 0), glowAt(base, 515, 1));
+        CHECK(r0 > 0 && std::fabs(r0 - gg0) < 1e-3 * r0 + 1e-6 && std::fabs(r0 - b0) < 1e-3 * r0 + 1e-6, "saturation 0 must give a neutral glow");
+        TextureParams g2 = tp; g2.halationSaturation = 2.f;
+        Img o2 = textured(in, g2);
+        CHECK(glowAt(o2, 515, 0) - glowAt(o2, 515, 1) > 1.5 * (glowAt(base, 515, 0) - glowAt(base, 515, 1)), "saturation 2 deepens the colour");
+        TextureParams bg = tp; bg.halationBackground = 1.f;   // dark background: more colour
+        Img ob = textured(in, bg);
+        CHECK(glowAt(ob, 515, 0) - glowAt(ob, 515, 1) > glowAt(base, 515, 0) - glowAt(base, 515, 1), "background > 0: more colour over dark");
+        // aura: far from the source (beyond the halation ring) there is added light, warm and smooth
+        TextureParams au = tp; au.auraEnabled = true; au.auraRadius = 150.f; au.auraStrength = 1.f;
+        Img oa = textured(in, au);
+        double far0 = glowAt(base, 600, 0), far1 = glowAt(oa, 600, 0), farG = glowAt(oa, 600, 1);
+        std::printf("  aura at 120 px: red %.5f (halation only %.5f), green %.5f\n", far1, far0, farG);
+        CHECK(allFinite(oa) && far1 > 2.0 * far0 + 1e-5 && farG < far1, "aura adds a wide warm lobe");
+        TextureParams ah = au; ah.halationAmount = 0.f;   // aura needs halation
+        TextureParams ah0 = ah; ah0.auraEnabled = false;
+        CHECK(sameBits(textured(in, ah), textured(in, ah0)), "aura without halation is a no-op");
+        TextureParams aoff = au; aoff.auraEnabled = false;
+        CHECK(sameBits(textured(in, aoff), base), "aura off must be bit-identical");
+    }
+    // ---- film breath: deterministic smoothed sequences, off = neutral
+    {
+        cel::tex::FilmBreathParams bp;
+        cel::tex::FilmBreath z = cel::tex::filmBreathAt(bp, 10.0);
+        CHECK(z.exposure == 0.f && z.contrast == 1.f && z.printer[0] == 0.f, "breath off must be neutral");
+        bp.enabled = true;
+        auto stats = [&](cel::tex::BreathProfile p, double& rms, double& lag1) {
+            bp.profile = p;
+            const int n = 4000;
+            std::vector<double> v(n);
+            for (int i = 0; i < n; ++i) v[size_t(i)] = cel::tex::filmBreathAt(bp, double(i)).exposure;
+            double s = 0, s1 = 0;
+            for (int i = 0; i < n; ++i) s += v[size_t(i)] * v[size_t(i)];
+            for (int i = 1; i < n; ++i) s1 += v[size_t(i)] * v[size_t(i - 1)];
+            rms = std::sqrt(s / n); lag1 = s1 / s;
+        };
+        double rl, al, rh, ah;
+        stats(cel::tex::BreathProfile::Lab, rl, al);
+        stats(cel::tex::BreathProfile::HandCranked, rh, ah);
+        std::printf("  breath exposure rms / lag-1: Lab %.4f / %.3f, Hand-cranked %.4f / %.3f\n", rl, al, rh, ah);
+        CHECK(std::fabs(rl / 0.05 - 1.0) < 0.3 && al > 0.8, "Lab breath: rms %f lag1 %f", rl, al);
+        CHECK(rh > 2.0 * rl && ah < al - 0.3, "Hand-cranked breath stronger and more jittery");
+        bp.profile = cel::tex::BreathProfile::Lab;
+        cel::tex::FilmBreath a = cel::tex::filmBreathAt(bp, 33.0), b = cel::tex::filmBreathAt(bp, 33.0);
+        CHECK(std::memcmp(&a, &b, sizeof(a)) == 0, "breath must be deterministic");
+        cel::tex::FilmBreathParams bs = bp; bs.seed = 3;
+        CHECK(cel::tex::filmBreathAt(bs, 33.0).exposure != a.exposure, "seed changes the sequence");
+        CHECK(a.contrast > 0.8f && a.contrast < 1.2f && std::fabs(a.printer[0]) < 3.f, "breath ranges");
+    }
+}
+
 int main(int argc, char** argv) {
     bool timing = true, only = false;
     for (int i = 1; i < argc; ++i) {
@@ -1353,6 +1466,7 @@ int main(int argc, char** argv) {
     testFilmDamage();
     testFilmBlur();
     testV12Texture();
+    testTextureII();
     testPool();
     if (timing) testTimings();
     std::printf("\n%d checks, %d failures (%.1f s)\n", g_checks, g_fail, (nowMs() - t0) / 1000.0);

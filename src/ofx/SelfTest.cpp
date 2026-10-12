@@ -130,6 +130,21 @@ int main() {
         {"latitudeReconstruct", "groupHighlightLatitude", 0, 1, 1},
         {"latitudeDesaturate", "groupHighlightLatitude", 0, 1, 0.3},
         {"latitudeClip", "groupHighlightLatitude", 0.6, 1, 0.854},
+        // v1.3 Texture II (neutral defaults: existing projects render unchanged, except the grain structure)
+        {"grainColour", "groupGrain", 0, 1.5, 1},
+        {"grainShadows", "groupGrain", 0, 2, 1},
+        {"grainMids", "groupGrain", 0, 2, 1},
+        {"grainHighlights", "groupGrain", 0, 2, 1},
+        {"halationSaturation", "groupHalation", 0, 2, 1},
+        {"halationBackground", "groupHalation", -1, 1, 0},
+        {"auraRadius", "groupHalation", 40, 400, 150},
+        {"auraStrength", "groupHalation", 0, 2, 0.5},
+        {"auraGreen", "groupHalation", 0, 1, 0.35},
+        {"breathExposure", "groupFilmBreath", 0, 0.5, 0.05},
+        {"breathDevelopment", "groupFilmBreath", 0, 0.3, 0.03},
+        {"breathPrinter", "groupFilmBreath", 0, 3, 0.5},
+        {"breathPeriod", "groupFilmBreath", 4, 240, 24},
+        {"breathSeed", "groupFilmBreath", 0, 9999, 0},
     };
     for (const Spec& s : spec) {
         const ParamDef* d = findParam(s.id);
@@ -177,9 +192,13 @@ int main() {
         {"exposureEnable", "groupInput", true, false, {"exposure"}},
         {"developmentEnable", "groupNegative", true, true, {"pushPull", "interlayer", "negBleach", "neutralize"}},
         {"printEnable", "groupPrint", true, true, {"printerR", "printerG", "printerB", "printExposure", "printBleach"}},
-        {"halationEnable", "groupHalation", true, true, {"halationAmount", "halationRadius", "halationThreshold", "halationHue"}},
+        {"halationEnable", "groupHalation", true, true, {"halationAmount", "halationRadius", "halationThreshold", "halationHue",
+                                                         "halationSaturation", "halationBackground", "auraEnable"}},
+        // v1.3 Aura: sub-module of halation, OFF by default
+        {"auraEnable", "groupHalation", false, true, {"auraRadius", "auraStrength", "auraGreen"}},
         {"bloomEnable", "groupBloom", true, true, {"bloomAmount", "bloomRadius"}},
-        {"grainEnable", "groupGrain", true, true, {"grainAmount", "grainSize", "grainSoftness", "grainAnimated", "grainSeed"}},
+        {"grainEnable", "groupGrain", true, true, {"grainAmount", "grainSize", "grainSoftness", "grainAnimated", "grainSeed",
+                                                   "grainColour", "grainShadows", "grainMids", "grainHighlights"}},
         {"acutanceEnable", "groupLensGate", true, true, {"acutanceAmount", "acutanceRadius"}},
         // v1.2: film resolution (negative MTF + print/scan system); grainFormat moved to the Look
         // group as "Gauge" (it scales grain, halation and acutance), so no switch owns it
@@ -202,6 +221,9 @@ int main() {
         // v1.3 Highlight Latitude: new module, OFF by default, a camera setting (not part of looks)
         {"latitudeEnable", "groupHighlightLatitude", false, false, {"latitudeStops", "latitudeSoftness", "latitudeReconstruct",
                                                                    "latitudeDesaturate", "latitudeClip"}},
+        // v1.3 Film Breath: new module, OFF by default
+        {"breathEnable", "groupFilmBreath", false, true, {"breathProfile", "breathExposure", "breathDevelopment", "breathPrinter",
+                                                         "breathPeriod", "breathSeed"}},
     };
     auto position = [&](const std::string& pid) {
         for (size_t i = 0; i < defs.size(); ++i)
@@ -232,6 +254,7 @@ int main() {
     check(count("mode") == int(core::Mode::Count), "mode options != Mode::Count");
     check(count("process") == int(core::Process::Count), "process options != Process::Count");
     check(count("grainFormat") == int(tex::GrainFormat::Count), "grainFormat options != GrainFormat::Count");
+    check(count("breathProfile") == int(tex::BreathProfile::Count), "breathProfile options != BreathProfile::Count");
     check(count("negStock") == int(core::negativeStocks().size()), "negStock options != negativeStocks()");
     check(count("printStock") == int(core::printStockNames().size()), "printStock options != printStockNames()");
     check(count("lookPreset") == int(lookPresets().size()) + 1, "lookPreset options != presets + Custom");
