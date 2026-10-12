@@ -561,6 +561,89 @@ WeaveOffset weaveOffset(double time, float amount, float speed) {
     return o;
 }
 
+// Beyond Filmbox I: weave styles. Projector = the weave above (bit-identical). Camera (pin-registered): the
+// registration pins hold the frame, so only a small, mostly frame-to-frame jitter is left. Telecine (capstan
+// float): no pins at all - a slow, smooth float with a larger sideways and rotational share and almost no jitter.
+WeaveOffset weaveOffset(double time, float amount, float speed, int style) {
+    if (style != int(WeaveStyle::Camera) && style != int(WeaveStyle::Telecine)) return weaveOffset(time, amount, speed);
+    WeaveOffset o;
+    if (!std::isfinite(time) || !std::isfinite(amount) || !(amount > 0.f)) return o;
+    const bool cam = style == int(WeaveStyle::Camera);
+    double sp = std::isfinite(speed) ? std::min(8.0, std::max(0.05, double(speed))) : 1.0;
+    double u = time * sp * (cam ? 1.0 : 0.4);
+    const double P[3] = {41.3, 17.9, 7.37}, A[3] = {0.50, 0.35, 0.20};
+    const double Q[2] = {13.0, 4.6}, B[2] = {0.60, 0.35};
+    double var = 0.0;
+    for (int i = 0; i < 3; ++i) var += 0.5 * A[i] * A[i];
+    for (int i = 0; i < 2; ++i) var += B[i] * B[i];
+    const double jit = cam ? 1.6 : 0.05;
+    double frame = std::floor(time + 0.5);
+    frame = std::max(-2.0e9, std::min(2.0e9, frame));
+    auto axis = [&](uint32_t seed) {
+        double v = 0.0;
+        for (int i = 0; i < 3; ++i) v += A[i] * std::sin(2.0 * kPi * (u / P[i] + hash01(seed + uint32_t(i))));
+        for (int i = 0; i < 2; ++i) v += B[i] * smoothNoise(u / Q[i], hashU32(seed + 17u + uint32_t(i)));
+        v /= std::sqrt(var);
+        v += jit * hashGauss(hashU32(uint32_t(int32_t(frame)) ^ (seed * 0x27d4eb2dU)));
+        return v / std::sqrt(1.0 + jit * jit);
+    };
+    double am = std::min(4.0, double(amount));
+    o.dy = (cam ? 0.22 : 0.50) * am * axis(cam ? 0x5bd1e995U : 0x68e31da4U);
+    o.dx = (cam ? 0.12 : 0.55) * am * axis(cam ? 0x1b56c4e9U : 0xb5297a4dU);
+    o.rot = (cam ? 0.2e-4 : 2.5e-4) * am * axis(cam ? 0x85ebca6bU : 0xc2b2ae35U);
+    return o;
+}
+
+// ---- film gate (Beyond Filmbox I) -------------------------------------------------------------------
+// OFX choice order (append only): Full Frame (the frame's own aspect), 1.33 Academy, 1.66, 1.85, 2.39, 1.43 IMAX,
+// Super 16 (1.66), 1.78
+const float kGateAspects[kGateAspectCount] = {0.f, 1.3333f, 1.66f, 1.85f, 2.39f, 1.43f, 1.66f, 1.7778f};
+
+GateDesign designGate(const TextureParams& tp, int w, int h, float ps) {
+    GateDesign g;
+    if (!tp.gateEnabled || w < 1 || h < 1) return g;
+    auto fin = [](float v, float lo, float hi, float def) { return std::isfinite(v) ? std::min(hi, std::max(lo, v)) : def; };
+    const int ai = std::min(std::max(tp.gateAspect, 0), kGateAspectCount - 1);
+    const double m = double(fin(tp.gateOverscan, 0.f, 0.15f, 0.03f)) * h;
+    const double aw = std::max(1.0, w - 2.0 * m), ah = std::max(1.0, h - 2.0 * m);
+    double hw = 0.5 * aw, hh = 0.5 * ah;
+    if (ai > 0) {
+        const double A = kGateAspects[ai];
+        if (A >= aw / ah) hh = hw / A; else hw = hh * A;
+    }
+    const double s16 = ai == 6 ? 0.6 : 1.0;   // the smaller gauge's aperture has proportionally tighter corners
+    const double r = std::min(std::min(hw, hh), double(fin(tp.gateCorner, 0.f, 80.f, 14.f)) * ps * s16);
+    float* f = g.f;
+    f[0] = 0.5f * float(w); f[1] = 0.5f * float(h);
+    f[2] = float(hw); f[3] = float(hh); f[4] = float(r);
+    f[5] = float(std::max(0.6, double(fin(tp.gateSoftness, 0.f, 20.f, 2.f)) * ps));
+    f[6] = kGateRebateDensity;
+    if (tp.gateHair) {
+        // a hair caught at the aperture: rooted in the rebate just outside one edge, curving into the picture
+        const uint32_t sd = hashU32(uint32_t(std::max(tp.gateHairSeed, 0)) * 0x9e3779b9U ^ 0x2545f491U);
+        const int side = int(hashU32(sd) & 3U);
+        const double t = 0.15 + 0.7 * hash01(sd + 1u), len = (0.05 + 0.06 * hash01(sd + 2u)) * h;
+        const double bend = (hash01(sd + 3u) - 0.5) * 0.9, wig = (hash01(sd + 4u) - 0.5) * 0.25;
+        double ex, ey, nx, ny;   // root on the gate edge, inward normal
+        switch (side) {
+            case 0: ex = f[0] - hw + 2.0 * hw * t; ey = f[1] - hh; nx = 0; ny = 1; break;
+            case 1: ex = f[0] + hw; ey = f[1] - hh + 2.0 * hh * t; nx = -1; ny = 0; break;
+            case 2: ex = f[0] - hw + 2.0 * hw * t; ey = f[1] + hh; nx = 0; ny = -1; break;
+            default: ex = f[0] - hw; ey = f[1] - hh + 2.0 * hh * t; nx = 1; ny = 0; break;
+        }
+        const double tx = -ny, ty = nx, out0 = 6.0 * ps;
+        for (int k = 0; k < 5; ++k) {
+            const double sk = k / 4.0, along = sk * len - out0;
+            const double side2 = len * (bend * sk * sk + wig * std::sin(3.0 * kPi * sk));
+            f[8 + 2 * k] = float(ex + nx * along + tx * side2);
+            f[9 + 2 * k] = float(ey + ny * along + ty * side2);
+        }
+        f[7] = float(std::max(0.35, 0.9 * ps));
+    }
+    g.on = true;
+    return g;
+}
+
 // ---- Film Breath (v1.3) -------------------------------------------------------------------------------
 // Each profile: period scale, share of the per-frame (white) jitter in the variance, and the size of the
 // exposure / development / printer variation per unit Amount.

@@ -19,3 +19,4 @@ CEL_KERNEL(tx_params)        /* parameter table (8 x 1) from f[]: hands a follow
 CEL_KERNEL(tx_damage)        /* film damage field: dust, scratches, hair (DamageKernels.h; read by color / display_finish as in3) */
 CEL_KERNEL(tx_hb_prefilter_down) /* v1.2 fusion: glow source + 2x downsample (tx_hb_prefilter -> tx_pyr_down in one pass) */
 CEL_KERNEL(tx_diag)          /* v1.3 diagnostic views: module contribution (with vs without), halation mask, wipe */
+CEL_KERNEL(tx_gate)          /* Beyond Filmbox I: film gate (frame line, rounded corners, soft edge, gate hair): camera mask / printer-gate density / mask view */

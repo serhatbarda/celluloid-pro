@@ -269,6 +269,36 @@ constexpr const char* acutanceShow = "acutanceShow";
 constexpr const char* textureDiffShow = "textureDiffShow";      // [Output]
 constexpr const char* diagWipe = "diagWipe";                    // [Output]
 constexpr const char* diagWipePosition = "diagWipePosition";    // [Output]
+// ---- Beyond Filmbox I: colour timer [Print], film gate [Film Gate], weave styles / mechanical vignette [Lens & Gate]
+constexpr const char* colourHeadEnable = "colourHeadEnable";
+constexpr const char* headCyan = "headCyan";
+constexpr const char* headMagenta = "headMagenta";
+constexpr const char* headYellow = "headYellow";
+constexpr const char* headPreserve = "headPreserve";
+constexpr const char* printLights = "printLights";              // read-only label (lab printer lights)
+constexpr const char* printEndsEnable = "printEndsEnable";
+constexpr const char* printBlack = "printBlack";
+constexpr const char* printWhite = "printWhite";
+constexpr const char* printDefog = "printDefog";
+constexpr const char* printToneEnable = "printToneEnable";
+constexpr const char* toneShadowHue = "toneShadowHue";
+constexpr const char* toneShadowAmount = "toneShadowAmount";
+constexpr const char* toneHighlightHue = "toneHighlightHue";
+constexpr const char* toneHighlightAmount = "toneHighlightAmount";
+constexpr const char* gFilmGate = "groupFilmGate";
+constexpr const char* gateEnable = "gateEnable";
+constexpr const char* gateAspect = "gateAspect";                // append only (tex::kGateAspects)
+constexpr const char* gateSource = "gateSource";                // append only (tex::GateSource)
+constexpr const char* gateOverscan = "gateOverscan";
+constexpr const char* gateCorner = "gateCorner";
+constexpr const char* gateSoftness = "gateSoftness";
+constexpr const char* gateHair = "gateHair";
+constexpr const char* gateHairSeed = "gateHairSeed";
+constexpr const char* gateShow = "gateShow";                    // diagnostic view
+constexpr const char* weaveStyle = "weaveStyle";                // append only (tex::WeaveStyle)
+constexpr const char* vignetteMechanical = "vignetteMechanical";
+constexpr const char* vignetteMechSize = "vignetteMechSize";
+constexpr const char* vignetteMechSoftness = "vignetteMechSoftness";
 } // namespace id
 
 // v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are
@@ -279,7 +309,8 @@ enum class StageChoice : int { Full = 0, NegativeLogScan, NegativeToScene, Print
 // v1.3 diagnostic views: true for the Show / Before-After controls (never stored in presets).
 inline bool isDiagnosticViewParam(const std::string& p) {
     return p == id::halationShow || p == id::bloomShow || p == id::grainShow || p == id::filmResolutionShow ||
-           p == id::acutanceShow || p == id::textureDiffShow || p == id::diagWipe || p == id::diagWipePosition;
+           p == id::acutanceShow || p == id::textureDiffShow || p == id::diagWipe || p == id::diagWipePosition ||
+           p == id::gateShow;   // Beyond Filmbox I
 }
 
 // LUT sizes offered by lutSize, in option order.

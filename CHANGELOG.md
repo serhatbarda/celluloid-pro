@@ -95,6 +95,21 @@ unchanged in a newer one.
   while their module is off, the one furthest down the pipeline wins, never stored in presets nor in
   LUTs, and with every view off the render is unchanged and costs nothing. Manual: "Checking where
   effects apply".
+- **Beyond Filmbox I** (each module has its own switch; at the defaults projects render unchanged):
+  - **Colour timer** (Print group, Print process only). The **Colour Head** adds Cyan / Magenta / Yellow
+    dichroic filtration in CC units. It is computed through the printer lamp, the print stock's
+    sensitivities and the negative's dyes, with **Preserve Exposure**. **Print Black / Print White / De-Fog**
+    are density changes at the print's two ends. **Print Toning** adds a shadow and a highlight dye tone
+    (hue + amount). **Printer Lights** shows the lab printer lights (25-25-25 nominal, 1 point = 0.025 log E).
+  - **Film Gate** group: a camera gate (the unexposed rebate prints black, with grain and halation) or a
+    printer gate (clear print border). Aspects: Full Frame, 1.33, 1.66, 1.85, 2.39, 1.43 IMAX, Super 16,
+    1.78. It has Overscan, rounded Corners, a soft edge, an optional **Gate Hair** with a seed, and
+    **Show Gate Mask**.
+  - **Weave Style** (Projector / Camera (Pin-Registered) / Telecine (Float)) and a **Mechanical Vignette**
+    (Amount, Size, Softness) on top of the lens's cos^4 fall-off (Lens & Gate).
+  - Seven look presets appended: Theatrical 2383 Warm, Soft Telecine Scan, 500T Night Exterior, Scope
+    Bleach Bypass, 16mm Documentary, Faded Magenta Print, Sunlit 35mm Full Gate. CPU and GPU give the
+    same result.
 
 ### Fixed
 

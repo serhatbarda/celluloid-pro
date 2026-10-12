@@ -588,11 +588,20 @@ CEL_DEVICE void cel_k_tx_hb_composite(CEL_KERNEL_PARAMS) {
 
 /* tx_vignette: out.rgb = in0.rgb * vignette (alpha kept).
  *   f[0] = amount (0..1)   f[1] = k = tan(field angle at the corner)   f[2], f[3] = optical centre
- *   f[4] = 1 / half diagonal (px) */
+ *   f[4] = 1 / half diagonal (px)
+ *   Beyond Filmbox I mechanical vignette (i[0] = 1): f[5] = amount (0..1), f[6] = start radius (x half diagonal),
+ *   f[7] = edge width (x half diagonal): x (1 - f[5] smoothstep(f[6] - f[7], f[6] + f[7], r)), r = distance to
+ *   the centre / half diagonal (a lens hood / matte box cutting the light cone) */
 CEL_DEVICE void cel_k_tx_vignette(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
     CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
     float vg = cel_txh_vig_factor(x, y, a->f[0], a->f[1], a->f[2], a->f[3], a->f[4]);
+    if (a->i[0] == 1) {
+        float dx = ((float)x + 0.5f - a->f[2]) * a->f[4], dy = ((float)y + 0.5f - a->f[3]) * a->f[4];
+        float r = cel_sqrt(dx * dx + dy * dy);
+        float t = cel_txh_clampf((r - (a->f[6] - a->f[7])) / (2.0f * a->f[7]), 0.0f, 1.0f);
+        vg *= 1.0f - a->f[5] * t * t * (3.0f - 2.0f * t);
+    }
     cel_store(out, a->outStride, x, y, cel_f4(v.x * vg, v.y * vg, v.z * vg, v.w));
 }
 
@@ -700,6 +709,64 @@ CEL_DEVICE void cel_k_tx_diag(CEL_KERNEL_PARAMS) {
             if (x == xb || x == xb - 1) o = cel_f4(1.0f, 1.0f, 1.0f, p.w);
             else if (x < xb) o = cel_f4(q.x, q.y, q.z, p.w);
         }
+    }
+    cel_store(out, a->outStride, x, y, o);
+}
+
+/* Beyond Filmbox I: film gate transmission at pixel (x, y): a rounded rectangle (signed distance d, < 0 inside)
+ * with a soft edge (smoothstep over +-f[5] px) times an optional gate hair (a 4-segment polyline of half width
+ * f[7] px, 1 px anti-aliasing, opacity 0.95). f[] as documented at tx_gate. */
+CEL_DEVICE CEL_TXH_INLINE float cel_txh_gate_mask(int x, int y, CEL_CONSTANT const CelPassArgs* a) {
+    float px = (float)x + 0.5f, py = (float)y + 0.5f;
+    float qx = cel_fabs(px - a->f[0]) - a->f[2] + a->f[4], qy = cel_fabs(py - a->f[1]) - a->f[3] + a->f[4];
+    float ox = cel_txh_max(qx, 0.0f), oy = cel_txh_max(qy, 0.0f);
+    float d = cel_sqrt(ox * ox + oy * oy) + cel_txh_min(cel_txh_max(qx, qy), 0.0f) - a->f[4];
+    float t = cel_txh_clampf(0.5f - 0.5f * d / a->f[5], 0.0f, 1.0f);
+    float m = t * t * (3.0f - 2.0f * t);
+    if (a->f[7] > 0.0f && m > 0.0f) {
+        float dm = CEL_TX_COORD_MAX;
+        for (int k = 0; k < 4; ++k) {
+            float ax = a->f[8 + 2 * k], ay = a->f[9 + 2 * k], bx = a->f[10 + 2 * k], by = a->f[11 + 2 * k];
+            float ex = bx - ax, ey = by - ay, wx = px - ax, wy = py - ay;
+            float h = cel_txh_clampf((wx * ex + wy * ey) / cel_txh_max(ex * ex + ey * ey, 1e-6f), 0.0f, 1.0f);
+            float rx = wx - ex * h, ry = wy - ey * h;
+            dm = cel_txh_min(dm, cel_sqrt(rx * rx + ry * ry));
+        }
+        float cov = cel_txh_clampf(a->f[7] + 0.5f - dm, 0.0f, 1.0f) * cel_txh_min(1.0f, 2.0f * a->f[7]);
+        m *= 1.0f - 0.95f * cov;
+    }
+    return m;
+}
+
+/* tx_gate (Beyond Filmbox I): the film gate (frame line) as a density event.
+ *   f[0], f[1] = gate centre (px)   f[2], f[3] = half width / height (px)   f[4] = corner radius (px, <= half size)
+ *   f[5] = edge half width (px, > 0)   f[6] = rebate density (mode 1)   f[7] = hair half width (px; 0 = no hair)
+ *   f[8 .. 17] = the hair's 5 polyline points (x, y px)
+ *   i[0] = 0: camera gate: out.rgb = in0.rgb * mask (scene light held back by the aperture: the negative stays
+ *             clear there, which prints black), alpha kept
+ *          1: printer gate: out = in0 (a damage field, when i[1] = 1, else 0) with x += the mean neutral density of
+ *             a pixel a share (1 - mask) of which is covered by density f[6] (an unexposed print border = clear)
+ *          2: diagnostic: out = (mask, mask, mask, in0.w or 1)
+ *   i[1] = 1: in0 present (modes 1 and 2) */
+CEL_DEVICE void cel_k_tx_gate(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    float m = cel_txh_gate_mask(x, y, a);
+    int mode = a->i[0];
+    CelF4 v = cel_f4(0.0f, 0.0f, 0.0f, 1.0f);
+    if (mode == 0 || a->i[1] != 0) v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+    CelF4 o;
+    if (mode == 0) {
+        o = cel_f4(v.x * m, v.y * m, v.z * m, v.w);
+    } else if (mode == 1) {
+        if (a->i[1] == 0) v = cel_f4(0.0f, 0.0f, 0.0f, 0.0f);
+        float cov = 1.0f - m, nd = 0.0f;
+        if (cov > 0.0f) {
+            float tr = 1.0f - cov * (1.0f - cel_exp2(-3.32192809f * a->f[6]));
+            nd = -0.30102999f * cel_log2(cel_txh_max(tr, 1e-6f));
+        }
+        o = cel_f4(v.x + nd, v.y, v.z, v.w);
+    } else {
+        o = cel_f4(m, m, m, a->i[1] != 0 ? v.w : 1.0f);
     }
     cel_store(out, a->outStride, x, y, o);
 }

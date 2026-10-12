@@ -119,7 +119,25 @@ struct TextureParams {
     // of the whole effect at that fraction of the width (0 = off)
     int   diagView           = 0;
     float diagWipe           = 0.f;
+    // ---- Beyond Filmbox I (appended): film gate, weave style, mechanical vignette; defaults = as before
+    bool  gateEnabled        = false;
+    int   gateAspect         = 0;     // index into tex::kGateAspects (0 = Full Frame)
+    int   gateSource         = 0;     // GateSource
+    float gateOverscan       = 0.03f; // inset of the gate on every side, share of the frame height
+    float gateCorner         = 14.f;  // px @1920
+    float gateSoftness       = 2.f;   // px @1920
+    bool  gateHair           = false;
+    int   gateHairSeed       = 1;
+    int   weaveStyle         = 0;     // WeaveStyle
+    float vignetteMech       = 0.f;   // 0 .. 1 mechanical vignette (0 = off)
+    float vignetteMechSize   = 1.f;   // 0.5 .. 1.5 x half diagonal
+    float vignetteMechSoft   = 0.35f; // 0.05 .. 1
 };
+
+// Beyond Filmbox I: which gate makes the frame line (OFX choice order, append only)
+enum class GateSource : int { Camera = 0, Printer, Count };
+// Beyond Filmbox I: kinds of gate weave (OFX choice order, append only); Projector = the v1.0 weave
+enum class WeaveStyle : int { Projector = 0, Camera, Telecine, Count };
 
 // ORDER = the plug-in's priority list, not an OFX choice (the "Show" controls of each module map to it)
 enum class DiagView : int {
@@ -131,6 +149,7 @@ enum class DiagView : int {
     BloomOnly,        // where the bloom / diffusion filter brightens (shadow lift) or takes light, in stops
     GrainOnly,        // the grain the colour pass adds, around mid grey
     TextureDiff,      // final picture minus the texture-off picture, amplified, around mid grey
+    GateMask,         // Beyond Filmbox I: the film gate's transmission (white = picture)
     Count
 };
 

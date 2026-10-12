@@ -26,7 +26,10 @@
 //             for every used level from coarse to fine: tx_blur4 h, v -> tx_pyr_up_add
 //             (accumulates B-spline upsampled coarser result + weighted level) -> tx_up_v
 //             -> tx_hb_composite
-//   vignette  fused into tx_hb_composite when the glow runs, else tx_vignette(full)
+//   vignette  fused into tx_hb_composite when the glow runs, else tx_vignette(full); a mechanical vignette
+//             (Beyond Filmbox I) always runs stand-alone tx_vignette (with the cos^4 part)
+//   gate      Beyond Filmbox I: camera gate tx_gate(full) on the decoded image BEFORE the weave; printer gate
+//             tx_gate(damage field or nothing) -> the colour pass's in3 (an unexposed, clear print border)
 //   grain     per emulsion (coarse = fast, fine = slow; own grid spacing D >= 1 px):
 //             tx_blur4 h (white noise generated on the fly) -> tx_blur4 v [-> tx_up_v]; the colour pass
 //             samples both grids (GrainKernels.h). buildGrainPlan adds tx_grain_finish (diagnostic field).
@@ -223,6 +226,25 @@ bool sharpRemovalOn(const tex::TextureParams& tp, float ps) {
     return std::isfinite(tp.sharpenRemoval) && tp.sharpenRemoval > 1e-4f && tex::kSharpRemovalSigma1920 * ps >= 0.25;
 }
 bool vigOn(const tex::TextureParams& tp) { return finitePos(tp.vignette); }
+bool mechVigOn(const tex::TextureParams& tp) { return finitePos(tp.vignetteMech); }   // Beyond Filmbox I
+// Beyond Filmbox I film gate: the camera gate masks the scene light first (before the weave, so the frame line
+// weaves with the picture and halates / grains like it); the printer gate is a density in the damage field
+bool cameraGateOn(const tex::TextureParams& tp) { return tp.gateEnabled && tp.gateSource != int(tex::GateSource::Printer); }
+bool printerGateOn(const tex::TextureParams& tp) { return tp.gateEnabled && tp.gateSource == int(tex::GateSource::Printer); }
+void setGateArgs(PassDesc& p, const tex::GateDesign& gd, int mode, bool hasIn) {
+    for (int k = 0; k < 24; ++k) p.args.f[k] = gd.f[k];
+    p.args.i[0] = mode;
+    p.args.i[1] = hasIn ? 1 : 0;
+}
+// printer gate: the damage field (or a new one) with the unexposed print border's density added
+int addPrinterGate(Builder& B, int damage, const tex::TextureParams& tp, int w, int h, float ps) {
+    if (!printerGateOn(tp)) return damage;
+    const tex::GateDesign gd = tex::designGate(tp, w, h, ps);
+    if (!gd.on) return damage;
+    const int o = B.buffer(w, h);
+    setGateArgs(damage >= 0 ? B.pass(KID_tx_gate, o, {damage}) : B.pass(KID_tx_gate, o, {}), gd, 1, damage >= 0);
+    return o;
+}
 bool auraOn(const tex::TextureParams& tp) { return tp.auraEnabled && finitePos(tp.auraStrength); }
 
 // Image texture chain; returns the buffer holding the result (== img when nothing is on).
@@ -234,9 +256,18 @@ void setToneMap(float* f, const tex::ToneMap& tm) {
 int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, bool hdr, int w, int h, float ps) {
     int cur = img;
     const tex::ToneMap tm = tex::toneMap(!hdr);
+    // ---- Beyond Filmbox I: camera gate (the aperture holds back the scene light; the clear negative prints black)
+    if (cameraGateOn(tp)) {
+        const tex::GateDesign gd = tex::designGate(tp, w, h, ps);
+        if (gd.on) {
+            int o = B.buffer(w, h);
+            setGateArgs(B.pass(KID_tx_gate, o, {cur}), gd, 0, true);
+            cur = o;
+        }
+    }
     // ---- gate weave
     if (weaveOn(tp)) {
-        tex::WeaveOffset wo = tex::weaveOffset(tp.time, tp.weaveAmount, tp.weaveSpeed);
+        tex::WeaveOffset wo = tex::weaveOffset(tp.time, tp.weaveAmount, tp.weaveSpeed, tp.weaveStyle);
         int o = B.buffer(w, h);
         PassDesc& p = B.pass(KID_tx_weave, o, {cur});
         p.args.f[0] = float(wo.dx * ps);
@@ -429,7 +460,7 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
             f[5] = hl.threshold; f[6] = hl.knee; f[7] = hl.emax; f[8] = tex::kBloomBMax;
             f[9] = hl.srcW[0]; f[10] = hl.srcW[1]; f[11] = hl.srcW[2];
             f[12] = float(std::ldexp(1.0, -gd.finest));
-            if (vigOn(tp)) { setVignette(f + 13, tp.vignette, w, h); vigDone = true; }
+            if (vigOn(tp) && !mechVigOn(tp)) { setVignette(f + 13, tp.vignette, w, h); vigDone = true; }
             // setVignette writes f[13..17]: amount, k, cx, cy, 1/halfdiag
             setToneMap(f + 18, tm);
             f[24] = hal ? hl.chroma : 0.f; f[25] = hl.chromaRef;
@@ -462,9 +493,16 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
         cur = o;
     }
     // ---- vignette (stand-alone)
-    if (vigOn(tp) && !vigDone) {
+    if ((vigOn(tp) || mechVigOn(tp)) && !vigDone) {
         int o = B.buffer(w, h);
-        setVignette(B.pass(KID_tx_vignette, o, {cur}).args.f, tp.vignette, w, h);
+        PassDesc& p = B.pass(KID_tx_vignette, o, {cur});
+        setVignette(p.args.f, vigOn(tp) ? tp.vignette : 0.f, w, h);
+        if (mechVigOn(tp)) {   // Beyond Filmbox I mechanical vignette
+            p.args.i[0] = 1;
+            p.args.f[5] = std::min(1.f, tp.vignetteMech);
+            p.args.f[6] = std::isfinite(tp.vignetteMechSize) ? std::min(1.5f, std::max(0.5f, tp.vignetteMechSize)) : 1.f;
+            p.args.f[7] = std::isfinite(tp.vignetteMechSoft) ? std::min(1.f, std::max(0.05f, tp.vignetteMechSoft)) : 0.35f;
+        }
         cur = o;
     }
     return cur;
@@ -609,7 +647,7 @@ Plan buildDiagPlan(int w, int h, const FrameSettings& fs) {
     auto colour = [&](int img, bool withGrain, bool withDamage) {
         GrainGrids g;
         if (withGrain && grainOn(fs)) g = addGrain(B, tp, w, h, ps);
-        const int dmg = withDamage ? addDamage(B, tp, w, h, ps) : -1;
+        const int dmg = withDamage ? addPrinterGate(B, addDamage(B, tp, w, h, ps), tp, w, h, ps) : -1;
         int o = B.buffer(w, h);
         PassDesc& cp = B.pass(dr ? KID_display_finish : KID_color, o, {img, g.coarse, g.fine, dmg});
         if (g.coarse >= 0) {
@@ -663,6 +701,11 @@ Plan buildDiagPlan(int w, int h, const FrameSettings& fs) {
             mode = 2; gain = 4.f;
             break;
         }
+        case DiagView::GateMask: {          // Beyond Filmbox I: the gate's transmission, white = picture
+            dp = &B.pass(KID_tx_gate, out, {src});
+            setGateArgs(*dp, tex::designGate(tp, w, h, ps), 2, true);
+            break;
+        }
         case DiagView::TextureDiff:         // final minus the texture-off picture, x4
         default: {
             const int img = addImageTexture(B, src, tp, dr, hdr, w, h, ps);
@@ -706,7 +749,7 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
             B.pass(KID_display_decode, dl, {BUF_SRC});
             img = addImageTexture(B, dl, tp, true, hdrOutput(fs), w, h, ps);
             if (grainOn(fs)) grain = addGrain(B, tp, w, h, ps);
-            damage = addDamage(B, tp, w, h, ps);
+            damage = addPrinterGate(B, addDamage(B, tp, w, h, ps), tp, w, h, ps);
             colorK = KID_display_finish;
             break;
         }
@@ -717,6 +760,9 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
             img = addImageTexture(B, sc, tp, false, hdrOutput(fs), w, h, ps);
             if (grainOn(fs)) grain = addGrain(B, tp, w, h, ps);
             damage = addDamage(B, tp, w, h, ps);
+            // Beyond Filmbox I printer gate: a print exists only on the print path (not at the negative stage exits)
+            if (fs.look.stage != int(core::Stage::NegativeLogScan) && fs.look.stage != int(core::Stage::NegativeToScene))
+                damage = addPrinterGate(B, damage, tp, w, h, ps);
             break;
         }
     }

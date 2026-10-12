@@ -276,6 +276,13 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Soft Cinema* — ETERNA-style softness: low-contrast daylight negative on the matching Eterna-CP print - gentle contrast, restrained colour, open shadows and a quiet, slightly cool palette.
   - *Warm Print* — Classic release-print warmth: VISION3 250D printed on 2383 with Print Crossover - golden highlights, cool teal-leaning shadows, rich contrast. The character of a photochemical 2383 chain.
   - *Sunlit 35mm (soft scan)* — Sunlit 35 mm on a soft, low-contrast scan: a Soft-aim print with full Print Crossover, yellow-green mids, open lifted blacks from a light Black Pro-Mist veil plus halation, and a gentle film edge (digital sharpening removed, weak shadow acutance) that stays soft on dark scenes.
+  - *Theatrical 2383 Warm* — A warm theatrical release: VISION3 250D through the IP / IN release chain onto 2383, the colour head dialled warm with exposure preserved, gentle golden highlight toning, projector weave and lens fall-off.
+  - *Soft Telecine Scan* — A flat, gentle telecine transfer: VISION3 250D on the telecine render, lifted printed blacks and a held-back white, a light white Pro-Mist, softened film edge and the slow float of a capstan transport.
+  - *500T Night Exterior* — VISION3 500T pushed half a stop for night exteriors on Premier 2393: deep printed blacks, teal-toned shadows under warm practicals, strong halation, Super 35 grain and pin-registered camera weave.
+  - *Scope Bleach Bypass* — A 2.39 scope frame through the camera gate with a partial bleach bypass on 2383: retained silver, steely desaturated contrast, cool-toned shadows and a hard, crisp edge.
+  - *16mm Documentary* — Handheld Super 16 for documentary work: Eterna 250D on the modern print through the Super 16 camera gate, big lively 16 mm grain, a touch of camera weave and a lens with real mechanical vignetting.
+  - *Faded Magenta Print* — An old release print gone magenta: lifted printed blacks, a softened white, the cyan dye faded towards magenta-red in highlight and shadow, printer-gate clear border, projector weave and soft 35 mm grain.
+  - *Sunlit 35mm Full Gate* — The Sunlit 35mm look printed full gate and timed warmer: a warm colour head, lifted printed blacks and golden highlights, framed by the camera aperture's rounded rebate with a little overscan, a slow telecine float and the faint cos^4 fall-off of the taking lens.
 - **Preset Status** (`lookPresetStatus`; read-only; shows “Custom” until a preset is chosen) — Which look preset the current settings come from. "(modified)" means you have changed at least one look setting since applying it.
 - **Mode** (`mode`; default: Full)
   - *Full* — complete film emulation (colour + halation, bloom, grain, lens and gate effects).
@@ -417,6 +424,21 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Print Contrast** (`printContrast`; -1 … 1; default 0; keyframable) — Fine control of print development in the same units as Process Aim (added to it): + raises the print's gamma and D-max (more contrast, deeper blacks), - lowers them. Each layer reacts by its own development sensitivity (the bottom yellow layer most). Middle grey stays at the print's aim.
 - **Rendering** (`printRender`; default: Contact Print) — How the print is made and viewed. Contact Print: the camera negative printed directly (answer / show print). Release Print (IP / IN): the negative is duplicated twice on VISION Color Intermediate 2242 (interpositive, internegative) at the lab aims before printing - slightly softer toe and shoulder and a subtle colour shift, as in a theatrical release print. Telecine / Scan: the print scanned on a telecine; every layer is balanced between print D-min and D-max and the black is set just above D-max - neutral blacks and highlights.
   - Options: Contact Print · Release Print (IP / IN) · Telecine / Scan
+- **Enable Colour Head** (`colourHeadEnable`; default on) — Switches the Colour Head (Cyan / Magenta / Yellow filtration, Preserve Exposure) on or off without losing its values. Off = no extra filtration.
+- **Head Cyan** (`headCyan`; -60 … 60; default 0; keyframable) — Cyan filtration: holds back red printer light, so the print gets LESS cyan dye - the image turns more red. Negative values remove cyan from the pack (image more cyan). In CC (colour compensating units: 10 CC = 0.10 density) of an idealised dichroic filter in the printer's colour head, relative to the balanced filter pack (0). The filter is integrated over the printer lamp, the negative and the print layers' sensitivities, so it acts like a real filter (with its small cross-talk), not like a channel gain. Print process only.
+- **Head Magenta** (`headMagenta`; -60 … 60; default 0; keyframable) — Magenta filtration: holds back green printer light - the image turns more green. Negative values: more magenta. In CC (colour compensating units: 10 CC = 0.10 density) of an idealised dichroic filter in the printer's colour head, relative to the balanced filter pack (0). The filter is integrated over the printer lamp, the negative and the print layers' sensitivities, so it acts like a real filter (with its small cross-talk), not like a channel gain. Print process only.
+- **Head Yellow** (`headYellow`; -60 … 60; default 0; keyframable) — Yellow filtration: holds back blue printer light - the image turns more blue. Negative values: warmer, more yellow. (To remove a cast, add the filter of the cast's colour, as in a darkroom.) In CC (colour compensating units: 10 CC = 0.10 density) of an idealised dichroic filter in the printer's colour head, relative to the balanced filter pack (0). The filter is integrated over the printer lamp, the negative and the print layers' sensitivities, so it acts like a real filter (with its small cross-talk), not like a channel gain. Print process only.
+- **Preserve Exposure** (`headPreserve`; 0 … 1; default 1; keyframable) — Filters also take light away. 1 = the printer's overall light is corrected so the print's middle grey keeps its brightness (what a colour timer does); 0 = the filtration's light loss stays (more filtration = a lighter print, as on an enlarger without compensation).
+- **Printer Lights** (`printLights`; read-only; “R 25.0  G 25.0  B 25.0”) — The printer lights in the lab convention: 1 point = 0.025 log exposure, nominal 25-25-25 = the stock's grey-balanced light. Higher numbers = more light on that layer = more of its dye (a darker, less red / green / blue print). Shows Printer Red / Green / Blue and Print Density, and the Colour Head filtration as its equivalent in points (before Preserve Exposure).
+- **Enable Print Black / White** (`printEndsEnable`; default on) — Switches Print Black, Print White and De-Fog on or off without losing their values.
+- **Print Black** (`printBlack`; -1.5 … 0.25; default 0; keyframable) — Density at the black end of the print (its D-max), in density units of the print: + = deeper, denser blacks; - = a lifted, milky black like a flashed or under-developed print. The tones above the shadows are left alone (middle grey moves less than half a percent). This is the print's density, not a video lift. Print process only.
+- **Print White** (`printWhite`; -0.15 … 0.4; default 0; keyframable) — Density at the white end of the print (its D-min): + = greyer, dimmer whites, as a print on stock with more base fog or a slightly over-printed answer print; - = cleaner whites that reach the clear base sooner. Acts only near white. Print process only.
+- **De-Fog** (`printDefog`; 0 … 1; default 0; keyframable) — Removes this share of the print stock's own fog density from its white end (anti-fog in the developer): clearer, slightly brighter and more neutral whites. Fog on the NEGATIVE is not offered: the lab's grey balance times it out completely. Print process only.
+- **Enable Print Toning** (`printToneEnable`; default on) — Switches Print Toning (shadow and highlight toning) on or off without losing its values.
+- **Shadow Toning** (`toneShadowAmount`; 0 … 1; default 0; keyframable) — Dye toning of the print's dense tones, like a selenium or blue toner on a print: the shadows take on the Shadow Hue while middle grey and the whites stay neutral. 1 = 0.10 density of toning. 0 = off.
+- **Shadow Hue** (`toneShadowHue`; 0 … 360; default 220; keyframable) — Colour of the shadow toning, in degrees: 0 red, 30 sepia / orange, 60 yellow, 120 green, 180 cyan, 220 steel blue, 240 blue, 300 magenta.
+- **Highlight Toning** (`toneHighlightAmount`; 0 … 1; default 0; keyframable) — Dye toning of the print's light tones (just above white, never the clear base itself): a warm or cool cast in the highlights while middle grey and black stay neutral. 1 = 0.10 density. 0 = off.
+- **Highlight Hue** (`toneHighlightHue`; 0 … 360; default 50; keyframable) — Colour of the highlight toning in degrees (see Shadow Hue). 40 .. 60 = a warm, golden print.
 
 ### Halation
 
@@ -493,6 +515,27 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Weave Speed** (`weaveSpeed`; 0.25 … 4; default 1; keyframable) — How quickly the gate weave wanders (1 = natural; lower is a slow drift, higher a nervous jitter).
 - **Enable Vignette** (`vignetteEnable`; default on) — Switches the vignette on or off without losing its setting. Off = even illumination; the pass is skipped.
 - **Vignette** (`vignette`; 0 … 1; default 0; keyframable) — Natural lens light fall-off towards the corners, applied to the scene light before the film (so it darkens like an optical vignette, not a grey overlay). 0 = off.
+- **Weave Style** (`weaveStyle`; default: Projector) — The kind of gate weave (Gate Weave sets its size). Projector: the classic 35 mm projection weave, mostly vertical, wandering slowly with a little frame-to-frame jitter. Camera (Pin-Registered): a registration-pin camera - tiny, almost only frame-to-frame jitter. Telecine (Float): a film scanned on a capstan telecine - a slow, smooth float with more sideways and rotational drift.
+  - Options: Projector · Camera (Pin-Registered) · Telecine (Float)
+- **Mechanical Vignette** (`vignetteMechanical`; 0 … 1; default 0; keyframable) — Mechanical vignetting (a lens hood, matte box or the lens barrel cutting the light cone): a darker rim with a defined edge, on top of the natural cos^4 fall-off (Vignette). Applied to the scene light before the film. 0 = off.
+- **Mechanical Size** (`vignetteMechSize`; 0.5 … 1.5; default 1; keyframable) — Where the mechanical vignette starts, as a share of the half diagonal (1 = it just reaches into the corners; smaller = a tighter circle).
+- **Mechanical Softness** (`vignetteMechSoftness`; 0.05 … 1; default 0.35; keyframable) — Width of the mechanical vignette's edge: small = a hard edge (a hood far from the lens), large = a gentle roll-off.
+
+### Film Gate
+
+*The film gate's frame line as a density event on the film: aspect, rounded corners, soft edge, gate hair.*
+
+- **Enable Film Gate** (`gateEnable`; default off) — Shows the edge of the film gate (the frame line). Off = the full picture, as before.
+- **Gate Aspect** (`gateAspect`; default: Full Frame) — The aperture of the gate. Full Frame: the gate around the whole picture (only the Overscan shows). Every other aspect is fitted inside the frame (letterbox or pillarbox); the image outside it is masked like a hard matte in the gate. Super 16 also uses the smaller gauge's tighter corners.
+  - Options: Full Frame · 1.33 Academy · 1.66 European · 1.85 Flat · 2.39 Scope · 1.43 IMAX · Super 16 (1.66) · 1.78 (16:9)
+- **Gate** (`gateSource`; default: Camera Gate (Rebate Prints Black)) — Which gate makes the edge. Camera Gate: the negative outside the camera aperture stays unexposed (clear D-min), so it PRINTS BLACK - with grain, halation from the picture edge and the gate weave. Printer Gate: the print outside the printer aperture stays unexposed, so the border is the CLEAR print base (white on the screen; dark on a reversal original, which has no print).
+  - Options: Camera Gate (Rebate Prints Black) · Printer Gate (Clear Print Border)
+- **Overscan** (`gateOverscan`; 0 … 0.15; default 0.03; keyframable) — How much of the area outside the gate is visible: the gate is inset by this share of the frame height on every side (0 = the gate edge sits exactly at the frame edge).
+- **Corner Radius** (`gateCorner`; 0 … 80; default 14; keyframable) — Radius of the gate's rounded corners in pixels at 1920 px width (filed aperture plates have rounded corners).
+- **Edge Softness** (`gateSoftness`; 0 … 20; default 2; keyframable) — Blur of the gate edge in pixels at 1920 px width: the aperture is slightly out of focus on the film.
+- **Gate Hair** (`gateHair`; default off) — A hair caught in the gate: a thin curved fibre reaching in from the gate edge, steady from frame to frame (it moves with the gate weave). Camera gate: prints black; printer gate: prints clear.
+- **Hair Seed** (`gateHairSeed`; 1 … 9999; default 1; keyframable) — Picks the shape and position of the gate hair.
+- **Show Gate Mask (diagnostic)** (`gateShow`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Shows the gate's transmission: white = picture, black = gate (and hair).
 
 ### Film Damage
 
@@ -1157,6 +1200,63 @@ normal one and costs nothing extra.
 
 Highlight Latitude and Film Damage have no view of their own yet; Show Texture Difference includes the
 damage.
+
+### Colour timing, the film gate and seven new looks (Beyond Filmbox I)
+
+**Colour timer** (Print group; Print process only, greyed for Lab Scan, reversal and the negative stages):
+
+- **Colour Head**: Cyan / Magenta / Yellow filters in the printer, in CC units, like a lab's dichroic
+  head. Adding a filter takes away that light, so the print loses the matching dye:
+  - +Yellow gives a bluer print.
+  - +Magenta gives a greener print.
+  - +Cyan gives a redder print.
+
+  The effect is computed through the printer lamp, the print stock's sensitivity and the negative's dyes.
+  **Preserve Exposure** (1 = full) keeps middle grey at the same brightness. On a black & white stock only
+  Preserve applies.
+- **Printer Lights** (read-only): the timing in the lab convention. Nominal is 25-25-25, and 1 point =
+  0.025 log E, which is the Printer R/G/B points. When the head is on, its equivalent lights are shown too.
+- **Print Black / Print White / De-Fog**: density at the print's two ends, not video lift / gain.
+  - Print Black below 0 lifts the maximum black density, and above 0 deepens it.
+  - Print White above 0 holds the whites back with density, and below 0 cleans the print base.
+  - De-Fog removes the print stock's own fog. The negative's fog is already cancelled by the grey balance.
+- **Print Toning**: a dye tone in the shadows (dense areas) and in the highlights (thin areas). Each has
+  a Hue (degrees) and an Amount.
+
+**Film Gate** group (off by default):
+
+- **Gate**:
+  - The **Camera Gate** masks the scene light before the negative. The unexposed rebate prints black,
+    and the frame line weaves, grains and halates with the picture.
+  - The **Printer Gate** is a clear, unexposed border on the print.
+- **Gate Aspect**: Full Frame, 1.33, 1.66, 1.85, 2.39, 1.43 IMAX, Super 16 (1.66) or 1.78.
+- **Overscan**: how much rebate shows.
+- **Corner Radius** and **Edge Softness**: the gate's shape and edge.
+- **Gate Hair** (with a Seed): a hair caught at the aperture edge.
+- **Show Gate Mask**: shows where the gate passes light (white = picture).
+
+The gate is a texture, so it never goes into an exported LUT.
+
+**Lens & Gate** group:
+
+- **Weave Style**:
+  - Projector: the existing weave.
+  - Camera (Pin-Registered): a small frame-to-frame jitter.
+  - Telecine (Float): a slow, smooth float with more sideways and rotational movement.
+- **Mechanical Vignette** (Amount, Size, Softness): the dark edge where the lens hood or matte box cuts
+  the image circle. It is on top of the Vignette's cos^4 fall-off and follows the Vignette switch.
+
+**New looks** (Look Preset, appended):
+
+| Look | What it gives you |
+|---|---|
+| Theatrical 2383 Warm | 250D through the release chain onto 2383, head timed warm, golden highlight toning |
+| Soft Telecine Scan | telecine render, lifted printed blacks, white Pro-Mist, telecine float |
+| 500T Night Exterior | 500T pushed half a stop on 2393, deep blacks, teal shadow toning, strong halation |
+| Scope Bleach Bypass | 2.39 camera gate, partial bleach bypass, steely contrast, cool shadows |
+| 16mm Documentary | Super 16 gate, Eterna 250D, 16 mm grain, camera weave, mechanical vignette |
+| Faded Magenta Print | an aged print: lifted blacks, magenta-red toning, lower saturation |
+| Sunlit 35mm Full Gate | the Sunlit 35mm soft scan timed warmer (warm head, lifted blacks), framed full gate |
 
 ---
 

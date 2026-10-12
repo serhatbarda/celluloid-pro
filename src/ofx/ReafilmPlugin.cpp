@@ -204,7 +204,12 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.latitudeClip == b.latitudeClip &&
            // v1.3 P1 extras
            a.sceneWbOn == b.sceneWbOn && a.sceneWbKelvin == b.sceneWbKelvin && a.sceneWbTint == b.sceneWbTint &&
-           a.falseColour == b.falseColour;
+           a.falseColour == b.falseColour &&
+           // Beyond Filmbox I colour timer
+           a.headCyan == b.headCyan && a.headMagenta == b.headMagenta && a.headYellow == b.headYellow &&
+           a.headPreserve == b.headPreserve && a.printBlack == b.printBlack && a.printWhite == b.printWhite &&
+           a.printDefog == b.printDefog && a.toneShadowHue == b.toneShadowHue && a.toneShadowAmount == b.toneShadowAmount &&
+           a.toneHighlightHue == b.toneHighlightHue && a.toneHighlightAmount == b.toneHighlightAmount;
 }
 
 std::string versionString() {
@@ -323,6 +328,7 @@ private:
     void applyPreset(int choiceIdx);
     void refreshPresetStatus(double t);
     void refreshEnabledness(double t);
+    void refreshPrintLights(double t);   // Beyond Filmbox I: the lab printer-lights label
     void refreshLicenseStatus();
     void exportLut(double t);
     bool diagnosticViewOn(double t) const;   // v1.3: any Show / Before-After control on
@@ -502,6 +508,24 @@ core::LookParams ReafilmEffect::lookAt(double t) const {
         lp.printRender = clampIdx(choice(id::printRender, t), int(core::PrintRender::Count));
         lp.printContrast = float(num(id::printContrast, t));
     }
+    // Beyond Filmbox I colour timer (switched off = neutral; core applies it on the print process only)
+    if (flag(id::colourHeadEnable, t)) {
+        lp.headCyan = float(num(id::headCyan, t));
+        lp.headMagenta = float(num(id::headMagenta, t));
+        lp.headYellow = float(num(id::headYellow, t));
+        lp.headPreserve = float(num(id::headPreserve, t));
+    }
+    if (flag(id::printEndsEnable, t)) {
+        lp.printBlack = float(num(id::printBlack, t));
+        lp.printWhite = float(num(id::printWhite, t));
+        lp.printDefog = float(num(id::printDefog, t));
+    }
+    if (flag(id::printToneEnable, t)) {
+        lp.toneShadowHue = float(num(id::toneShadowHue, t));
+        lp.toneShadowAmount = float(num(id::toneShadowAmount, t));
+        lp.toneHighlightHue = float(num(id::toneHighlightHue, t));
+        lp.toneHighlightAmount = float(num(id::toneHighlightAmount, t));
+    }
     if (flag(id::cameraEmulationEnable, t)) {
         lp.cameraEmulation = 1 + std::min(std::max(choice(id::cameraEmulation, t), 0), int(core::CameraEmulation::Count) - 2);
         lp.emulationStrength = float(num(id::cameraEmulationStrength, t));
@@ -594,6 +618,19 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     tp.bloomFilter = flag(id::bloomEnable, t) ? std::min(std::max(choice(id::bloomFilter, t), 0), tex::kBloomFilterCount - 1) : 0;
     tp.bloomFilterGrade = float(num(id::bloomFilterGrade, t));
     tp.vignette = flag(id::vignetteEnable, t) ? float(num(id::vignette, t)) : 0.f;
+    // Beyond Filmbox I: weave style, mechanical vignette, film gate
+    tp.weaveStyle = std::min(std::max(choice(id::weaveStyle, t), 0), int(tex::WeaveStyle::Count) - 1);
+    tp.vignetteMech = flag(id::vignetteEnable, t) ? float(num(id::vignetteMechanical, t)) : 0.f;
+    tp.vignetteMechSize = float(num(id::vignetteMechSize, t));
+    tp.vignetteMechSoft = float(num(id::vignetteMechSoftness, t));
+    tp.gateEnabled = flag(id::gateEnable, t);
+    tp.gateAspect = std::min(std::max(choice(id::gateAspect, t), 0), tex::kGateAspectCount - 1);
+    tp.gateSource = std::min(std::max(choice(id::gateSource, t), 0), int(tex::GateSource::Count) - 1);
+    tp.gateOverscan = float(num(id::gateOverscan, t));
+    tp.gateCorner = float(num(id::gateCorner, t));
+    tp.gateSoftness = float(num(id::gateSoftness, t));
+    tp.gateHair = flag(id::gateHair, t);
+    tp.gateHairSeed = int(std::lround(num(id::gateHairSeed, t)));
     tp.grainEnabled = flag(id::grainEnable, t) && fs.look.grainAmount > 0.f;
     tp.grainFormat = tex::GrainFormat(std::min(std::max(choice(id::grainFormat, t), 0), int(tex::GrainFormat::Count) - 1));
     tp.grainSize = float(num(id::grainSize, t)) * grainScale;
@@ -642,6 +679,7 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
         if (hs == 1) v = DiagView::HalationOnly;
         if (hs == 2) v = DiagView::HalationMask;
         if (flag(id::grainEnable, t) && flag(id::grainShow, t)) v = DiagView::GrainOnly;
+        if (flag(id::gateEnable, t) && flag(id::gateShow, t)) v = DiagView::GateMask;   // Beyond Filmbox I
         if (flag(id::textureDiffShow, t)) v = DiagView::TextureDiff;
         tp.diagView = int(v);
         tp.diagWipe = flag(id::diagWipe, t) ? std::max(1e-3f, float(num(id::diagWipePosition, t))) : 0.f;
@@ -652,6 +690,7 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     if (tp.grainEnabled) fs.look.grainAmount *= tex::grainFormatAmplitude(tp.grainFormat);
 
     if (fs.mode == core::Mode::ColorOnly) {   // colour pipeline only: exactly what a LUT contains
+        tp.gateEnabled = false;   // Beyond Filmbox I: the gate is a texture (never in a LUT)
         tp.grainEnabled = false;
         fs.look.grainAmount = 0.f;
         tp.damageEnabled = false;
@@ -961,7 +1000,7 @@ void ReafilmEffect::clearRenderError() {
 void ReafilmEffect::changedParam(const OFX::InstanceChangedArgs& args, const std::string& name) {
     try {
         if (name == id::lookPresetStatus || name == id::licenseStatus || name == id::aboutVersion ||
-            name == id::aboutManual || name == id::negProvenance || name == id::printProvenance)
+            name == id::aboutManual || name == id::negProvenance || name == id::printProvenance || name == id::printLights)
             return;   // our own read-only labels
 
         if (name == id::lookPreset) {
@@ -979,6 +1018,9 @@ void ReafilmEffect::changedParam(const OFX::InstanceChangedArgs& args, const std
 
         const ParamDef* d = findParam(name);
         if (d && d->look && !m_applyingPreset) refreshPresetStatus(args.time);
+        if (name == id::printerR || name == id::printerG || name == id::printerB || name == id::printExposure ||
+            name == id::headCyan || name == id::headMagenta || name == id::headYellow)
+            refreshPrintLights(args.time);   // Beyond Filmbox I (switches / stocks: via refreshEnabledness)
         if (d && (d->type == PType::Bool || name == id::negStock || name == id::process || name == id::mode ||
                   name == id::pipelineStage ||
                   name == id::outputSpace || name == id::printStock))
@@ -1114,6 +1156,30 @@ void ReafilmEffect::refreshPresetStatus(double t) {
     setStr(id::lookPresetStatus, modified ? name + " (modified)" : name);
 }
 
+// Beyond Filmbox I: printer lights in the lab convention (25 + points; the Colour Head as its equivalent points)
+void ReafilmEffect::refreshPrintLights(double t) {
+    double pts[3] = {0.0, 0.0, 0.0};
+    if (flag(id::printEnable, t)) {
+        const double pe = num(id::printExposure, t);
+        pts[0] = num(id::printerR, t) - pe; pts[1] = num(id::printerG, t) - pe; pts[2] = num(id::printerB, t) - pe;
+    }
+    float head[3] = {0.f, 0.f, 0.f};
+    const bool headOn = flag(id::colourHeadEnable, t) &&
+                        (num(id::headCyan, t) != 0.0 || num(id::headMagenta, t) != 0.0 || num(id::headYellow, t) != 0.0);
+    if (headOn)
+        core::colourHeadPoints(choice(id::negStock, t), choice(id::printStock, t), float(num(id::headCyan, t)),
+                               float(num(id::headMagenta, t)), float(num(id::headYellow, t)), head);
+    char buf[160];
+    std::snprintf(buf, sizeof buf, "R %.1f  G %.1f  B %.1f", 25.0 + pts[0], 25.0 + pts[1], 25.0 + pts[2]);
+    std::string txt = buf;
+    if (headOn) {
+        std::snprintf(buf, sizeof buf, "   (with head: R %.1f  G %.1f  B %.1f)", 25.0 + pts[0] + head[0], 25.0 + pts[1] + head[1],
+                      25.0 + pts[2] + head[2]);
+        txt += buf;
+    }
+    setStr(id::printLights, txt);
+}
+
 void ReafilmEffect::refreshEnabledness(double t) {
     const core::Mode mode = effectiveMode(t);
     const core::NegativeStockInfo* st = stockInfo(choice(id::negStock, t));
@@ -1161,6 +1227,17 @@ void ReafilmEffect::refreshEnabledness(double t) {
         const bool labOn = flag(id::printLabEnable, t), printing = colour && !reversal && !scan;
         setEnabled(id::printLabEnable, printing);
         for (const char* p : {id::projectionWhite, id::printAim, id::printContrast, id::printRender}) setEnabled(p, printing && labOn);
+        // Beyond Filmbox I colour timer: the print process only (C / M / Y need a colour stock)
+        const bool headOn = flag(id::colourHeadEnable, t), endsOn = flag(id::printEndsEnable, t), toneOn = flag(id::printToneEnable, t);
+        setEnabled(id::colourHeadEnable, printing);
+        for (const char* p : {id::headCyan, id::headMagenta, id::headYellow}) setEnabled(p, printing && headOn && !mono);
+        setEnabled(id::headPreserve, printing && headOn);
+        setEnabled(id::printEndsEnable, printing);
+        for (const char* p : {id::printBlack, id::printWhite, id::printDefog}) setEnabled(p, printing && endsOn);
+        setEnabled(id::printToneEnable, printing);
+        for (const char* p : {id::toneShadowAmount, id::toneShadowHue, id::toneHighlightAmount, id::toneHighlightHue})
+            setEnabled(p, printing && toneOn);
+        refreshPrintLights(t);
         if (st) setStr(id::negProvenance, st->provenance);
         const std::vector<std::string>& pp = printProvenance();
         const int pi = choice(id::printStock, t);
@@ -1213,7 +1290,11 @@ void ReafilmEffect::refreshEnabledness(double t) {
                                   id::filmBlurEnable, id::filmBlurRadius, id::filmBlurFrequency, id::filmBlurDuration,
                                   id::filmBlurBreathing, id::filmBlurChromatic, id::filmBlurSeed, id::rolloffEnable,
                                   id::rolloffStart, id::rolloffSoftness, id::dyeSatEnable, id::dyeSaturation, id::dyeRichness,
-                                  id::dyeSatBalance})
+                                  id::dyeSatBalance,
+                                  // Beyond Filmbox I colour timer (no print at the negative exits)
+                                  id::colourHeadEnable, id::headCyan, id::headMagenta, id::headYellow, id::headPreserve,
+                                  id::printEndsEnable, id::printBlack, id::printWhite, id::printDefog, id::printToneEnable,
+                                  id::toneShadowAmount, id::toneShadowHue, id::toneHighlightAmount, id::toneHighlightHue})
                 setEnabled(p, false);
             setEnabled(id::printStock, true);   // printing density is defined by the print stock
         } else {
@@ -1237,7 +1318,10 @@ void ReafilmEffect::refreshEnabledness(double t) {
                                   id::printerB, id::printExposure, id::printBleach, id::printCrossover, id::printLabEnable,
                                   id::projectionWhite, id::printAim, id::printContrast, id::printRender, id::rolloffEnable,
                                   id::rolloffStart, id::rolloffSoftness, id::dyeSatEnable, id::dyeSaturation, id::dyeRichness,
-                                  id::dyeSatBalance, id::hdrUnrollEnable, id::hdrUnroll})
+                                  id::dyeSatBalance, id::hdrUnrollEnable, id::hdrUnroll,
+                                  id::colourHeadEnable, id::headCyan, id::headMagenta, id::headYellow, id::headPreserve,
+                                  id::printEndsEnable, id::printBlack, id::printWhite, id::printDefog, id::printToneEnable,
+                                  id::toneShadowAmount, id::toneShadowHue, id::toneHighlightAmount, id::toneHighlightHue})
                 setEnabled(p, false);
         }
     }
@@ -1266,8 +1350,20 @@ void ReafilmEffect::refreshEnabledness(double t) {
         setEnabled(id::bloomFilterGrade, texture && bloomOn && !classic);
     }
     for (const char* p : {id::acutanceAmount, id::acutanceRadius}) setEnabled(p, texture && acutOn);
-    for (const char* p : {id::weaveAmount, id::weaveSpeed}) setEnabled(p, texture && weaveOn);
+    for (const char* p : {id::weaveAmount, id::weaveSpeed, id::weaveStyle}) setEnabled(p, texture && weaveOn);
     setEnabled(id::vignette, texture && vigOn);
+    {   // Beyond Filmbox I: mechanical vignette (part of the vignette module), film gate
+        const bool mechOn = texture && vigOn;
+        setEnabled(id::vignetteMechanical, texture && vigOn);
+        setEnabled(id::vignetteMechSize, mechOn);
+        setEnabled(id::vignetteMechSoftness, mechOn);
+        const bool gateOn = texture && flag(id::gateEnable, t);
+        setEnabled(id::gateEnable, texture);
+        for (const char* p : {id::gateAspect, id::gateSource, id::gateOverscan, id::gateCorner, id::gateSoftness, id::gateHair,
+                              id::gateShow})
+            setEnabled(p, gateOn);
+        setEnabled(id::gateHairSeed, gateOn && flag(id::gateHair, t));
+    }
     for (const char* p : {id::grainAmount, id::grainSize, id::grainSoftness, id::grainAnimated, id::grainSeed,
                           id::grainShadows, id::grainMids, id::grainHighlights})
         setEnabled(p, texture && grainOn);

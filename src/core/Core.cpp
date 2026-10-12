@@ -77,6 +77,12 @@ std::vector<std::string> printStockProvenance() {
 }
 std::vector<std::string> projectionWhiteNames() { return {"D65 (Adapted)", "Theatre Xenon (Unadapted)", "D60 Sim"}; }
 std::vector<std::string> printAimNames() { return {"Nominal", "Rich", "Soft"}; }
+void colourHeadPoints(int negStock, int printStock, float cyan, float magenta, float yellow, float out[3]) {
+    const double cmy[3] = {cyan, magenta, yellow};
+    double hd[3];
+    colourHeadLogH(std::min(std::max(negStock, 0), st::numNegatives() - 1), std::min(std::max(printStock, 0), st::numPrints() - 1), cmy, hd);
+    for (int j = 0; j < 3; ++j) out[j] = float(hd[j] / kPoint);
+}
 std::vector<std::string> printRenderNames() { return {"Contact Print", "Release Print (IP / IN)", "Telecine / Scan"}; }
 
 // ------------------------------------------------------------------------- pipeline
@@ -98,13 +104,21 @@ struct Pipeline::Cache {
 };
 static constexpr size_t kHoldCacheEntries = 8;
 
+// Beyond Filmbox I: the print-curve fields of the colour timer (the Colour Head is a light change: sameParams)
+static bool sameTimer(const LookParams& a, const LookParams& b) {
+    return a.printBlack == b.printBlack && a.printWhite == b.printWhite && a.printDefog == b.printDefog &&
+           a.toneShadowHue == b.toneShadowHue && a.toneShadowAmount == b.toneShadowAmount &&
+           a.toneHighlightHue == b.toneHighlightHue && a.toneHighlightAmount == b.toneHighlightAmount;
+}
+
 static bool sameFilm(const LookParams& a, const LookParams& b) {
     return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
            a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.process == b.process &&
            a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover &&
            a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
            a.printContrast == b.printContrast &&   // v1.3 print lab
-           a.rolloffStart == b.rolloffStart && a.rolloffSoftness == b.rolloffSoftness;   // v1.3: the print curve
+           a.rolloffStart == b.rolloffStart && a.rolloffSoftness == b.rolloffSoftness &&   // v1.3: the print curve
+           sameTimer(a, b);   // Beyond Filmbox I: print black / white / de-fog / toning reshape the print curve
 }
 
 // v1.3 Tone: the appended tone fields (Zones, Filmic Contrast, Film Roll-off, Dye Saturation)
@@ -134,7 +148,9 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.latitudeSoftness == b.latitudeSoftness && a.latitudeReconstruct == b.latitudeReconstruct &&
            a.latitudeDesaturate == b.latitudeDesaturate && a.latitudeClip == b.latitudeClip &&
            a.sceneWbOn == b.sceneWbOn && a.sceneWbKelvin == b.sceneWbKelvin && a.sceneWbTint == b.sceneWbTint &&   // v1.3 P1
-           a.falseColour == b.falseColour;
+           a.falseColour == b.falseColour &&
+           sameTimer(a, b) && a.headCyan == b.headCyan && a.headMagenta == b.headMagenta &&   // Beyond Filmbox I
+           a.headYellow == b.headYellow && a.headPreserve == b.headPreserve;
 }
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
@@ -233,7 +249,63 @@ static LookParams sanitize(LookParams p) {
         if (p.stage == int(Stage::PrintOnly)) p.sceneWbOn = false;   // the input is a Log Scan, not scene light
         if (!p.sceneWbOn) { p.sceneWbKelvin = d.sceneWbKelvin; p.sceneWbTint = 0.f; }
     }
+    // Beyond Filmbox I colour timer: the print process only (a scan / reversal original has no printer head and no
+    // print curve); every neutral control normalises its companions, so "off" is the same cache key as before
+    {
+        const LookParams d;
+        auto num = [](float v, float lo, float hi, float def) { return std::isfinite(v) ? clampf(v, lo, hi) : def; };
+        auto hue = [](float v, float def) { return std::isfinite(v) ? float(std::fmod(std::fmod(double(v), 360.0) + 360.0, 360.0)) : def; };
+        const bool printing = st::negative(p.negStock).kind != st::kReversal && p.process == Process::NegativeToPrint;
+        p.headCyan = num(p.headCyan, -60.f, 60.f, 0.f);
+        p.headMagenta = num(p.headMagenta, -60.f, 60.f, 0.f);
+        p.headYellow = num(p.headYellow, -60.f, 60.f, 0.f);
+        p.headPreserve = num(p.headPreserve, 0.f, 1.f, d.headPreserve);
+        if (!printing) p.headCyan = p.headMagenta = p.headYellow = 0.f;
+        if (p.headCyan == 0.f && p.headMagenta == 0.f && p.headYellow == 0.f) p.headPreserve = d.headPreserve;
+        p.printBlack = printing ? num(p.printBlack, -1.5f, 0.25f, 0.f) : 0.f;
+        p.printWhite = printing ? num(p.printWhite, -0.15f, 0.4f, 0.f) : 0.f;
+        p.printDefog = printing ? num(p.printDefog, 0.f, 1.f, 0.f) : 0.f;
+        p.toneShadowAmount = printing ? num(p.toneShadowAmount, 0.f, 1.f, 0.f) : 0.f;
+        p.toneHighlightAmount = printing ? num(p.toneHighlightAmount, 0.f, 1.f, 0.f) : 0.f;
+        p.toneShadowHue = p.toneShadowAmount > 0.f ? hue(p.toneShadowHue, d.toneShadowHue) : d.toneShadowHue;
+        p.toneHighlightHue = p.toneHighlightAmount > 0.f ? hue(p.toneHighlightHue, d.toneHighlightHue) : d.toneHighlightHue;
+    }
     return p;
+}
+
+// Beyond Filmbox I: Print Black / Print White / De-Fog / Print Toning, in the density of the print (the PC block,
+// after the grey balance and Film Roll-off; the lab does not re-time them). q = dye amount above the curve's D-min.
+//   white end:  q1 = q + (white - defog D-min) e^(-q / 0.35)   (+ softly floored at 0 when it would go below)
+//   black end:  q2 = q1 (1 + a u^4)^(-1/4), u = q1 / span, a = r^-4 - 1, r = (span + black) / span: the D-max end
+//               moves by `black`, middle grey (u ~ 0.25) by < 0.5 %
+//   toning:     P_j -= A v_j w(q), v = (cos h, cos(h - 120), cos(h - 240)) (zero mean: a hue, no density),
+//               shadows w = smoothstep in q around 1.8, highlights a bump around q = 0.3 that is 0 at D-min
+// Every step keeps the curve strictly increasing (the slope factors stay > 0.5 within the clamped ranges).
+static bool printTimerActive(const LookParams& p) {
+    return p.printBlack != 0.f || p.printWhite != 0.f || p.printDefog != 0.f || p.toneShadowAmount > 0.f || p.toneHighlightAmount > 0.f;
+}
+static void printTimer(float* s, const LookParams& p, int oPC) {
+    const double kPi = 3.14159265358979323846;
+    const double hs = double(p.toneShadowHue) * kPi / 180.0, hh = double(p.toneHighlightHue) * kPi / 180.0;
+    const double As = 0.10 * double(p.toneShadowAmount), Ah = 0.10 * double(p.toneHighlightAmount);
+    for (int j = 0; j < 3; ++j) {
+        float* row = s + oPC + size_t(j) * kNCurve;
+        const double pmin = row[0], span = std::max(double(row[kNCurve - 1]) - pmin, 0.1);
+        const double r = std::max(0.05, (span + double(p.printBlack)) / span), aa = std::pow(r, -4.0) - 1.0;
+        const double vs = std::cos(hs - 2.0 * kPi / 3.0 * j), vh = std::cos(hh - 2.0 * kPi / 3.0 * j);
+        const double dw = double(p.printWhite) - double(p.printDefog) * pmin;
+        for (int i = 0; i < kNCurve; ++i) {
+            double q = std::max(double(row[i]) - pmin, 0.0);
+            q += dw * std::exp(-q / 0.35);
+            if (dw < 0.0) q = 0.5 * (q + std::sqrt(q * q + 6.4e-5));
+            if (p.printBlack != 0.f) { const double u = q / span; q *= std::pow(1.0 + aa * u * u * u * u, -0.25); }
+            double P = pmin + q;
+            if (As > 0.0) P -= As * vs * 0.5 * (1.0 + std::tanh((q - 1.8) / 0.35));
+            if (Ah > 0.0) { const double z = (q - 0.3) / 0.22; P -= Ah * vh * std::exp(-z * z) * (1.0 - std::exp(-q / 0.05)); }
+            row[i] = float(std::max(P, 0.0));
+        }
+        s[CEL_CS_PMIN + j] = row[0];
+    }
 }
 
 // v1.3 P1 Scene White Balance: CIE 1931 xy of a Planckian source at T kelvin (Krystek 1985 rational fit of the
@@ -1055,6 +1127,7 @@ void Pipeline::prepare(const LookParams& pin) {
         setOff(off);
         // v1.3 Film Roll-off: the print curve's highlight shoulder, on the grey-balanced print (points 0)
         if (kind == 0 && p.rolloffSoftness != 0.f) filmRolloff(s, p, int(oPC), int(oPL), dye->lut.n, float(dye->lut.maxv));
+        if (kind == 0 && printTimerActive(p)) printTimer(s, p, int(oPC));   // Beyond Filmbox I
     }
 
     // ---- HDR calibration on the balanced state: mid grey -> 15 nits, unroll to peak
@@ -1131,6 +1204,31 @@ void Pipeline::prepare(const LookParams& pin) {
         if (kind == 0) o += kPoint * pts[j];
         else if (kind == 1) o = -0.075 / scanGamma * pts[j];
         s[CEL_CS_OFF + j] = float(o);
+    }
+    // Beyond Filmbox I Colour Head: the dichroic filtration's log exposure change per print layer, then (Preserve
+    // Exposure) a common light change that keeps the print's grey luminance of the unfiltered light
+    if (kind == 0 && (p.headCyan != 0.f || p.headMagenta != 0.f || p.headYellow != 0.f)) {
+        const double cmy[3] = {p.headCyan, p.headMagenta, p.headYellow};
+        double hd[3];
+        colourHeadLogH(ni, pi, cmy, hd);
+        const double y0 = std::log10(std::max(double(Grey::film(S, 0.18f).y), 1e-12));
+        float base[3];
+        for (int j = 0; j < 3; ++j) { base[j] = s[CEL_CS_OFF + j]; s[CEL_CS_OFF + j] = float(base[j] + hd[j]); }
+        if (p.headPreserve > 0.f) {
+            auto lY = [&](double c) {
+                for (int j = 0; j < 3; ++j) s[CEL_CS_OFF + j] = float(base[j] + hd[j] + c);
+                return std::log10(std::max(double(Grey::film(S, 0.18f).y), 1e-12));
+            };
+            double c = 0.0, f0 = lY(0.0) - y0;
+            for (int it = 0; it < 12 && std::fabs(f0) > 1e-6; ++it) {   // secant-Newton on the common light change
+                const double f1 = lY(c + 1e-3) - y0, dfd = (f1 - f0) / 1e-3;
+                if (!(std::fabs(dfd) > 1e-9)) break;
+                c -= std::min(0.5, std::max(-0.5, f0 / dfd));
+                f0 = lY(c) - y0;
+            }
+            c *= double(p.headPreserve);
+            for (int j = 0; j < 3; ++j) s[CEL_CS_OFF + j] = float(base[j] + hd[j] + c);
+        }
     }
     // v1.3 Dye Saturation: the neutral's dyes with the user's printer points (before the hold's neutral table,
     // which then sees the same film)

@@ -485,6 +485,74 @@ std::vector<ParamDef> build() {
                  "the black is set just above D-max - neutral blacks and highlights.",
                  true);
     }
+    // Beyond Filmbox I: the colour timer's controls in print density (print process only)
+    {
+        b.boolean(id::colourHeadEnable, "Enable Colour Head", true,
+                  "Switches the Colour Head (Cyan / Magenta / Yellow filtration, Preserve Exposure) on or off without "
+                  "losing its values. Off = no extra filtration.",
+                  true);
+        const char* ccNote =
+            " In CC (colour compensating units: 10 CC = 0.10 density) of an idealised dichroic filter in the printer's "
+            "colour head, relative to the balanced filter pack (0). The filter is integrated over the printer lamp, the "
+            "negative and the print layers' sensitivities, so it acts like a real filter (with its small cross-talk), "
+            "not like a channel gain. Print process only.";
+        std::string hc = std::string("Cyan filtration: holds back red printer light, so the print gets LESS cyan dye - the "
+                                     "image turns more red. Negative values remove cyan from the pack (image more cyan).") + ccNote;
+        std::string hm = std::string("Magenta filtration: holds back green printer light - the image turns more green. "
+                                     "Negative values: more magenta.") + ccNote;
+        std::string hy = std::string("Yellow filtration: holds back blue printer light - the image turns more blue. "
+                                     "Negative values: warmer, more yellow. (To remove a cast, add the filter of the "
+                                     "cast's colour, as in a darkroom.)") + ccNote;
+        b.dbl(id::headCyan, "Head Cyan", 0.0, -60.0, 60.0, 1.0, 1, hc.c_str(), true);
+        b.dbl(id::headMagenta, "Head Magenta", 0.0, -60.0, 60.0, 1.0, 1, hm.c_str(), true);
+        b.dbl(id::headYellow, "Head Yellow", 0.0, -60.0, 60.0, 1.0, 1, hy.c_str(), true);
+        b.dbl(id::headPreserve, "Preserve Exposure", 1.0, 0.0, 1.0, 0.01, 2,
+              "Filters also take light away. 1 = the printer's overall light is corrected so the print's middle grey keeps "
+              "its brightness (what a colour timer does); 0 = the filtration's light loss stays (more filtration = a "
+              "lighter print, as on an enlarger without compensation).",
+              true);
+        b.label(id::printLights, "Printer Lights", "R 25.0  G 25.0  B 25.0",
+                "The printer lights in the lab convention: 1 point = 0.025 log exposure, nominal 25-25-25 = the stock's "
+                "grey-balanced light. Higher numbers = more light on that layer = more of its dye (a darker, less red / "
+                "green / blue print). Shows Printer Red / Green / Blue and Print Density, and the Colour Head filtration as "
+                "its equivalent in points (before Preserve Exposure).")
+            .persistent = false;   // derived from the timing controls
+        b.boolean(id::printEndsEnable, "Enable Print Black / White", true,
+                  "Switches Print Black, Print White and De-Fog on or off without losing their values.", true);
+        b.dbl(id::printBlack, "Print Black", 0.0, -1.5, 0.25, 0.01, 2,
+              "Density at the black end of the print (its D-max), in density units of the print: + = deeper, denser "
+              "blacks; - = a lifted, milky black like a flashed or under-developed print. The tones above the shadows are "
+              "left alone (middle grey moves less than half a percent). This is the print's density, not a video lift. "
+              "Print process only.",
+              true);
+        b.dbl(id::printWhite, "Print White", 0.0, -0.15, 0.4, 0.005, 3,
+              "Density at the white end of the print (its D-min): + = greyer, dimmer whites, as a print on stock with more "
+              "base fog or a slightly over-printed answer print; - = cleaner whites that reach the clear base sooner. "
+              "Acts only near white. Print process only.",
+              true);
+        b.dbl(id::printDefog, "De-Fog", 0.0, 0.0, 1.0, 0.01, 2,
+              "Removes this share of the print stock's own fog density from its white end (anti-fog in the developer): "
+              "clearer, slightly brighter and more neutral whites. Fog on the NEGATIVE is not offered: the lab's grey "
+              "balance times it out completely. Print process only.",
+              true);
+        b.boolean(id::printToneEnable, "Enable Print Toning", true,
+                  "Switches Print Toning (shadow and highlight toning) on or off without losing its values.", true);
+        b.dbl(id::toneShadowAmount, "Shadow Toning", 0.0, 0.0, 1.0, 0.01, 2,
+              "Dye toning of the print's dense tones, like a selenium or blue toner on a print: the shadows take on the "
+              "Shadow Hue while middle grey and the whites stay neutral. 1 = 0.10 density of toning. 0 = off.",
+              true);
+        b.dbl(id::toneShadowHue, "Shadow Hue", 220.0, 0.0, 360.0, 1.0, 0,
+              "Colour of the shadow toning, in degrees: 0 red, 30 sepia / orange, 60 yellow, 120 green, 180 cyan, 220 "
+              "steel blue, 240 blue, 300 magenta.",
+              true);
+        b.dbl(id::toneHighlightAmount, "Highlight Toning", 0.0, 0.0, 1.0, 0.01, 2,
+              "Dye toning of the print's light tones (just above white, never the clear base itself): a warm or cool "
+              "cast in the highlights while middle grey and black stay neutral. 1 = 0.10 density. 0 = off.",
+              true);
+        b.dbl(id::toneHighlightHue, "Highlight Hue", 50.0, 0.0, 360.0, 1.0, 0,
+              "Colour of the highlight toning in degrees (see Shadow Hue). 40 .. 60 = a warm, golden print.",
+              true);
+    }
 
     // ---------------------------------------------------------------- [Halation]
     b.beginGroup(id::gHalation, "Halation", true, "Red-orange glow around bright light sources.");
@@ -694,6 +762,63 @@ std::vector<ParamDef> build() {
           "Natural lens light fall-off towards the corners, applied to the scene light before the film (so it "
           "darkens like an optical vignette, not a grey overlay). 0 = off.",
           true);
+    // Beyond Filmbox I: weave style, mechanical vignette
+    b.choice(id::weaveStyle, "Weave Style", {"Projector", "Camera (Pin-Registered)", "Telecine (Float)"}, 0,
+             "The kind of gate weave (Gate Weave sets its size).\nProjector: the classic 35 mm projection weave, mostly "
+             "vertical, wandering slowly with a little frame-to-frame jitter.\nCamera (Pin-Registered): a registration-pin "
+             "camera - tiny, almost only frame-to-frame jitter.\nTelecine (Float): a film scanned on a capstan telecine - a "
+             "slow, smooth float with more sideways and rotational drift.",
+             true);
+    b.dbl(id::vignetteMechanical, "Mechanical Vignette", 0.0, 0.0, 1.0, 0.01, 2,
+          "Mechanical vignetting (a lens hood, matte box or the lens barrel cutting the light cone): a darker rim with a "
+          "defined edge, on top of the natural cos^4 fall-off (Vignette). Applied to the scene light before the film. "
+          "0 = off.",
+          true);
+    b.dbl(id::vignetteMechSize, "Mechanical Size", 1.0, 0.5, 1.5, 0.01, 2,
+          "Where the mechanical vignette starts, as a share of the half diagonal (1 = it just reaches into the corners; "
+          "smaller = a tighter circle).",
+          true);
+    b.dbl(id::vignetteMechSoftness, "Mechanical Softness", 0.35, 0.05, 1.0, 0.01, 2,
+          "Width of the mechanical vignette's edge: small = a hard edge (a hood far from the lens), large = a gentle "
+          "roll-off.",
+          true);
+
+    // ---------------------------------------------------------------- [Film Gate] (Beyond Filmbox I)
+    b.beginGroup(id::gFilmGate, "Film Gate", false,
+                 "The film gate's frame line as a density event on the film: aspect, rounded corners, soft edge, gate hair.");
+    b.boolean(id::gateEnable, "Enable Film Gate", false,
+              "Shows the edge of the film gate (the frame line). Off = the full picture, as before.", true);
+    b.choice(id::gateAspect, "Gate Aspect", {"Full Frame", "1.33 Academy", "1.66 European", "1.85 Flat", "2.39 Scope",
+                                             "1.43 IMAX", "Super 16 (1.66)", "1.78 (16:9)"}, 0,
+             "The aperture of the gate. Full Frame: the gate around the whole picture (only the Overscan shows). Every other "
+             "aspect is fitted inside the frame (letterbox or pillarbox); the image outside it is masked like a hard matte "
+             "in the gate. Super 16 also uses the smaller gauge's tighter corners.",
+             true);
+    b.choice(id::gateSource, "Gate", {"Camera Gate (Rebate Prints Black)", "Printer Gate (Clear Print Border)"}, 0,
+             "Which gate makes the edge.\nCamera Gate: the negative outside the camera aperture stays unexposed (clear "
+             "D-min), so it PRINTS BLACK - with grain, halation from the picture edge and the gate weave.\nPrinter Gate: "
+             "the print outside the printer aperture stays unexposed, so the border is the CLEAR print base (white on the "
+             "screen; dark on a reversal original, which has no print).",
+             true);
+    b.dbl(id::gateOverscan, "Overscan", 0.03, 0.0, 0.15, 0.001, 3,
+          "How much of the area outside the gate is visible: the gate is inset by this share of the frame height on every "
+          "side (0 = the gate edge sits exactly at the frame edge).",
+          true);
+    b.dbl(id::gateCorner, "Corner Radius", 14.0, 0.0, 80.0, 0.5, 1,
+          "Radius of the gate's rounded corners in pixels at 1920 px width (filed aperture plates have rounded corners).",
+          true);
+    b.dbl(id::gateSoftness, "Edge Softness", 2.0, 0.0, 20.0, 0.1, 1,
+          "Blur of the gate edge in pixels at 1920 px width: the aperture is slightly out of focus on the film.",
+          true);
+    b.boolean(id::gateHair, "Gate Hair", false,
+              "A hair caught in the gate: a thin curved fibre reaching in from the gate edge, steady from frame to frame "
+              "(it moves with the gate weave). Camera gate: prints black; printer gate: prints clear.",
+              true);
+    b.integer(id::gateHairSeed, "Hair Seed", 1, 1, 9999, "Picks the shape and position of the gate hair.", true);
+    b.boolean(id::gateShow, "Show Gate Mask (diagnostic)", false,
+              "DIAGNOSTIC VIEW - switch off before rendering. Shows the gate's transmission: white = picture, black = gate "
+              "(and hair).",
+              false);
 
     // ---------------------------------------------------------------- [Film Damage] (v1.1)
     b.beginGroup(id::gFilmDamage, "Film Damage", false,

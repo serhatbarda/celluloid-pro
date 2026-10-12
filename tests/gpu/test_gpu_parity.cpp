@@ -198,6 +198,30 @@ std::vector<Case> makeCases(bool all) {
         c.fs.look.falseColour = true; c.fs.look.output = OS::Rec2100_PQ; c.scene = Scene::Torture; });
     add("render scale 0.5 (pixelScale)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale *= 0.5f; });
     add("pixelScale 3 (tiny frame of a huge one)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale = 3.0f; });
+    // Beyond Filmbox I: film gate (camera / printer, every aspect), weave styles, mechanical vignette, colour timer
+    for (int a = 0; a < tex::kGateAspectCount; ++a)
+        add("camera gate aspect " + std::to_string(a) + " + hair", [a](Case& c) { fullTexture(c.fs); c.fs.tex.gateEnabled = true;
+            c.fs.tex.gateAspect = a; c.fs.tex.gateHair = a % 2 == 1; c.fs.tex.gateHairSeed = 17 * a + 1; });
+    add("printer gate 1.85 + damage, soft 8", [](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h, false);
+        c.fs.tex.gateEnabled = true; c.fs.tex.gateSource = int(tex::GateSource::Printer); c.fs.tex.gateAspect = 3;
+        c.fs.tex.gateSoftness = 8.f; c.fs.tex.gateHair = true; });
+    add("printer gate alone, texture only", [](Case& c) { c.fs.tex.gateEnabled = true;
+        c.fs.tex.gateSource = int(tex::GateSource::Printer); c.fs.tex.gateAspect = 4; c.fs.mode = core::Mode::TextureOnly;
+        c.scene = Scene::Display; });
+    add("printer gate, stage negative log scan (skipped)", [](Case& c) { c.fs.tex.gateEnabled = true;
+        c.fs.tex.gateSource = int(tex::GateSource::Printer); c.fs.look.stage = int(core::Stage::NegativeLogScan); c.tol = 1e-3; });
+    for (int st = 1; st < int(tex::WeaveStyle::Count); ++st)
+        add("weave style " + std::to_string(st), [st](Case& c) { fullTexture(c.fs); c.fs.tex.weaveAmount = 2.f;
+            c.fs.tex.weaveStyle = st; c.fs.tex.time = 37.0; });
+    add("mechanical vignette 1, size 0.8, with glow", [](Case& c) { fullTexture(c.fs); c.fs.tex.vignetteMech = 1.f;
+        c.fs.tex.vignetteMechSize = 0.8f; c.fs.tex.vignetteMechSoft = 0.1f; });
+    add("mechanical vignette alone, texture only", [](Case& c) { c.fs.tex.vignetteMech = 0.6f; c.fs.tex.vignetteMechSize = 1.2f;
+        c.fs.mode = core::Mode::TextureOnly; c.scene = Scene::Display; });
+    add("colour head C10 M-15 Y25 + print ends + toning", [](Case& c) { fullTexture(c.fs);
+        c.fs.look.headCyan = 10.f; c.fs.look.headMagenta = -15.f; c.fs.look.headYellow = 25.f; c.fs.look.headPreserve = 0.5f;
+        c.fs.look.printBlack = -0.8f; c.fs.look.printWhite = 0.2f; c.fs.look.printDefog = 1.f;
+        c.fs.look.toneShadowAmount = 1.f; c.fs.look.toneHighlightAmount = 0.7f; });
+    add("print white -0.15, torture", [](Case& c) { c.fs.look.printWhite = -0.15f; c.scene = Scene::Torture; });
     add("tiny 7x5", [](Case& c) { c.w = 7; c.h = 5; c.fs = baseSettings(7); fullTexture(c.fs); });
     add("1x1", [](Case& c) { c.w = 1; c.h = 1; c.fs = baseSettings(1); fullTexture(c.fs); });
     add("1x67 column", [](Case& c) { c.w = 1; c.h = 67; c.fs = baseSettings(1); fullTexture(c.fs); });
@@ -338,6 +362,7 @@ std::vector<Case> makeCases(bool all) {
     // the display picture; both renders are the production passes, covered at the normal tolerance above.
     for (int v = 1; v < int(tex::DiagView::Count); ++v) {
         add("diag view " + std::to_string(v), [v](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h, false);
+            c.fs.tex.gateEnabled = v == int(tex::DiagView::GateMask);
             c.fs.tex.filmResolution = true; c.fs.tex.integrate = 0.5f; c.fs.tex.sharpenRemoval = 0.5f; c.fs.tex.diagView = v;
             c.tol = 1e-3; });
         add("diag view " + std::to_string(v) + ", texture only", [v](Case& c) { fullTexture(c.fs); c.fs.mode = core::Mode::TextureOnly;

@@ -138,6 +138,18 @@ struct LookParams {
     // False Colour: diagnostic exposure zones of the scene luminance (stops rel. to 18 % grey) instead of the
     // rendering. Never part of looks, presets or LUT exports.
     bool  falseColour = false;
+    // ---- Beyond Filmbox I: colour timer (appended, SPEC 13): defaults = off, bit-identical. Print process only.
+    // Colour Head: dichroic C / M / Y filtration of the printer light in CC (1 CC = 0.01 density), relative to the
+    // balanced filter pack; integrated over the printer lamp, the grey negative and the print layers' sensitivities.
+    float headCyan = 0.f, headMagenta = 0.f, headYellow = 0.f;   // -60 .. 60 CC
+    float headPreserve = 1.f;    // 0 .. 1: share of the exposure change the filtration causes that is compensated
+    // Print Black / Print White / De-Fog: density at the print's ends (after the grey balance, not re-timed)
+    float printBlack = 0.f;      // -1.5 .. +0.25: density added to the print's D-max end (- = milkier blacks)
+    float printWhite = 0.f;      // -0.15 .. +0.40: density added at the D-min end (+ = greyer, dimmer whites)
+    float printDefog = 0.f;      // 0 .. 1: share of the print's fog density removed from the white end
+    // Print Toning: dye toning of the print's shadows / highlights (hue in degrees of the image colour, 0 = red)
+    float toneShadowHue = 220.f, toneShadowAmount = 0.f;   // amount 0 .. 1 (1 = 0.10 density)
+    float toneHighlightHue = 50.f, toneHighlightAmount = 0.f;
 };
 
 // v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 5c.1
@@ -207,6 +219,9 @@ std::vector<std::string> printStockProvenance(); // v1.3: same order, data sourc
 std::vector<std::string> projectionWhiteNames(); // v1.3: same order as ProjectionWhite
 std::vector<std::string> printAimNames();        // v1.3: same order as PrintAim
 std::vector<std::string> printRenderNames();     // v1.3: same order as PrintRender
+// Beyond Filmbox I: the Colour Head filtration (CC) as printer points per print layer (R, G, B; 1 point = 0.025
+// log E; before Preserve Exposure), for the given stock pair. The lab-lights display of the UI.
+void colourHeadPoints(int negStock, int printStock, float cyan, float magenta, float yellow, float out[3]);
 
 class Pipeline {
 public:

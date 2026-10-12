@@ -53,6 +53,7 @@ struct PrintVariant {
 stocks::CurveDef printAimCurve(const stocks::CurveDef& c, int layer, double dev);   // process aim / print contrast
 void telecineCurves(std::vector<float>& pc /* 3 x kNCurve */, double black);         // neutral axis + black set
 double dupeLogH(int ch, double logH, double logHRef);                               // release chain: neg -> IP -> IN -> print log H
+void colourHeadLogH(int neg, int prt, const double cmy[3], double out[3]);   // Beyond Filmbox I: colour head -> print layer log E
 
 std::shared_ptr<const ExposureBake> exposureLut(int neg);
 std::shared_ptr<const DyeLutBake> printLut(int neg, int prt, int render = kRenderContact);   // printer: neg dyes -> print log H

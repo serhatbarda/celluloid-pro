@@ -411,6 +411,50 @@ std::shared_ptr<const DyeLutBake> printLut(int neg, int prt, int render) {
     });
 }
 
+// Beyond Filmbox I: Colour Head. Idealised dichroic C / M / Y filters of a printer's colour head (density 1 per
+// unit in the stop band, steep logistic edges at the dichroic cut-offs: yellow below 500 nm, magenta 490 .. 585 nm,
+// cyan above 595 nm), `cmy` in CC (0.01 density) relative to the balanced filter pack. The log exposure change of
+// each print layer is integrated over the printer lamp, the 18 % grey of the negative (normal development, with
+// its coloured-coupler mask) and the print layer's sensitivity, so the filters cross-talk as real ones do.
+void colourHeadLogH(int neg, int prt, const double cmy[3], double out[3]) {
+    out[0] = out[1] = out[2] = 0.0;
+    if (cmy[0] == 0.0 && cmy[1] == 0.0 && cmy[2] == 0.0) return;
+    const stocks::NegDef& n = stocks::negative(neg);
+    const stocks::PrintDef& p = stocks::print(prt);
+    const bool mono = n.kind == stocks::kBW;
+    Spectrum L = printerLamp();
+    Spectrum S[3];
+    for (int j = 0; j < 3; ++j) S[j] = spec::lobes(p.sens[j]);
+    if (mono) { Spectrum t{}; for (int l = 0; l < NWL; ++l) t[size_t(l)] = S[0][size_t(l)] + S[1][size_t(l)] + S[2][size_t(l)]; S[0] = S[1] = S[2] = t; }
+    double T[NWL];
+    if (n.kind == stocks::kNegative) {
+        NegDyes D = negDyes(n);
+        double dg[3];
+        for (int i = 0; i < 3; ++i) dg[i] = curveEval(negCurveDef(n, i), kLog10Grey, false);
+        for (int l = 0; l < NWL; ++l) {
+            double dens = D.base[size_t(l)];
+            for (int i = 0; i < 3; ++i)
+                dens += dg[i] * D.eps[i][size_t(l)] + D.mask[i] * std::max(D.dsat[i] - dg[i], 0.0) * D.sec[i][size_t(l)];
+            T[l] = std::pow(10.0, -dens);
+        }
+    } else {
+        for (int l = 0; l < NWL; ++l) T[l] = 1.0;   // a silver negative is spectrally flat
+    }
+    auto logistic = [](double z) { return 1.0 / (1.0 + std::exp(-z)); };
+    for (int j = 0; j < 3; ++j) {
+        double a = 0.0, b = 0.0;
+        for (int l = 0; l < NWL; ++l) {
+            const double wl = 380.0 + 5.0 * l, e = L[size_t(l)] * S[j][size_t(l)] * T[l];
+            const double fy = logistic((500.0 - wl) / 6.0);
+            const double fm = logistic((wl - 490.0) / 6.0) * logistic((585.0 - wl) / 6.0);
+            const double fc = logistic((wl - 595.0) / 6.0);
+            a += e;
+            b += e * std::pow(10.0, -0.01 * (cmy[0] * fc + cmy[1] * fm + cmy[2] * fy));
+        }
+        out[j] = a > 0.0 && b > 0.0 ? std::log10(b / a) : 0.0;
+    }
+}
+
 std::shared_ptr<const DyeLutBake> scanLut(int neg) {
     return cached<DyeLutBake>(2, neg, 0, 0, [neg] {
         const stocks::NegDef& n = stocks::negative(neg);
