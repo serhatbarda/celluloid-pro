@@ -433,6 +433,8 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Aura Radius** (`auraRadius`; 40 … 400; default 150; keyframable) — Size of the aura in pixels at 1920 px image width for Super 35 (scaled automatically for other resolutions and the Gauge).
 - **Aura Strength** (`auraStrength`; 0 … 2; default 0.5; keyframable) — Brightness of the aura, relative to the halation amount. 0 = none.
 - **Aura Green** (`auraGreen`; 0 … 1; default 0.35; keyframable) — Share of the green layer in the aura: 0 = deep red, higher values turn it orange and yellow.
+- **Show Halation (diagnostic)** (`halationShow`; default: Off) — DIAGNOSTIC VIEW - switch off before rendering. Effect Only: only the light halation (and Aura) adds, 8x brighter, on black. Mask: which parts of the image feed halation (red = their full share, over a dim grey picture). If several Show controls are on, the one furthest down the pipeline is shown.
+  - Options: Off · Effect Only · Mask
 
 ### Bloom
 
@@ -451,6 +453,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Hollywood Black Magic* — fine, close diffusion that softens detail more than it glows.
   - *CineBloom* — soft, medium glow without a wide tail.
 - **Filter Grade** (`bloomFilterGrade`; 0.125 … 2; default 0.25; keyframable) — Strength of the diffusion filter in filter grades: 0.125 = 1/8, 0.25 = 1/4, 0.5 = 1/2, 1, 2. Bloom Radius scales the size of its halo. Classic ignores it.
+- **Show Bloom (diagnostic)** (`bloomShow`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Shows where the bloom or diffusion filter brightens the picture (lighter than grey, e.g. the shadow lift of a mist filter) or takes light from highlights (darker): grey = unchanged, white = +1 stop.
 
 ### Grain
 
@@ -466,6 +469,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Grain Shadows** (`grainShadows`; 0 … 2; default 1; keyframable) — Grain strength in the shadows (about 1.5 stops under middle grey and darker), relative to the stock. 1 = nominal.
 - **Grain Mids** (`grainMids`; 0 … 2; default 1; keyframable) — Grain strength in the mid-tones, relative to the stock. 1 = nominal.
 - **Grain Highlights** (`grainHighlights`; 0 … 2; default 1; keyframable) — Grain strength in the highlights (about 2 stops over middle grey and brighter), relative to the stock. 1 = nominal.
+- **Show Grain (diagnostic)** (`grainShow`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Shows only the grain the film adds, 4x stronger, around middle grey (grey = no grain). View it at 100 % zoom: where the image is brighter or darker the grain changes as on film.
 
 ### Film Resolution
 
@@ -474,6 +478,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Enable Film Resolution** (`filmResolutionEnable`; default on) — Gives the image the modulation transfer of the camera negative for the chosen Gauge (measured from published film data: the red layer softest, blue sharpest). Digital micro-contrast is finer than any film grain; without this the grain looks laid on top of a too-sharp picture. Off skips the passes (Integrate still applies).
 - **Integrate** (`integrate`; 0 … 1; default 0.5; keyframable) — The print and scan resolution that picture AND grain share: higher values soften both together, so the grain is part of the image instead of an overlay (the colourist's 'defocus under the grain', done physically). 0 = off.
 - **Digital Sharpening Removal** (`sharpenRemoval`; 0 … 1.5; default 0; keyframable) — Undoes the edge sharpening of mirrorless cameras before the film resolution: the fine bright and dark halos along edges are pulled back, so film edges replace digital ones. 1 = removes a typical in-camera sharpening (strength 0.5 at the camera's own pixel size); frame relative, so a downscaled timeline gets correspondingly less. 0 = off.
+- **Show Removed Detail (diagnostic)** (`filmResolutionShow`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Shows the detail Film Resolution and Digital Sharpening Removal take away, 4x stronger, around middle grey (grey = unchanged; bright and dark lines = softened edges and texture).
 
 ### Lens & Gate
 
@@ -482,6 +487,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Enable Acutance** (`acutanceEnable`; default on) — Switches acutance (Acutance, Acutance Radius) on or off without losing its settings. Off = the image's own sharpness; the passes are skipped.
 - **Acutance** (`acutanceAmount`; -1 … 2; default 0.35; keyframable) — Edge contrast from development adjacency effects: crisp, film-like apparent sharpness without the halos of digital sharpening. Negative values soften the image.
 - **Acutance Radius** (`acutanceRadius`; 0.5 … 10; default 2; keyframable) — Size of the adjacency effect in pixels at 1920 px width for Super 35 (scaled with the Gauge: the effect is a fixed distance on the film). Small = fine micro-contrast, larger = broader edge enhancement.
+- **Show Acutance (diagnostic)** (`acutanceShow`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Shows the edge contrast acutance adds (brighter than grey) or takes away (darker), 4x stronger, around middle grey (grey = unchanged).
 - **Enable Gate Weave** (`weaveEnable`; default on) — Switches gate weave (Gate Weave, Weave Speed) on or off without losing its settings. Off = a rock steady frame; the pass is skipped.
 - **Gate Weave** (`weaveAmount`; 0 … 2; default 0; keyframable) — Subtle frame-to-frame movement of the film in the camera/projector gate, mostly vertical. 1 = typical 35 mm projection; keep it low for a believable result. 0 = off.
 - **Weave Speed** (`weaveSpeed`; 0.25 … 4; default 1; keyframable) — How quickly the gate weave wanders (1 = natural; lower is a slow drift, higher a nervous jitter).
@@ -544,6 +550,9 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Scene Encoding** (`sceneEncoding`; default: ARRI LogC4 / ARRI Wide Gamut 4) — Pipeline Stage = Negative -> Scene / Negative Only (clean) only: the scene-referred encoding of the result. Set the next node (or Resolve's colour management) to read this encoding, then apply your display transform. ARRI LogC4 / AWG4 is the default; ACEScct for ACES pipelines, DaVinci Intermediate for DaVinci Wide Gamut timelines, Linear Rec.2020 for compositing.
   - Options: ARRI LogC4 / ARRI Wide Gamut 4 · ARRI LogC3 (EI 800) / ARRI Wide Gamut 3 · ACEScct / AP1 · DaVinci Intermediate / DaVinci Wide Gamut · Linear Rec.2020
 - **Enable False Colour (diagnostic)** (`falseColourEnable`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Replaces the image with exposure zones of the scene light that reaches the film, in stops relative to 18 % grey: purple below -5, blue -5 to -3, teal -3 to -1.5, grey -1.5 to -0.5, green +/-0.5 (grey card), pink +0.5 to +1.5 (skin), grey +1.5 to +3, yellow +3 to +4.5, orange +4.5 to +6, red above +6. Never saved in user presets and never written into exported LUTs.
+- **Show Texture Difference (diagnostic)** (`textureDiffShow`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Shows the final picture minus the picture with every texture module off, 4x stronger, around middle grey: everything halation, bloom, grain, sharpness, weave and damage change.
+- **Before / After Wipe (diagnostic)** (`diagWipe`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Splits the viewer: the untouched input on the left, the result on the right, with a white line at Wipe Position. While a Show view is on, that view fills the whole viewer instead.
+- **Wipe Position** (`diagWipePosition`; 0 … 1; default 0.5; keyframable) — DIAGNOSTIC VIEW - where the before / after line sits, as a fraction of the image width (0 = all after, 1 = all before).
 
 ### LUT Export
 
@@ -1117,6 +1126,37 @@ want to build it yourself or start from it:
 
 Everything else stays at its default (Vision3 250D negative, P6 Modern Print). On dark scenes, lower the
 Filter Grade or Grain Amount if you want even less texture.
+
+### Checking where effects apply (diagnostic views, v1.3)
+
+Halation, a mist filter or the softer film edge can be subtle on a small viewer. Each texture module
+therefore has its own **Show** control, at the end of the module's group, that replaces the picture
+with that module's contribution alone. The views use the real render path (the same passes as the
+final image, on CPU and GPU) and only exist while one is on; with every view off the render is the
+normal one and costs nothing extra.
+
+| Control (group) | What you see |
+|---|---|
+| Show Halation: Effect Only (Halation) | only the light halation and Aura add, 8x brighter, on black |
+| Show Halation: Mask (Halation) | which parts feed halation: red = their full share, over a dim grey picture |
+| Show Bloom (Bloom) | where the bloom or diffusion filter brightens (lighter than grey - the shadow lift of a mist filter) or takes light from highlights (darker); white = +1 stop |
+| Show Grain (Grain) | only the grain, 4x stronger, around middle grey |
+| Show Acutance (Lens & Gate) | edge contrast added (lighter than grey) or taken away (darker), 4x |
+| Show Removed Detail (Film Resolution) | the fine detail Film Resolution and Digital Sharpening Removal take away, 4x |
+| Show Texture Difference (Output) | the final picture minus the picture with every texture module off, 4x, around middle grey |
+| Before / After Wipe + Wipe Position (Output) | the untouched input left of a white line, the result right of it |
+
+- A Show control is greyed while its module is off, and in Color Only mode.
+- If several are on, the one furthest down the pipeline wins: Film Resolution, then Acutance, Bloom,
+  Halation, Grain and finally Texture Difference. While a Show view is on it fills the viewer, so the
+  wipe waits until it is off.
+- They are diagnostics: switch them off before rendering. They are not stored in user presets, look
+  presets leave them alone, and an exported LUT never contains them (the export message says so when one
+  is on).
+- In the licensed build without a license the watermark is drawn over the views too.
+
+Highlight Latitude and Film Damage have no view of their own yet; Show Texture Difference includes the
+damage.
 
 ---
 

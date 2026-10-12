@@ -325,6 +325,7 @@ private:
     void refreshEnabledness(double t);
     void refreshLicenseStatus();
     void exportLut(double t);
+    bool diagnosticViewOn(double t) const;   // v1.3: any Show / Before-After control on
     void saveUserPreset(double t);   // v1.3 P1
     void loadUserPreset(double t);
     void activateLicense();
@@ -628,6 +629,23 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     tp.filmResolution = flag(id::filmResolutionEnable, t);
     tp.integrate = float(num(id::integrate, t));
     tp.sharpenRemoval = flag(id::filmResolutionEnable, t) ? float(num(id::sharpenRemoval, t)) : 0.f;
+    // v1.3 diagnostic views: a module's Show control counts only while that module is on; with several
+    // on, the one furthest down the pipeline wins (film resolution -> acutance -> diffusion filter ->
+    // halation -> grain -> the whole texture)
+    {
+        using tex::DiagView;
+        DiagView v = DiagView::Off;
+        if (flag(id::filmResolutionEnable, t) && flag(id::filmResolutionShow, t)) v = DiagView::FilmResolution;
+        if (flag(id::acutanceEnable, t) && flag(id::acutanceShow, t)) v = DiagView::Acutance;
+        if (flag(id::bloomEnable, t) && flag(id::bloomShow, t)) v = DiagView::BloomOnly;
+        const int hs = flag(id::halationEnable, t) ? choice(id::halationShow, t) : 0;
+        if (hs == 1) v = DiagView::HalationOnly;
+        if (hs == 2) v = DiagView::HalationMask;
+        if (flag(id::grainEnable, t) && flag(id::grainShow, t)) v = DiagView::GrainOnly;
+        if (flag(id::textureDiffShow, t)) v = DiagView::TextureDiff;
+        tp.diagView = int(v);
+        tp.diagWipe = flag(id::diagWipe, t) ? std::max(1e-3f, float(num(id::diagWipePosition, t))) : 0.f;
+    }
     // The grain model is normalised to unit std at grey for every gauge (cel::tex); visible granularity
     // grows with the enlargement of the gate, so the density amplitude carries the gauge ladder
     // (Super 8 2.6x, 16 mm 1.7x ... 65 mm 0.67x of Super 35). Applied here, exactly once.
@@ -1020,7 +1038,8 @@ void ReafilmEffect::saveUserPreset(double t) {
     }
     sendMessage(OFX::Message::eMessageMessage, "",
                 "User preset \"" + name + "\" " + (replaced ? "replaced" : "saved") + ":\n" + path +
-                    (flag(id::falseColourEnable, t) ? "\n(False Colour is a diagnostic view and is not stored.)" : ""));
+                    (flag(id::falseColourEnable, t) ? "\n(False Colour is a diagnostic view and is not stored.)" : "") +
+                    (diagnosticViewOn(t) ? "\n(Show / Before-After views are diagnostic and are not stored.)" : ""));
 }
 
 void ReafilmEffect::loadUserPreset(double t) {
@@ -1266,6 +1285,16 @@ void ReafilmEffect::refreshEnabledness(double t) {
     for (const char* p : {id::scratchAmount, id::scratchPersistence, id::scratchEmulsion, id::scratchNegative})
         setEnabled(p, dmgOn && flag(id::scratchEnable, t));
     setEnabled(id::hairAmount, dmgOn && flag(id::hairEnable, t));
+    {   // v1.3 diagnostic views: each Show control is live only while its module is on
+        setEnabled(id::halationShow, texture && halOn);
+        setEnabled(id::bloomShow, texture && bloomOn);
+        setEnabled(id::grainShow, texture && grainOn);
+        setEnabled(id::acutanceShow, texture && acutOn);
+        setEnabled(id::filmResolutionShow, texture && flag(id::filmResolutionEnable, t));
+        setEnabled(id::textureDiffShow, texture);
+        setEnabled(id::diagWipe, texture);
+        setEnabled(id::diagWipePosition, texture && flag(id::diagWipe, t));
+    }
     const bool blurOn = texture && flag(id::filmBlurEnable, t);
     setEnabled(id::filmBlurEnable, texture);
     for (const char* p : {id::filmBlurRadius, id::filmBlurFrequency, id::filmBlurDuration, id::filmBlurBreathing,
@@ -1351,6 +1380,13 @@ void ReafilmEffect::deactivateLicense() {
 }
 #endif
 
+bool ReafilmEffect::diagnosticViewOn(double t) const {
+    // a LUT is built from lookAt() alone (colour only), so a texture diagnostic view can never reach it
+    return choice(id::halationShow, t) != 0 || flag(id::bloomShow, t) || flag(id::grainShow, t) ||
+           flag(id::filmResolutionShow, t) || flag(id::acutanceShow, t) || flag(id::textureDiffShow, t) ||
+           flag(id::diagWipe, t);
+}
+
 void ReafilmEffect::exportLut(double t) {
     // Licensed build: LUT export is a licensed feature, a .cube carries the whole colour pipeline
     // without the trial watermark (SPEC section 9, section 13 entry of 2026-10-07). The personal
@@ -1419,6 +1455,7 @@ void ReafilmEffect::exportLut(double t) {
         note += "\nScene-linear input: the file carries a 1D log2 shaper (-8.5 .. +8.5 stops around mid grey) "
                 "in front of the 3D LUT.";
     if (falseColourOn) note += "\nFalse Colour (diagnostic view) is on in the node; the LUT contains the normal rendering.";
+    if (diagnosticViewOn(t)) note += "\nA Show / Before-After diagnostic view is on in the node; the LUT contains the normal colour rendering.";
     if (choice(id::mode, t) == int(core::Mode::TextureOnly))
         note += "\nNote: Texture Only mode is active in the node; the LUT contains the colour pipeline of the current "
                "settings (as in Color Only mode).";

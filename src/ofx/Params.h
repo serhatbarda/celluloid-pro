@@ -260,12 +260,27 @@ constexpr const char* bloomKeepHighlights = "bloomKeepHighlights";
 constexpr const char* bloomFilter = "bloomFilter";              // append only (tex::bloomFilterShape)
 constexpr const char* bloomFilterGrade = "bloomFilterGrade";
 constexpr const char* sharpenRemoval = "sharpenRemoval";        // [Film Resolution]
+// ---- v1.3 diagnostic views ("Show" controls; not look params, never in presets / LUTs) ------------
+constexpr const char* halationShow = "halationShow";            // Off, Effect Only, Mask (append only)
+constexpr const char* bloomShow = "bloomShow";
+constexpr const char* grainShow = "grainShow";
+constexpr const char* filmResolutionShow = "filmResolutionShow";
+constexpr const char* acutanceShow = "acutanceShow";
+constexpr const char* textureDiffShow = "textureDiffShow";      // [Output]
+constexpr const char* diagWipe = "diagWipe";                    // [Output]
+constexpr const char* diagWipePosition = "diagWipePosition";    // [Output]
 } // namespace id
 
 // v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are
 // shortcuts: Texture Only = Mode Texture Only, Negative Only (clean) = Negative -> Scene with every texture
 // module off (as Mode Color Only). ALEXA Rec.709 (appended in v1.3 ALEXA Rendering) = core::Stage::AlexaRec709.
 enum class StageChoice : int { Full = 0, NegativeLogScan, NegativeToScene, PrintOnly, TextureOnly, NegativeClean, AlexaRec709, Count };
+
+// v1.3 diagnostic views: true for the Show / Before-After controls (never stored in presets).
+inline bool isDiagnosticViewParam(const std::string& p) {
+    return p == id::halationShow || p == id::bloomShow || p == id::grainShow || p == id::filmResolutionShow ||
+           p == id::acutanceShow || p == id::textureDiffShow || p == id::diagWipe || p == id::diagWipePosition;
+}
 
 // LUT sizes offered by lutSize, in option order.
 constexpr int kLutSizes[3] = {17, 33, 65};

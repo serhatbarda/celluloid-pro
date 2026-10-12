@@ -167,6 +167,7 @@ int main() {
         // v1.3 reference look: diffusion filter grade, digital sharpening removal (0 = off)
         {"bloomFilterGrade", "groupBloom", 0.125, 2, 0.25},
         {"sharpenRemoval", "groupFilmResolution", 0, 1.5, 0},
+        {"diagWipePosition", "groupOutput", 0, 1, 0.5},
     };
     for (const Spec& s : spec) {
         const ParamDef* d = findParam(s.id);
@@ -289,6 +290,30 @@ int main() {
     check(count("cameraEmulation") == int(core::CameraEmulation::Count) - 1, "cameraEmulation options != CameraEmulation::Count - 1");
     check(count("pipelineStage") == int(StageChoice::Count), "pipelineStage options != StageChoice::Count");
     check(count("bloomFilter") == tex::kBloomFilterCount, "bloomFilter options != kBloomFilterCount");
+    check(count("halationShow") == 3, "halationShow options: Off, Effect Only, Mask");
+
+    // v1.3 diagnostic views: in their module's group (after its switch), off, not look params, not
+    // keyframable, labelled as diagnostics
+    {
+        const struct { const char* id; const char* group; const char* sw; } dv[] = {
+            {"halationShow", "groupHalation", "halationEnable"},       {"bloomShow", "groupBloom", "bloomEnable"},
+            {"grainShow", "groupGrain", "grainEnable"},                {"acutanceShow", "groupLensGate", "acutanceEnable"},
+            {"filmResolutionShow", "groupFilmResolution", "filmResolutionEnable"},
+            {"textureDiffShow", "groupOutput", nullptr},               {"diagWipe", "groupOutput", nullptr},
+            {"diagWipePosition", "groupOutput", nullptr}};
+        for (const auto& e : dv) {
+            const ParamDef* d = findParam(e.id);
+            check(d != nullptr, std::string("missing diagnostic view ") + e.id);
+            if (!d) continue;
+            check(d->group == e.group, std::string(e.id) + ": wrong group " + d->group);
+            const bool pos = std::string(e.id) == "diagWipePosition";   // a moving wipe may be keyframed
+            check(!d->look && (pos || !d->animates), std::string(e.id) + ": a diagnostic view is not a look param nor keyframable");
+            check(pos || d->def == 0.0, std::string(e.id) + ": diagnostic views default off");
+            check(d->hint.rfind("DIAGNOSTIC VIEW", 0) == 0, std::string(e.id) + ": tooltip must start with DIAGNOSTIC VIEW");
+            check(isDiagnosticViewParam(e.id) && !userPresetStores(*d), std::string(e.id) + ": never stored in user presets");
+            if (e.sw) check(position(e.id) > position(e.sw), std::string(e.id) + " must follow " + e.sw);
+        }
+    }
 
     // every group of SPEC §7 exists
     for (const char* g : {"groupLook", "groupInput", "groupCameraEmulation", "groupNegative", "groupPrint", "groupHalation", "groupBloom",

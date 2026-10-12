@@ -654,6 +654,56 @@ CEL_DEVICE void cel_k_tx_grain_finish(CEL_KERNEL_PARAMS) {
     cel_store(out, a->outStride, x, y, cel_f4(n.x, n.y, n.z, 0.0f));
 }
 
+/* tx_diag (v1.3 diagnostic views, "Show" controls of the modules; never part of a production plan):
+ * in0 = the image WITH the module, in1 = the same image WITHOUT it (both from the real render path, same
+ * size), out = an SDR display picture of the module's isolated contribution. i[0] = mode:
+ *   0 added light (scene- or display-linear): out = sRGB encode of min(f[0] max(in0 - in1, 0), 1), on black
+ *   1 edge / detail map: out = 0.5 + f[0] log2((Y0 + f[1]) / (Y1 + f[1])), grey = no change
+ *   2 signed difference of encoded pictures: out = 0.5 + f[0] (in0 - in1) per channel, grey = no change
+ *   3 halation mask (in0 only): the share of each pixel's light that feeds halation (cel_txh_hal_energy,
+ *     f[2..7] = T, k, emax, source weights) in red over a dim grey picture of the image
+ *   4 wipe: in1 (before) left of column f[2] x width, in0 (after) right of it, a 2 px white line between
+ * alpha = in0.w. Results are clamped to 0 .. 1. */
+CEL_DEVICE void cel_k_tx_diag(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 p = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+    int mode = a->i[0];
+    float g = a->f[0];
+    CelF4 o = p;
+    if (mode == 3) {
+        float yh = cel_txh_max(a->f[5] * p.x + a->f[6] * p.y + a->f[7] * p.z, 0.0f);
+        float e = cel_txh_hal_energy(p, a->f[2], a->f[3], a->f[4], a->f[5], a->f[6], a->f[7]);
+        float sh = yh > 1e-12f ? cel_txh_clampf(e / yh, 0.0f, 1.0f) : 0.0f;
+        float yl = cel_txh_max(cel_txh_luma(p), 0.0f);
+        float c = 0.3f * yl / (yl + 0.18f);
+        o = cel_f4(c + sh * (1.0f - c), c + sh * (0.25f - c), c * (1.0f - sh), p.w);
+    } else {
+        CelF4 q = cel_txh_clean4(cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], x, y));
+        if (mode == 0) {
+            float r = cel_txh_clampf(g * (p.x - q.x), 0.0f, 1.0f);
+            float gg = cel_txh_clampf(g * (p.y - q.y), 0.0f, 1.0f);
+            float b = cel_txh_clampf(g * (p.z - q.z), 0.0f, 1.0f);
+            /* sRGB-shaped encode: the linear toe keeps the slope finite, so the tiny rounding differences of
+               two renders are not blown up near black (pow(x, 1/2.2) has an infinite slope at 0) */
+            o = cel_f4(r > 0.0031308f ? 1.055f * cel_pow(r, 0.41666667f) - 0.055f : 12.92f * r,
+                       gg > 0.0031308f ? 1.055f * cel_pow(gg, 0.41666667f) - 0.055f : 12.92f * gg,
+                       b > 0.0031308f ? 1.055f * cel_pow(b, 0.41666667f) - 0.055f : 12.92f * b, p.w);
+        } else if (mode == 1) {
+            float y0 = cel_txh_max(cel_txh_luma(p), 0.0f), y1 = cel_txh_max(cel_txh_luma(q), 0.0f);
+            float v = cel_txh_clampf(0.5f + g * cel_log2((y0 + a->f[1]) / (y1 + a->f[1])), 0.0f, 1.0f);
+            o = cel_f4(v, v, v, p.w);
+        } else if (mode == 2) {
+            o = cel_f4(cel_txh_clampf(0.5f + g * (p.x - q.x), 0.0f, 1.0f), cel_txh_clampf(0.5f + g * (p.y - q.y), 0.0f, 1.0f),
+                       cel_txh_clampf(0.5f + g * (p.z - q.z), 0.0f, 1.0f), p.w);
+        } else {
+            int xb = (int)(a->f[2] * (float)a->outW);
+            if (x == xb || x == xb - 1) o = cel_f4(1.0f, 1.0f, 1.0f, p.w);
+            else if (x < xb) o = cel_f4(q.x, q.y, q.z, p.w);
+        }
+    }
+    cel_store(out, a->outStride, x, y, o);
+}
+
 /* film damage (v1.1): tx_params, tx_damage */
 #include "DamageKernels.h"
 

@@ -534,6 +534,11 @@ std::vector<ParamDef> build() {
           "Brightness of the aura, relative to the halation amount. 0 = none.", true);
     b.dbl(id::auraGreen, "Aura Green", 0.35, 0.0, 1.0, 0.01, 2,
           "Share of the green layer in the aura: 0 = deep red, higher values turn it orange and yellow.", true);
+    b.choice(id::halationShow, "Show Halation (diagnostic)", {"Off", "Effect Only", "Mask"}, 0,
+             "DIAGNOSTIC VIEW - switch off before rendering. Effect Only: only the light halation (and Aura) adds, 8x brighter, on black. Mask: which "
+             "parts of the image feed halation (red = their full share, over a dim grey picture). If several "
+             "Show controls are on, the one furthest down the pipeline is shown.",
+             false);
 
     // ---------------------------------------------------------------- [Bloom]
     b.beginGroup(id::gBloom, "Bloom", false, "Neutral diffusion of highlights.");
@@ -575,6 +580,10 @@ std::vector<ParamDef> build() {
           "Strength of the diffusion filter in filter grades: 0.125 = 1/8, 0.25 = 1/4, 0.5 = 1/2, 1, 2. "
           "Bloom Radius scales the size of its halo. Classic ignores it.",
           true);
+    b.boolean(id::bloomShow, "Show Bloom (diagnostic)", false,
+              "DIAGNOSTIC VIEW - switch off before rendering. Shows where the bloom or diffusion filter brightens the picture (lighter than grey, e.g. "
+              "the shadow lift of a mist filter) or takes light from highlights (darker): grey = unchanged, white = +1 stop.",
+              false);
 
     // ---------------------------------------------------------------- [Grain]
     b.beginGroup(id::gGrain, "Grain", true, "Film grain, generated in the film's density domain.");
@@ -618,6 +627,10 @@ std::vector<ParamDef> build() {
     b.dbl(id::grainHighlights, "Grain Highlights", 1.0, 0.0, 2.0, 0.01, 2,
           "Grain strength in the highlights (about 2 stops over middle grey and brighter), relative to the "
           "stock. 1 = nominal.", true);
+    b.boolean(id::grainShow, "Show Grain (diagnostic)", false,
+              "DIAGNOSTIC VIEW - switch off before rendering. Shows only the grain the film adds, 4x stronger, around middle grey (grey = no grain). View "
+              "it at 100 % zoom: where the image is brighter or darker the grain changes as on film.",
+              false);
 
     // ---------------------------------------------------------------- [Film Resolution] (v1.2)
     b.beginGroup(id::gFilmResolution, "Film Resolution", false,
@@ -639,6 +652,10 @@ std::vector<ParamDef> build() {
           "in-camera sharpening (strength 0.5 at the camera's own pixel size); frame relative, so a downscaled "
           "timeline gets correspondingly less. 0 = off.",
           true);
+    b.boolean(id::filmResolutionShow, "Show Removed Detail (diagnostic)", false,
+              "DIAGNOSTIC VIEW - switch off before rendering. Shows the detail Film Resolution and Digital Sharpening Removal take away, 4x stronger, "
+              "around middle grey (grey = unchanged; bright and dark lines = softened edges and texture).",
+              false);
 
     // ---------------------------------------------------------------- [Lens & Gate]
     b.beginGroup(id::gLens, "Lens & Gate", false, "Sharpness, gate weave and vignetting.");
@@ -654,6 +671,10 @@ std::vector<ParamDef> build() {
           "Size of the adjacency effect in pixels at 1920 px width for Super 35 (scaled with the Gauge: the effect "
           "is a fixed distance on the film). Small = fine micro-contrast, larger = broader edge enhancement.",
           true);
+    b.boolean(id::acutanceShow, "Show Acutance (diagnostic)", false,
+              "DIAGNOSTIC VIEW - switch off before rendering. Shows the edge contrast acutance adds (brighter than grey) or takes away (darker), 4x "
+              "stronger, around middle grey (grey = unchanged).",
+              false);
     b.boolean(id::weaveEnable, "Enable Gate Weave", true,
               "Switches gate weave (Gate Weave, Weave Speed) on or off without losing its settings. Off = a rock "
               "steady frame; the pass is skipped.",
@@ -826,6 +847,18 @@ std::vector<ParamDef> build() {
               "to +3, yellow +3 to +4.5, orange +4.5 to +6, red above +6. Never saved in user presets and never "
               "written into exported LUTs.",
               false);
+    // v1.3: diagnostic views of the texture as a whole (the modules have their own Show controls)
+    b.boolean(id::textureDiffShow, "Show Texture Difference (diagnostic)", false,
+              "DIAGNOSTIC VIEW - switch off before rendering. Shows the final picture minus the picture with every texture module off, 4x stronger, "
+              "around middle grey: everything halation, bloom, grain, sharpness, weave and damage change.",
+              false);
+    b.boolean(id::diagWipe, "Before / After Wipe (diagnostic)", false,
+              "DIAGNOSTIC VIEW - switch off before rendering. Splits the viewer: the untouched input on the left, the result on the right, with a white "
+              "line at Wipe Position. While a Show view is on, that view fills the whole viewer instead.",
+              false);
+    b.dbl(id::diagWipePosition, "Wipe Position", 0.5, 0.0, 1.0, 0.01, 2,
+          "DIAGNOSTIC VIEW - where the before / after line sits, as a fraction of the image width (0 = all after, 1 = all before).",
+          false);
 
     // ---------------------------------------------------------------- [LUT Export]
     b.beginGroup(id::gLut, "LUT Export", false, "Export the colour pipeline as a 3D LUT (.cube).");

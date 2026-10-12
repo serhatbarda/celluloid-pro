@@ -581,13 +581,117 @@ void addFilmBlur(Builder& B, int src, int target, const tex::FilmBlurDesign& fb,
     B.pass(KID_display_finish, target, {cur, -1, BUF_SRC});
 }
 
+// watermark of the licensed build (also on the diagnostic views)
+void addWatermark(Builder& B, int src, const FrameSettings& fs, float ps) {
+    PassDesc& wp = B.pass(KID_watermark, BUF_DST, {src});
+    wp.args.f[0] = ps;
+    const core::OutputSpace os = fs.look.output;
+    lic::fillWatermarkArgs(wp.args, os == core::OutputSpace::Rec2100_PQ ? lic::WatermarkTransfer::PQ
+                                    : os == core::OutputSpace::Rec2100_HLG ? lic::WatermarkTransfer::HLG
+                                                                            : lic::WatermarkTransfer::SDR);
+}
+
+// v1.3 diagnostic views (the modules' "Show" controls): the real texture chain WITH and WITHOUT the
+// module, from the same decoded source, compared by tx_diag. Only built when a view is selected, so
+// the production plan (buildPlan below) is untouched and costs nothing extra when every view is off.
+Plan buildDiagPlan(int w, int h, const FrameSettings& fs) {
+    using tex::DiagView;
+    const tex::TextureParams& tp = fs.tex;
+    const float ps = tex::effectivePixelScale(tp, w);
+    const bool dr = fs.mode == core::Mode::TextureOnly;
+    const bool hdr = hdrOutput(fs);
+    const DiagView v = DiagView(tp.diagView);
+    Builder B(w, h);
+    int src = B.buffer(w, h);
+    B.pass(dr ? KID_display_decode : KID_decode, src, {BUF_SRC});
+    const int out = fs.watermark ? B.buffer(w, h) : int(BUF_DST);
+    // the colour pass (film rendering, or Texture-Only re-encode) of `img`, with or without grain / damage
+    auto colour = [&](int img, bool withGrain, bool withDamage) {
+        GrainGrids g;
+        if (withGrain && grainOn(fs)) g = addGrain(B, tp, w, h, ps);
+        const int dmg = withDamage ? addDamage(B, tp, w, h, ps) : -1;
+        int o = B.buffer(w, h);
+        PassDesc& cp = B.pass(dr ? KID_display_finish : KID_color, o, {img, g.coarse, g.fine, dmg});
+        if (g.coarse >= 0) {
+            setGrainArgs(cp, g.d);
+            if (dr) setToneMap(cp.args.f + 24, tex::toneMap(!hdr));
+        }
+        return o;
+    };
+    tex::TextureParams off = tp;
+    off.diagView = 0; off.diagWipe = 0.f;
+    int a = -1, b = -1, mode = 0;
+    float gain = 1.f, eps = 0.f;
+    PassDesc* dp = nullptr;
+    switch (v) {
+        case DiagView::FilmResolution:      // detail removed: without minus with (log luminance), x4
+            off.filmResolution = false; off.integrate = 0.f; off.sharpenRemoval = 0.f;
+            a = addImageTexture(B, src, off, dr, hdr, w, h, ps);
+            b = addImageTexture(B, src, tp, dr, hdr, w, h, ps);
+            mode = 1; gain = 4.f; eps = dr ? 0.01f : 0.002f;
+            break;
+        case DiagView::Acutance:            // edge contrast added (+) / taken (-), log luminance, x4
+            off.acutanceAmount = 0.f;
+            a = addImageTexture(B, src, tp, dr, hdr, w, h, ps);
+            b = addImageTexture(B, src, off, dr, hdr, w, h, ps);
+            mode = 1; gain = 4.f; eps = dr ? 0.01f : 0.002f;
+            break;
+        case DiagView::HalationOnly:        // the added halation (and aura) light, x8 on black
+            off.halationAmount = 0.f;
+            a = addImageTexture(B, src, tp, dr, hdr, w, h, ps);
+            b = addImageTexture(B, src, off, dr, hdr, w, h, ps);
+            mode = 0; gain = 8.f;
+            break;
+        case DiagView::BloomOnly:           // where bloom / a filter brightens (shadow lift) or takes light, in stops
+            off.bloomAmount = 0.f; off.bloomFilter = 0;
+            a = addImageTexture(B, src, tp, dr, hdr, w, h, ps);
+            b = addImageTexture(B, src, off, dr, hdr, w, h, ps);
+            mode = 1; gain = 0.5f; eps = dr ? 0.01f : 0.002f;
+            break;
+        case DiagView::HalationMask: {
+            const tex::HalationLook hl = tex::halationLook(tp.halationAmount, tp.halationThreshold, tp.halationHue, dr);
+            dp = &B.pass(KID_tx_diag, out, {src});
+            dp->args.i[0] = 3;
+            dp->args.f[2] = hl.threshold; dp->args.f[3] = hl.knee; dp->args.f[4] = hl.emax;
+            dp->args.f[5] = hl.srcW[0]; dp->args.f[6] = hl.srcW[1]; dp->args.f[7] = hl.srcW[2];
+            break;
+        }
+        case DiagView::GrainOnly: {         // the grain of the colour pass, around mid grey, x4
+            const int img = addImageTexture(B, src, tp, dr, hdr, w, h, ps);
+            a = colour(img, true, false);
+            b = colour(img, false, false);
+            mode = 2; gain = 4.f;
+            break;
+        }
+        case DiagView::TextureDiff:         // final minus the texture-off picture, x4
+        default: {
+            const int img = addImageTexture(B, src, tp, dr, hdr, w, h, ps);
+            a = colour(img, true, true);
+            b = colour(src, false, false);
+            mode = 2; gain = 4.f;
+            break;
+        }
+    }
+    if (!dp) {
+        dp = &B.pass(KID_tx_diag, out, {a, b});
+        dp->args.i[0] = mode;
+        dp->args.f[0] = gain;
+        dp->args.f[1] = eps;
+    }
+    if (fs.watermark) addWatermark(B, out, fs, ps);
+    return B.finish();
+}
+
 } // namespace
 
 Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe) {
     (void)pipe;   // colour state is passed to the backend separately (Pipeline::state())
     w = std::max(1, w); h = std::max(1, h);
     const tex::TextureParams& tp = fs.tex;
+    if (fs.mode != core::Mode::ColorOnly && tp.diagView > 0 && tp.diagView < int(tex::DiagView::Count))
+        return buildDiagPlan(w, h, fs);   // v1.3 diagnostic view (a module's "Show" control)
     const float ps = tex::effectivePixelScale(tp, w);
+    const bool wipe = std::isfinite(tp.diagWipe) && tp.diagWipe > 0.f;   // v1.3 before / after wipe
     Builder B(w, h);
     int img = -1, damage = -1;
     GrainGrids grain;
@@ -621,7 +725,7 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
     const bool beforeProjection = fs.mode != core::Mode::TextureOnly &&
                                   (fs.look.stage == int(core::Stage::NegativeLogScan) || fs.look.stage == int(core::Stage::NegativeToScene));
     const tex::FilmBlurDesign fb = (fusedDecode || beforeProjection) ? tex::FilmBlurDesign{} : tex::designFilmBlur(tp, w, h, ps);
-    int colorOut = (fs.watermark || fb.on) ? B.buffer(w, h) : int(BUF_DST);
+    int colorOut = (fs.watermark || fb.on || wipe) ? B.buffer(w, h) : int(BUF_DST);
     PassDesc& cp = fusedDecode ? B.pass(colorK, colorOut, {img, -1, -1})
                                : B.pass(colorK, colorOut, {img, grain.coarse, grain.fine, damage});
     if (grain.coarse >= 0) {
@@ -631,17 +735,17 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
     cp.args.i[1] = fusedDecode ? 1 : 0;
     int finalOut = colorOut;
     if (fb.on) {
-        finalOut = fs.watermark ? B.buffer(w, h) : int(BUF_DST);
+        finalOut = (fs.watermark || wipe) ? B.buffer(w, h) : int(BUF_DST);
         addFilmBlur(B, colorOut, finalOut, fb, w, h);
     }
-    if (fs.watermark) {
-        PassDesc& wp = B.pass(KID_watermark, BUF_DST, {finalOut});
-        wp.args.f[0] = ps;
-        const core::OutputSpace os = fs.look.output;
-        lic::fillWatermarkArgs(wp.args, os == core::OutputSpace::Rec2100_PQ ? lic::WatermarkTransfer::PQ
-                                        : os == core::OutputSpace::Rec2100_HLG ? lic::WatermarkTransfer::HLG
-                                                                                : lic::WatermarkTransfer::SDR);
+    if (wipe) {   // the host source (before) left of the line, the result (after) right of it
+        const int wo = fs.watermark ? B.buffer(w, h) : int(BUF_DST);
+        PassDesc& dp = B.pass(KID_tx_diag, wo, {finalOut, BUF_SRC});
+        dp.args.i[0] = 4;
+        dp.args.f[2] = std::min(1.f, tp.diagWipe);
+        finalOut = wo;
     }
+    if (fs.watermark) addWatermark(B, finalOut, fs, ps);
     return B.finish();
 }
 

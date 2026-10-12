@@ -333,6 +333,24 @@ std::vector<Case> makeCases(bool all) {
         c.fs.tex.integrate = 0.8f; c.fs.tex.sharpenRemoval = 0.75f; });
     add("sharpening removal 1.5 alone, texture only", [](Case& c) { c.fs.tex.filmResolution = true; c.fs.tex.sharpenRemoval = 1.5f;
         c.fs.mode = core::Mode::TextureOnly; c.scene = Scene::Display; });
+    // ---- v1.3 diagnostic views (every DiagView, scene-linear and display-referred) and the before / after wipe
+    // A view shows the difference of two renders amplified up to 8x (Effect Only), so its tolerance is 1e-3 of
+    // the display picture; both renders are the production passes, covered at the normal tolerance above.
+    for (int v = 1; v < int(tex::DiagView::Count); ++v) {
+        add("diag view " + std::to_string(v), [v](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h, false);
+            c.fs.tex.filmResolution = true; c.fs.tex.integrate = 0.5f; c.fs.tex.sharpenRemoval = 0.5f; c.fs.tex.diagView = v;
+            c.tol = 1e-3; });
+        add("diag view " + std::to_string(v) + ", texture only", [v](Case& c) { fullTexture(c.fs); c.fs.mode = core::Mode::TextureOnly;
+            c.scene = Scene::Display; c.fs.tex.filmResolution = true; c.fs.tex.integrate = 0.5f; c.fs.tex.diagView = v; c.tol = 1e-3; });
+    }
+    add("diag view halation mask, torture", [](Case& c) { fullTexture(c.fs); c.scene = Scene::Torture;
+        c.fs.tex.diagView = int(tex::DiagView::HalationMask); });
+    add("diag view texture diff, PQ + watermark", [](Case& c) { fullTexture(c.fs); c.fs.look.output = OS::Rec2100_PQ;
+        c.fs.watermark = true; c.fs.tex.diagView = int(tex::DiagView::TextureDiff); });
+    add("diag wipe 0.4", [](Case& c) { fullTexture(c.fs); c.fs.tex.diagWipe = 0.4f; });
+    add("diag wipe 1 + watermark, texture only", [](Case& c) { fullTexture(c.fs); c.fs.watermark = true; c.fs.tex.diagWipe = 1.f;
+        c.fs.mode = core::Mode::TextureOnly; c.scene = Scene::Display; });
+    add("diag wipe 0.3, torture", [](Case& c) { fullTexture(c.fs); c.fs.tex.diagWipe = 0.3f; c.scene = Scene::Torture; });
     // ---- hostile inputs
     add("torture, stage print only", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::PrintOnly); c.scene = Scene::Torture; });
     add("torture, stage negative -> scene ACEScct", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::NegativeToScene);

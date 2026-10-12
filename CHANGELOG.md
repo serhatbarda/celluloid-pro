@@ -88,6 +88,13 @@ unchanged in a newer one.
   - **Sunlit 35mm (soft scan)** look preset (appended): soft-aim print, full crossover, yellow-green
     mids, lifted blacks from a 1/8 Black Pro-Mist, halation, and a gentle edge that stays soft in
     the shadows. The recipe is in the manual.
+- **Diagnostic views ("Show" controls)**, each at the end of its own module's group: **Show Halation**
+  (Off / Effect Only / Mask), **Show Bloom**, **Show Grain**, **Show Acutance**, **Show Removed Detail**
+  (Film Resolution); in Output **Show Texture Difference** and a **Before / After Wipe** with **Wipe
+  Position**. They render the module's isolated contribution through the real render path, greyed
+  while their module is off, the one furthest down the pipeline wins, never stored in presets nor in
+  LUTs, and with every view off the render is unchanged and costs nothing. Manual: "Checking where
+  effects apply".
 
 ### Fixed
 

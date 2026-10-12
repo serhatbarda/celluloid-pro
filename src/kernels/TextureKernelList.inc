@@ -18,3 +18,4 @@ CEL_KERNEL(tx_grain_finish)  /* grain (v1.2): diagnostic dye-cloud grain field a
 CEL_KERNEL(tx_params)        /* parameter table (8 x 1) from f[]: hands a following pass more than 32 floats */
 CEL_KERNEL(tx_damage)        /* film damage field: dust, scratches, hair (DamageKernels.h; read by color / display_finish as in3) */
 CEL_KERNEL(tx_hb_prefilter_down) /* v1.2 fusion: glow source + 2x downsample (tx_hb_prefilter -> tx_pyr_down in one pass) */
+CEL_KERNEL(tx_diag)          /* v1.3 diagnostic views: module contribution (with vs without), halation mask, wipe */

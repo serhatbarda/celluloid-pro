@@ -114,6 +114,24 @@ struct TextureParams {
     int   bloomFilter        = 0;
     float bloomFilterGrade   = 0.25f; // 0.125 .. 2
     float sharpenRemoval     = 0.f;   // 0 .. 1.5 Digital Sharpening Removal (Film Resolution; 0 = off)
+    // ---- v1.3 diagnostic views (appended; the modules' "Show" controls, never in presets or LUTs):
+    // diagView = one DiagView (Off = the production plan, untouched); diagWipe > 0 = before / after wipe
+    // of the whole effect at that fraction of the width (0 = off)
+    int   diagView           = 0;
+    float diagWipe           = 0.f;
+};
+
+// ORDER = the plug-in's priority list, not an OFX choice (the "Show" controls of each module map to it)
+enum class DiagView : int {
+    Off = 0,
+    FilmResolution,   // detail the film resolution (and Digital Sharpening Removal) took away
+    Acutance,         // edge contrast added (+) / removed (-) by acutance, grey = 0
+    HalationOnly,     // the added halation light (plus aura), boosted, on black
+    HalationMask,     // which pixels feed halation (share of their light)
+    BloomOnly,        // where the bloom / diffusion filter brightens (shadow lift) or takes light, in stops
+    GrainOnly,        // the grain the colour pass adds, around mid grey
+    TextureDiff,      // final picture minus the texture-off picture, amplified, around mid grey
+    Count
 };
 
 // ---- v1.3 Film Breath: per-frame exposure / development / printer-light variation ----------------
