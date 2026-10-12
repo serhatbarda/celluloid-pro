@@ -159,7 +159,13 @@
 #define CEL_AL_TN_X0        (-8.0f)
 #define CEL_AL_TN_X1        10.0f
 #define CEL_AL_TN_SAT       0.35f /* tone-term R/B gains fade out by this saturation (1 - min/max) */
-#define CEL_AL_SIZE         207
+#define CEL_AL_HX           207  /* 207..472 v1.3 saturated-colour review: per-stop hue / chroma table, CEL_AL_HX_R rows
+                                    x CEL_AL_TN_N knots (same stops as CEL_AL_TN): rows 0..6 hue rotation (rad), rows
+                                    7..13 log chroma, each a 3rd-order Fourier series of the Oklab hue (celc_al_hx) */
+#define CEL_AL_HX_R         14
+#define CEL_AL_HX_CS        0.12f /* positive chroma gains fade out above this Oklab C (1 / (1 + (C / CS)^4)) */
+#define CEL_AL_MINR         0.04f /* ALEXA Colour output: smallest Rec.2020 channel softly kept above 0 (knee at x Y) */
+#define CEL_AL_SIZE         473
 #define CEL_AL_NB           33   /* band floats: dh0 7, dh1 5, ds0 7, ds1 5, dl0 5, s2 1, skin 3 */
 #define CEL_AL_U_GREY       0.391006832f  /* LogC3 (EI 800) code of 18 % grey (pivot of the tone curve) */
 #define CEL_AL_C0           0.02f      /* chroma fade-in of the bands (Oklab C) */

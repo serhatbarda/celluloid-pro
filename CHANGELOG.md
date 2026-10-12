@@ -134,6 +134,11 @@ unchanged in a newer one.
   render exactly as before. It is now called *Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)*. The
   corrected 3513DI is the new print 10 and is close to Kodak 2383, like the real stock. The Soft Cinema
   preset still uses print 7.
+- **ALEXA Colour renders saturated colours closer to the ALEXA** (saturated-colour review). Projects with
+  ALEXA Colour on look different: bright reds stay red instead of turning crimson, mid greens are more
+  saturated, skin and orange separate more, and skin keeps its hue better from shadows to highlights.
+  ALEXA Colour now also never pushes a colour past Rec.2020 into the negative. With ALEXA Colour off,
+  nothing changes. The film's own cool, green-poor shadows are kept.
 
 ### Fixed
 

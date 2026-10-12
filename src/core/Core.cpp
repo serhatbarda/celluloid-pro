@@ -717,6 +717,8 @@ static void buildAlexa(float* s, const LookParams& p, int oAL) {
     putMat(a, CEL_AL_MOUT, outputMatrix(p.output) * spec::npm(spec::Gamut::Rec709));
     for (int r = 0; r < 3; ++r)   // v1.3 ARRI look II: ALEXA Colour tone table (through the film)
         for (int k = 0; k < CEL_AL_TN_N; ++k) a[CEL_AL_TN + r * CEL_AL_TN_N + k] = float(kAlexaColourTone[r][k]);
+    for (int r = 0; r < CEL_AL_HX_R; ++r)   // v1.3 saturated-colour review: per-stop hue / chroma table
+        for (int k = 0; k < CEL_AL_TN_N; ++k) a[CEL_AL_HX + r * CEL_AL_TN_N + k] = float(kAlexaColourHX[r][k]);
     // Oklab L of the display grey and of scene grey (the bands' lightness pivots)
     const float dg = std::pow(std::max(celc_al_tone(a + CEL_AL_TONE, 0.18f), 0.f), 2.4f);
     a[CEL_AL_LG_R] = celc_al_oklab(a, cel_f3(dg, dg, dg)).x;

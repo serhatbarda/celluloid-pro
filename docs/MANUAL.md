@@ -969,9 +969,12 @@ Two recipes:
 
 Through the default film, ALEXA Colour brings the measured hue of a saturated red from 41 to 31
 degrees (ARRI 30), a mid green from 156 to 136 (ARRI 140), the spread of the six skin tones from
-0.46 to 0.40 (ARRI 0.42), and the tint of whites from up to 2.5 a* to 0.6. What the film keeps as its own:
-greens stay less saturated than on the ALEXA (C* 21 vs 29) and very bright reds turn a little
-further toward crimson.
+0.46 to 0.40 (ARRI 0.42), and the tint of whites from up to 2.5 a* to 0.6. Since the saturated-colour
+review it also corrects hue and saturation per exposure stop: a bright red (+1.5 stops) sits at 24 degrees
+instead of a crimson 20 (ARRI 26), a mid green reaches C* 26 (was 21, ARRI 29), skin and orange separate
+more (0.83 of their scene difference, was 0.78, ARRI 0.97) and skin drifts 11 degrees in hue from -2 to
++2 stops (was 15, ARRI 7). What the film keeps as its own: greens and cyans lose saturation in the
+shadows, and the strongest greens stay below the ALEXA because the print cannot hold more.
 
 ### Grain, halation colour and Film Breath (Texture II, v1.3)
 

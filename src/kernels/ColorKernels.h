@@ -243,6 +243,39 @@ CEL_DEVICE CelF3 celc_al_tone_term(CEL_GLOBAL const float* a, float Y, CelF3 o) 
     if (Yo > 1e-12f) o = celc_scale(o, Y / Yo);
     return cel_f3(Y + kc * (o.x - Y), Y + kc * (o.y - Y), Y + kc * (o.z - Y));
 }
+/* ALEXA Colour per-stop hue / chroma (v1.3 saturated-colour review, fitted through the default film by
+ * reference/alexa_film_fit.py): at the scene stop st of the luminance, a hue rotation and a log-chroma gain, each
+ * a 3rd-order Fourier series of the Oklab hue whose coefficients are interpolated over the CEL_AL_TN knots
+ * (h[] = CEL_AL_HX_R rows x CEL_AL_TN_N). What the exposure-invariant bands cannot do: reds that stay red rather
+ * than turning crimson when bright, skin that keeps its hue across exposure. Faded in with chroma like the bands
+ * (neutrals and the cool shadows unchanged) and bounded; a zero table is the identity. Note: the hue rotation
+ * keeps C (and hence the fade); the tables are for C <= ~0.25 at grey luminance. */
+CEL_DEVICE CelF3 celc_al_hx(CEL_GLOBAL const float* h, CelF3 lab, float st) {
+    float C = cel_sqrt(lab.y * lab.y + lab.z * lab.z);
+    if (!(C > 1e-12f)) return lab;
+    float t = cel_clamp((st - CEL_AL_TN_X0) / (CEL_AL_TN_X1 - CEL_AL_TN_X0) * (float)(CEL_AL_TN_N - 1), 0.0f, (float)(CEL_AL_TN_N - 1));
+    int i = cel_imin((int)cel_floor(t), CEL_AL_TN_N - 2);
+    float f = t - (float)i;
+    float c1 = lab.y / C, s1 = lab.z / C;
+    float c2 = c1 * c1 - s1 * s1, s2 = 2.0f * s1 * c1;
+    float c3 = c2 * c1 - s2 * s1, s3 = s2 * c1 + c2 * s1;
+    CEL_GLOBAL const float* p = h + i;
+#define CEL_AL_HXK(r) (p[(r) * CEL_AL_TN_N] + (p[(r) * CEL_AL_TN_N + 1] - p[(r) * CEL_AL_TN_N]) * f)
+    float dh = CEL_AL_HXK(0) + CEL_AL_HXK(1) * c1 + CEL_AL_HXK(2) * s1 + CEL_AL_HXK(3) * c2 + CEL_AL_HXK(4) * s2
+             + CEL_AL_HXK(5) * c3 + CEL_AL_HXK(6) * s3;
+    float ds = CEL_AL_HXK(7) + CEL_AL_HXK(8) * c1 + CEL_AL_HXK(9) * s1 + CEL_AL_HXK(10) * c2 + CEL_AL_HXK(11) * s2
+             + CEL_AL_HXK(12) * c3 + CEL_AL_HXK(13) * s3;
+#undef CEL_AL_HXK
+    float w = C / (C + CEL_AL_C0);
+    dh = cel_clamp(dh, -0.35f, 0.35f) * w;
+    ds = cel_clamp(ds, -0.7f, 0.7f) * w;
+    /* a chroma gain only where the film still answers with more chroma: faded out for colours already strongly
+     * saturated (the print / display saturate there, and more input chroma would come out as less) */
+    float q = C * (1.0f / CEL_AL_HX_CS); q *= q;
+    if (ds > 0.0f) ds /= 1.0f + q * q;
+    float g = cel_exp(ds), cr = cel_cos(dh), sr = cel_sin(dh);
+    return cel_f3(lab.x, g * (lab.y * cr - lab.z * sr), g * (lab.y * sr + lab.z * cr));
+}
 /* ALEXA Colour: the rendering's colour character without its tone curve, scene-linear Rec.2020 -> Rec.2020.
  * Evaluated at grey luminance (n = x 0.18 / Y) and scaled back, so f(k x) = k f(x) (exposure-stable);
  * neutrals and non-positive luminance pass unchanged. Blended with the strength CEL_CS_AL_COLOUR. */
@@ -266,8 +299,16 @@ CEL_DEVICE CelF3 celc_alexa_colour(CEL_GLOBAL const float* s, CelF3 x) {
     float cf = cel_clamp((0.8f - cel_sqrt(l0.y * l0.y + l0.z * l0.z)) / 0.3f, 0.0f, 1.0f);
     r = cel_fmin(r, cf);
     if (!(r > 0.0f)) return x;
-    CelF3 lab = celc_al_bands(a + CEL_AL_CB, l0, a[CEL_AL_LG_C]);
+    CelF3 lab = celc_al_hx(a + CEL_AL_HX, celc_al_bands(a + CEL_AL_CB, l0, a[CEL_AL_LG_C]), cel_log2(Y * (1.0f / 0.18f)));
     CelF3 o = celc_al_tone_term(a, Y, celc_scale(celc_mat3(a, CEL_AL_M709_2020, celc_al_oklab_inv(a, lab)), Y / 0.18f));
+    /* keep the result inside Rec.2020 (v1.3 saturated-colour review): a chroma gain past the gamut would feed the
+     * negative a negative channel, which it records as LESS saturated (clamped exposure, hue skew); the chroma
+     * about the neutral is compressed instead, C1 below a smallest channel of CEL_AL_MINR x Y, toward 0 */
+    float mr = celc_min3(o) / Y;
+    if (mr < CEL_AL_MINR) {
+        float kq = (1.0f - CEL_AL_MINR * cel_exp(cel_fmax((mr - CEL_AL_MINR) / CEL_AL_MINR, -80.0f))) / (1.0f - mr);
+        o = cel_f3(Y + kq * (o.x - Y), Y + kq * (o.y - Y), Y + kq * (o.z - Y));
+    }
     float k = s[CEL_CS_AL_COLOUR] * r * r * (3.0f - 2.0f * r);
     return cel_f3(x.x + k * (o.x - x.x), x.y + k * (o.y - x.y), x.z + k * (o.z - x.z));
 }
