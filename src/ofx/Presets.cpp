@@ -393,6 +393,29 @@ const std::vector<LookPreset>& lookPresets() {
                 {"acutanceAmount", "0.3"},
             },
         },
+        {
+            "Sunlit 35mm (soft scan)",
+            "Sunlit 35 mm on a soft, low-contrast scan: a Soft-aim print with full Print Crossover, yellow-green "
+            "mids, open lifted blacks from a light Black Pro-Mist veil plus halation, and a gentle film edge "
+            "(digital sharpening removed, weak shadow acutance) that stays soft on dark scenes.",
+            {
+                {"printAim", "Soft"},
+                {"printCrossover", "1"},
+                {"printerR", "0.5"},
+                {"printerG", "-1"},
+                {"printerB", "2.5"},
+                {"filmContrast", "0.85"},
+                {"rolloffSoftness", "0.4"},
+                {"dyeSaturation", "0.9"},
+                {"bloomFilter", "Black Pro-Mist"},
+                {"bloomFilterGrade", "0.125"},
+                {"halationAmount", "0.7"},
+                {"integrate", "0.8"},
+                {"sharpenRemoval", "0.75"},
+                {"acutanceAmount", "0.15"},
+                {"grainAmount", "0.7"},
+            },
+        },
     };
     return table;
 }

@@ -130,7 +130,9 @@ constexpr double kIntegrateGrainShare = 0.35;
 struct MtfDesign {
     bool    on = false;
     double  sigma[3] = {0, 0, 0};   // full-res px per channel (image)
-    Gauss1D g[4];                   // per channel (alpha: identity)
+    Gauss1D g[4];                   // per channel (alpha: identity), one pass of `passes`
+    int     passes = 1;             // v1.3: cascaded h+v passes (sigma / sqrt(passes) each) when a
+                                    // sigma exceeds the 7-tap limit (6K and larger at high Integrate)
     double  grainSigma = 0.0;       // full-res px: the part of the print / scan blur the grain also gets
 };
 MtfDesign designMtf(const TextureParams& tp, float pixelScale);
@@ -160,7 +162,24 @@ constexpr double kHalW[kHalScales]   = {0.16, 0.24, 0.24, 0.18, 0.12, 0.06};
 // everywhere, value at the centre ~0.18 of the ring peak, peak at ~0.6 radius, integral 1.
 constexpr double kHalRingRel[kHalScales] = {0.3, 0.55, 0.85, 1.3, 2.0, 3.2};
 constexpr double kHalRingW[kHalScales]   = {-0.10, 0.18, 0.30, 0.28, 0.20, 0.14};
-GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h, bool halRing = false);
+GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h, bool halRing = false,
+                      int bloomFilter = 0);
+
+// v1.3 Bloom Filter: lens diffusion filters in front of the lens (scene-linear, before the negative,
+// threshold-free, energy preserving: the scattered fraction is taken from the image). Each filter is a
+// sharp core (the unscattered 1 - f) plus a multi-Gaussian halo that approximates its power-law PSF
+// (sigma relative to the Bloom Radius, weights sum 1), and a scattered fraction per filter grade
+// f = frac * min(grade, 2)^0.7 (1/8 .. 2). The wide tail of the halo is the veiling glare that lifts
+// the shadows. ORDER = the OFX choice order of bloomFilter (append only); 0 = Classic (the v1.0 bloom).
+constexpr int kBloomFilterCount = 6;
+constexpr int kBloomFilterScales = 6;
+struct BloomFilterShape {
+    double rel[kBloomFilterScales];
+    double w[kBloomFilterScales];
+    double frac;                 // scattered fraction at grade 1
+};
+const BloomFilterShape& bloomFilterShape(int filter);   // filter 1 .. kBloomFilterCount - 1
+double bloomFilterFraction(int filter, double grade);   // scattered fraction f (0 for Classic)
 
 // v1.3 Aura: scale ladder (sigma relative to the aura radius) and weights (sum 1); a broad, smooth
 // lobe without the annular dip of the main halation; gain per unit auraStrength relative to the
@@ -182,11 +201,16 @@ struct HalationLook {
 };
 // thresholdStops <= 0: physical, threshold-free halation (a fixed fraction of the red-weighted light,
 // only extreme energies compressed; annular PSF). > 0: the v1.1 soft-knee gate (unchanged).
-HalationLook halationLook(float amount, float thresholdStops, float hue);
-constexpr double kHalRingGainPerAmount = 0.10;  // physical mode: amount 0.5 = 5 % of the red light halates
+HalationLook halationLook(float amount, float thresholdStops, float hue, bool displayReferred = false);
+constexpr double kHalRingGainPerAmount = 0.14;  // physical mode: amount 0.5 = 7 % of the red light halates (v1.3; was 0.10)
 // physical mode highlight emphasis (stops over 18 % grey of red-weighted light): the halating share
-// is x1/(1 + (k/yh)^2), half at k, ~0.08 for a +4.2-stop overcast sky, ~0.95 for a +8-stop practical
-constexpr double kHalEmphasisStops = 5.95;
+// is x1/(1 + (k/yh)^2), half at k. v1.3 (reference-look WP): +3.5 stops (was +5.95, which a real
+// camera's clip at +6..7 stops hardly reached, so the default halation was invisible): ~0.03 for skin
+// at +1 stop, ~0.73 for a +4.2-stop sky edge, ~0.97 for clipped sources and practicals
+constexpr double kHalEmphasisStops = 3.5;
+// display-referred textures (Texture Only, ALEXA Rendering stage): display white 1.0 is +2.47 stops, so
+// the knee sits at +1.5 stops there (~0.8 at white, ~0.1 at grey)
+constexpr double kHalEmphasisStopsDisplay = 1.5;
 constexpr float kBloomMixPerAmount = 0.10f;  // bloom mix s = amount * this
 constexpr float kBloomBMax = 48.f;           // bloom source compression
 
@@ -203,6 +227,17 @@ double breathSequence(BreathProfile profile, double period, int seed, uint32_t c
 FilmBreath filmBreathAt(const FilmBreathParams& bp, double time);
 
 // ---- acutance ------------------------------------------------------------------------------------
+// v1.3 reference-look WP: the adjacency effect weakens in the negative's toe (thin density): the
+// acutance gain is weighted by Yb / (Yb + Yt) of the local mean luminance, Yt this many stops under
+// 18 % grey (0.94 at grey, 0.67 at -3, 0.5 at -4, 0.2 at -6 stops)
+constexpr double kAcutToeStops = -4.0;
+// v1.3 Digital Sharpening Removal: inverse of a typical in-camera unsharp mask, applied before the film
+// MTF in log luminance (the camera sharpens its log-encoded signal). The halo of the mirrorless camera
+// sits at its own pixel scale: sigma 1 px of a 6240 px frame = 0.31 px at 1920 (frame relative, so a
+// downscaled timeline, whose halo is already finer than its pixels, gets correspondingly less), and
+// amount 1 undoes an unsharp mask of strength 0.5 (gain 1 / (1 + 0.5) at the halo frequencies)
+constexpr double kSharpRemovalSigma1920 = 1920.0 / 6240.0;
+constexpr float  kSharpRemovalGain = 1.0f / 3.0f;   // a / (1 + a), a = 0.5
 struct AcutDesign {
     int     level = 0;           // 0: blur at full res, else pyramid level
     Gauss1D g;

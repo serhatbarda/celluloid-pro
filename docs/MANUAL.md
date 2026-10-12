@@ -275,6 +275,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Studio Modern* — The v1.2 default look as a preset: VISION3 250D on the modern print - dense lower mids, true blacks, soft ARRI-like highlight roll-off, calm skies and warm, low-chroma skin. Fine 35 mm grain.
   - *Soft Cinema* — ETERNA-style softness: low-contrast daylight negative on the matching Eterna-CP print - gentle contrast, restrained colour, open shadows and a quiet, slightly cool palette.
   - *Warm Print* — Classic release-print warmth: VISION3 250D printed on 2383 with Print Crossover - golden highlights, cool teal-leaning shadows, rich contrast. The character of a photochemical 2383 chain.
+  - *Sunlit 35mm (soft scan)* — Sunlit 35 mm on a soft, low-contrast scan: a Soft-aim print with full Print Crossover, yellow-green mids, open lifted blacks from a light Black Pro-Mist veil plus halation, and a gentle film edge (digital sharpening removed, weak shadow acutance) that stays soft on dark scenes.
 - **Preset Status** (`lookPresetStatus`; read-only; shows “Custom” until a preset is chosen) — Which look preset the current settings come from. "(modified)" means you have changed at least one look setting since applying it.
 - **Mode** (`mode`; default: Full)
   - *Full* — complete film emulation (colour + halation, bloom, grain, lens and gate effects).
@@ -424,7 +425,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Enable Halation** (`halationEnable`; default on) — Switches halation on or off without losing its settings. Off skips the halation passes entirely (no render cost).
 - **Halation Amount** (`halationAmount`; 0 … 2; default 0.5; keyframable) — Strength of halation: light that passes through the emulsion, reflects off the film base and re-exposes the red (and a little of the green) layer, creating a warm ring that hugs bright edges and practicals. It is added to the film's exposure, so the film curve shapes it like the image. Scaled by the stock (no-backing stocks glow much more). 0 = off.
 - **Halation Radius** (`halationRadius`; 2 … 80; default 20; keyframable) — Size of the halation ring in pixels at 1920 px image width for Super 35 (automatically scaled for other resolutions, proxy render scales and the Gauge: smaller gauges enlarge the ring).
-- **Halation Threshold** (`halationThreshold`; 0 … 6; default 0; keyframable) — 0 (default) = physical halation: no threshold - light reflects off the film base, so bright edges get a thin warm ring, strongest around practicals, lamps and speculars (their full share from about 6 stops above middle grey; a bright overcast sky contributes little, so it does not tint the dark objects in front of it). Flat areas stay clean because the ring only shows where light spills beyond an edge. Above 0 = an artistic gate: only highlights brighter than this many stops above middle grey halate (the v1.1 behaviour; the glow eases in over about a stop and a half).
+- **Halation Threshold (0 = physical)** (`halationThreshold`; 0 … 6; default 0; keyframable) — 0 (default) = physical halation, no threshold: light reflects off the film base, so bright edges get a thin warm ring. Practicals, lamps, the sun, speculars and clipped highlights get the full share; a bright sky edge (about 4 stops above middle grey) still gets about three quarters of it, while skin and mid-tones hardly halate. Flat areas stay clean because the ring only shows where light spills beyond an edge. Any value above 0 switches to a different, artistic mode: a gate where only highlights brighter than this many stops above middle grey halate (the v1.1 behaviour; the glow eases in over about a stop and a half). Small values therefore halate MORE of the image than 0.
 - **Halation Hue** (`halationHue`; -1 … 1; default 0; keyframable) — Colour of the glow: how much of the reflected light re-exposes the green layer as well as the red. -1 deep red, 0 the classic red-orange, +1 orange-yellow.
 - **Halation Saturation** (`halationSaturation`; 0 … 2; default 1; keyframable) — Colour strength of the glow. 0 = a neutral, uncoloured glow, 1 = the film's natural red-orange, 2 = deeper colour. The brightness of the glow stays the same.
 - **Halation Background** (`halationBackground`; -1 … 1; default 0; keyframable) — How the glow's colour reacts to what is behind it. Above 0 the glow is more colourful over dark backgrounds and paler over bright ones (as on a projected print); below 0 the other way round. 0 = the same colour everywhere.
@@ -442,6 +443,14 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Bloom Radius** (`bloomRadius`; 5 … 200; default 40; keyframable) — Spread of the bloom in pixels at 1920 px image width (scaled automatically for other resolutions).
 - **Bloom Threshold** (`bloomThreshold`; 0 … 8; default 0; keyframable) — Limits the bloom to bright areas: only levels from about this many stops above 18 % grey glow (soft onset). 0 = off, every level contributes as before (diffusion is linear, so the glow follows the brightest parts anyway).
 - **Bloom Keep Highlights** (`bloomKeepHighlights`; 0 … 1; default 0; keyframable) — 0 = energy preserving (as before): the light that spreads into the glow is taken from the bright source, so highlights soften a little and overall brightness stays the same. Higher values keep the source at full brightness and add the glow on top (brighter, more 'mist').
+- **Bloom Filter** (`bloomFilter`; default: Classic)
+  - *Classic* — the bloom as before (Bloom Amount sets it). The others emulate a diffusion filter in front of the lens, modelled from the physics of each filter type (our own model, not measured filter data): a fixed share of ALL light is scattered into a soft halo, so highlights glow, every bright edge gets a soft halo and the scattered light lifts the shadows. The share is set by Filter Grade; Bloom Amount is not used.
+  - *Black Pro-Mist* — halo with a restrained veil, keeps the blacks fairly deep.
+  - *Pro-Mist (white)* — more light in a wide veil - milky, lower contrast.
+  - *Glimmerglass* — tight, bright halo around highlights, little veil.
+  - *Hollywood Black Magic* — fine, close diffusion that softens detail more than it glows.
+  - *CineBloom* — soft, medium glow without a wide tail.
+- **Filter Grade** (`bloomFilterGrade`; 0.125 … 2; default 0.25; keyframable) — Strength of the diffusion filter in filter grades: 0.125 = 1/8, 0.25 = 1/4, 0.5 = 1/2, 1, 2. Bloom Radius scales the size of its halo. Classic ignores it.
 
 ### Grain
 
@@ -464,6 +473,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 - **Enable Film Resolution** (`filmResolutionEnable`; default on) — Gives the image the modulation transfer of the camera negative for the chosen Gauge (measured from published film data: the red layer softest, blue sharpest). Digital micro-contrast is finer than any film grain; without this the grain looks laid on top of a too-sharp picture. Off skips the passes (Integrate still applies).
 - **Integrate** (`integrate`; 0 … 1; default 0.5; keyframable) — The print and scan resolution that picture AND grain share: higher values soften both together, so the grain is part of the image instead of an overlay (the colourist's 'defocus under the grain', done physically). 0 = off.
+- **Digital Sharpening Removal** (`sharpenRemoval`; 0 … 1.5; default 0; keyframable) — Undoes the edge sharpening of mirrorless cameras before the film resolution: the fine bright and dark halos along edges are pulled back, so film edges replace digital ones. 1 = removes a typical in-camera sharpening (strength 0.5 at the camera's own pixel size); frame relative, so a downscaled timeline gets correspondingly less. 0 = off.
 
 ### Lens & Gate
 
@@ -634,11 +644,11 @@ rendering that keeps the negative's character without print contrast.
 
 ### Look presets
 
-Fourteen curated looks are in the **Look Preset** menu: Studio Classic, Tungsten Night Drama, Soft
+Eighteen curated looks are in the **Look Preset** menu: Studio Classic, Tungsten Night Drama, Soft
 Daylight Pastel, Archive 1978, Silver Retention Thriller, Neon Nocturne, Golden Hour Portrait, Crisp
-Commercial, Summer Snapshot, Slide Show Brilliance, Monochrome Noir, Home Movie Super 8, and the two
-film-damage looks Worn Release Print and Found Footage 16 (each is described in the controls
-reference above).
+Commercial, Summer Snapshot, Slide Show Brilliance, Monochrome Noir, Home Movie Super 8, the two
+film-damage looks Worn Release Print and Found Footage 16, Studio Modern, Soft Cinema, Warm Print and
+Sunlit 35mm (soft scan) (each is described in the controls reference above).
 
 A preset is a complete recipe: it sets every look parameter (stocks, development, print, printer
 lights, halation, bloom, grain, lens and gate, film damage and film blur), and parameters it does
@@ -1058,6 +1068,55 @@ measured in stops of scene brightness relative to 18 % grey, before the film:
 - **Bloom Keep Highlights**: 0 is the normal bloom, which spreads the light of bright areas into
   their surroundings and keeps the total energy. 1 adds the glow on top and keeps the source at full
   brightness, so light sources stay bright and crisp.
+
+### Lens diffusion filters, a softer film edge and the Sunlit 35mm look (v1.3)
+
+**Bloom Filter** (Bloom group, default *Classic* = the bloom as before). The other choices emulate
+a diffusion filter in front of the lens: *Black Pro-Mist*, *Pro-Mist (white)*, *Glimmerglass*,
+*Hollywood Black Magic* and *CineBloom*. These are emulations modelled from how such filters work and
+from public descriptions; no filter data was measured or copied. A diffusion filter scatters a fixed
+fraction of **all** the light. There is no threshold, so keep Bloom Threshold at 0. The scattered
+light forms a sharp core plus a wide halo, and it is added in scene light before the negative. The
+total light stays the same. **Filter Grade** works like the filter strengths printed on the ring:
+1/8 = 0.125, 1/4 = 0.25, 1/2, 1 and 2. With a filter selected, Bloom Amount is not used.
+
+- *Black Pro-Mist*: a wide, faint veil that opens up the shadows a little (veiling glare) and
+  softens contrast without making the image milky.
+- *Pro-Mist (white)*: the widest and strongest veil, milky and pastel.
+- *Glimmerglass* and *Hollywood Black Magic*: mostly a tight glow around highlights and fine
+  detail, with very little shadow lift.
+- *CineBloom*: a softer bloom with less spread.
+
+**Digital Sharpening Removal** (Film Resolution group, default 0). Undoes some of the edge sharpening
+built into cameras before the film resolution is applied, so very crisp footage (for example from
+6K mirrorless cameras) gets a softer edge. It scales with the frame size. You mainly need it when
+Integrate is low; at the default Integrate, Film Resolution already removes most of the digital crispness.
+
+**Shadow acutance.** Acutance is the edge contrast that film development produces. It now fades out
+in the deep shadows, as on real film, where the density curve flattens in the toe. Dark and
+underexposed shots no longer get extra edge contrast.
+
+**Sunlit 35mm (soft scan)** (Look Preset). A sunlit 35 mm look on a soft, low-contrast scan. It has
+lifted blacks, yellow-green mid-tones, warm-leaning highlights and a gentle edge. The recipe, if you
+want to build it yourself or start from it:
+
+| Control | Value |
+|---|---|
+| Process Aim | Soft |
+| Print Crossover | 1.00 |
+| Printer Red / Printer Green / Printer Blue | +0.5 / -1.0 / +2.5 |
+| Filmic Contrast | 0.85 |
+| Roll-off Softness | 0.40 |
+| Dye Saturation | 0.90 |
+| Bloom Filter / Filter Grade | Black Pro-Mist / 0.125 (1/8) |
+| Halation Amount | 0.70 |
+| Integrate | 0.80 |
+| Digital Sharpening Removal | 0.75 |
+| Acutance | 0.15 |
+| Grain Amount | 0.70 |
+
+Everything else stays at its default (Vision3 250D negative, P6 Modern Print). On dark scenes, lower the
+Filter Grade or Grain Amount if you want even less texture.
 
 ---
 

@@ -323,6 +323,16 @@ std::vector<Case> makeCases(bool all) {
         c.fs.look.latitudeSoftness = 0.f; c.fs.look.latitudeClip = 0.7f; c.fs.look.stage = int(core::Stage::AlexaRec709); });
     add("torture, latitude", [](Case& c) { fullTexture(c.fs); c.fs.look.latitudeOn = true; c.fs.look.alexaColour = 1.f;
         c.scene = Scene::Torture; });
+    // ---- v1.3 reference look: diffusion filters, film resolution cascade + digital sharpening removal
+    for (int f = 1; f < tex::kBloomFilterCount; ++f)
+        add("bloom filter " + std::to_string(f) + ", grade 1/2", [f](Case& c) { fullTexture(c.fs); c.fs.tex.bloomFilter = f;
+            c.fs.tex.bloomFilterGrade = 0.5f; });
+    add("bloom filter 1 grade 2, PQ", [](Case& c) { fullTexture(c.fs); c.fs.tex.bloomFilter = 1; c.fs.tex.bloomFilterGrade = 2.f;
+        c.fs.look.output = OS::Rec2100_PQ; });
+    add("film resolution integrate 0.8 + sharpening removal 0.75", [](Case& c) { fullTexture(c.fs); c.fs.tex.filmResolution = true;
+        c.fs.tex.integrate = 0.8f; c.fs.tex.sharpenRemoval = 0.75f; });
+    add("sharpening removal 1.5 alone, texture only", [](Case& c) { c.fs.tex.filmResolution = true; c.fs.tex.sharpenRemoval = 1.5f;
+        c.fs.mode = core::Mode::TextureOnly; c.scene = Scene::Display; });
     // ---- hostile inputs
     add("torture, stage print only", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::PrintOnly); c.scene = Scene::Torture; });
     add("torture, stage negative -> scene ACEScct", [](Case& c) { fullTexture(c.fs); c.fs.look.stage = int(core::Stage::NegativeToScene);

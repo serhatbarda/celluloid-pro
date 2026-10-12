@@ -188,10 +188,18 @@ MtfDesign designMtf(const TextureParams& tp, float pixelScale) {
     const double umPerPx = gaugeGateMm(tp.grainFormat) * 1000.0 / 1920.0 / ps;   // film micrometres per pixel
     const double integ = std::isfinite(tp.integrate) ? std::min(1.0, std::max(0.0, double(tp.integrate))) : 0.0;
     const double sys = integ * kIntegrateSigmaUm / umPerPx;
+    double smax = 0.0;
     for (int c = 0; c < 3; ++c) {
         double neg = tp.filmResolution ? kNegMtfSigmaUm[c] / umPerPx : 0.0;
         d.sigma[c] = std::sqrt(neg * neg + sys * sys);
-        d.g[c] = gaussKernel(std::min(kMaxBlurSigma, d.sigma[c]));
+        smax = std::max(smax, d.sigma[c]);
+    }
+    // v1.3: a sigma beyond the 7-tap kernel (6K and larger with high Integrate) is split into cascaded
+    // passes instead of being clamped, so the film resolution stays the same relative to the frame
+    if (smax > kMaxBlurSigma) d.passes = std::min(8, int(std::ceil((smax / kMaxBlurSigma) * (smax / kMaxBlurSigma))));
+    const double div = std::sqrt(double(d.passes));
+    for (int c = 0; c < 3; ++c) {
+        d.g[c] = gaussKernel(std::min(kMaxBlurSigma, d.passes > 1 ? d.sigma[c] / div : d.sigma[c]));
         if (d.g[c].radius > 0) d.on = true;
     }
     d.g[3] = Gauss1D{};                  // alpha: identity (the kernel keeps it exactly, i[5])
@@ -368,10 +376,37 @@ struct GlowScale { int group; double sigma, weight; };
 GlowDesign glowFromScales(const std::vector<GlowScale>& sc, int w, int h);
 } // namespace
 
-GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h, bool halRing) {
+// v1.3 Bloom Filter PSFs (see TextureDesign.h). Shapes from the published behaviour of each filter type:
+// black mists scatter into a bright core halo plus a wide, faint veil (veiling glare that lifts the
+// shadows without turning the image milky); white mists spread more light into a wide veil (milky, lower contrast); Glimmerglass keeps
+// a tight, bright halo around highlights with little veil; Hollywood Black Magic is a fine, close
+// diffusion that softens detail more than it glows; CineBloom is a soft glow of medium spread with no
+// wide tail. Our own parametrisation, no measured or vendor data.
+const BloomFilterShape& bloomFilterShape(int filter) {
+    static const BloomFilterShape table[kBloomFilterCount] = {
+        {{0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}, 0.0},                                    // Classic (unused)
+        {{0.08, 0.25, 0.7, 2.0, 6.0, 20.0}, {0.28, 0.22, 0.16, 0.12, 0.11, 0.11}, 0.20},    // Black Pro-Mist
+        {{0.1, 0.3, 1.0, 3.0, 8.0, 20.0}, {0.12, 0.14, 0.16, 0.18, 0.20, 0.20}, 0.30},    // Pro-Mist (white)
+        {{0.05, 0.12, 0.3, 0.7, 1.5, 3.0}, {0.34, 0.27, 0.19, 0.11, 0.06, 0.03}, 0.12},   // Glimmerglass
+        {{0.04, 0.1, 0.25, 0.6, 1.5, 4.0}, {0.32, 0.28, 0.20, 0.11, 0.06, 0.03}, 0.15},   // Hollywood Black Magic
+        {{0.15, 0.3, 0.55, 0.9, 1.4, 2.0}, {0.14, 0.20, 0.24, 0.20, 0.14, 0.08}, 0.15},   // CineBloom
+    };
+    return table[std::min(std::max(filter, 1), kBloomFilterCount - 1)];
+}
+
+double bloomFilterFraction(int filter, double grade) {
+    if (filter <= 0 || filter >= kBloomFilterCount || !std::isfinite(grade) || !(grade > 0.0)) return 0.0;
+    return bloomFilterShape(filter).frac * std::pow(std::min(grade, 2.0), 0.7);
+}
+
+GlowDesign designGlow(bool bloom, double bloomRadiusPx, bool hal, double halRadiusPx, int w, int h, bool halRing,
+                      int bloomFilter) {
     std::vector<GlowScale> sc;
     auto ok = [](double v) { return std::isfinite(v) && v > 0.0; };
-    if (bloom && ok(bloomRadiusPx))
+    if (bloom && ok(bloomRadiusPx) && bloomFilter > 0 && bloomFilter < kBloomFilterCount) {
+        const BloomFilterShape& f = bloomFilterShape(bloomFilter);
+        for (int i = 0; i < kBloomFilterScales; ++i) sc.push_back({0, bloomRadiusPx * f.rel[i], f.w[i]});
+    } else if (bloom && ok(bloomRadiusPx))
         for (int i = 0; i < kBloomScales; ++i) sc.push_back({0, bloomRadiusPx * kBloomRel[i], kBloomW[i]});
     if (hal && ok(halRadiusPx))
         for (int i = 0; i < kHalScales; ++i)
@@ -439,7 +474,7 @@ GlowDesign glowFromScales(const std::vector<GlowScale>& sc, int w, int h) {
 }
 } // namespace
 
-HalationLook halationLook(float amount, float thresholdStops, float hue) {
+HalationLook halationLook(float amount, float thresholdStops, float hue, bool displayReferred) {
     HalationLook L{};
     double hh = std::isfinite(hue) ? std::min(1.0, std::max(-1.0, double(hue))) : 0.0;
     double th = std::isfinite(thresholdStops) ? std::min(12.0, std::max(-4.0, double(thresholdStops))) : 0.0;
@@ -456,7 +491,7 @@ HalationLook halationLook(float amount, float thresholdStops, float hue) {
         for (int c = 0; c < 3; ++c) L.tint[c] = float(A[i0][c] + (A[i0 + 1][c] - A[i0][c]) * t);
         L.gain = float(am * kHalRingGainPerAmount);   // fraction of the red-weighted light
         L.threshold = 0.f;
-        L.knee = float(0.18 * std::exp2(kHalEmphasisStops));   // highlight emphasis, linear units
+        L.knee = float(0.18 * std::exp2(displayReferred ? kHalEmphasisStopsDisplay : kHalEmphasisStops));   // emphasis, linear
         L.emax = float(0.18 * 512.0);                  // compress only beyond +9 stops
         L.srcW[0] = 0.85f; L.srcW[1] = 0.15f; L.srcW[2] = 0.0f;
         // chroma activity: the green share of the tint runs from x0.5 (faint light: the outer tail,

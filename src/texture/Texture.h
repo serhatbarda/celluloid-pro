@@ -108,6 +108,12 @@ struct TextureParams {
     // ---- v1.3 P1 extras (appended): bloom threshold and Keep Highlights; defaults = the bloom as before
     float bloomThreshold     = 0.f;   // 0 .. 8 stops: only levels above ~this far over 18 % grey bloom (0 = all)
     float bloomKeep          = 0.f;   // 0 .. 1: share of the blooming light NOT taken from its source (0 = energy kept)
+    // ---- v1.3 reference-look WP (appended): lens diffusion filter and digital sharpening removal; defaults
+    // = as before. bloomFilter 0 = Classic (bloomAmount / the v1.0 PSF); 1.. = a diffusion filter
+    // (tex::bloomFilterShape) whose scattered fraction is set by bloomFilterGrade (1/8 .. 2) instead.
+    int   bloomFilter        = 0;
+    float bloomFilterGrade   = 0.25f; // 0.125 .. 2
+    float sharpenRemoval     = 0.f;   // 0 .. 1.5 Digital Sharpening Removal (Film Resolution; 0 = off)
 };
 
 // ---- v1.3 Film Breath: per-frame exposure / development / printer-light variation ----------------

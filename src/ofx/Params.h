@@ -256,6 +256,10 @@ constexpr const char* sceneWbTint = "sceneWbTint";
 constexpr const char* falseColourEnable = "falseColourEnable";
 constexpr const char* bloomThreshold = "bloomThreshold";
 constexpr const char* bloomKeepHighlights = "bloomKeepHighlights";
+// ---- v1.3 reference look: lens diffusion filter, digital sharpening removal ----------------------
+constexpr const char* bloomFilter = "bloomFilter";              // append only (tex::bloomFilterShape)
+constexpr const char* bloomFilterGrade = "bloomFilterGrade";
+constexpr const char* sharpenRemoval = "sharpenRemoval";        // [Film Resolution]
 } // namespace id
 
 // v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are

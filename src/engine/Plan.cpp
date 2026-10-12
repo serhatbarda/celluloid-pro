@@ -215,7 +215,13 @@ void setVignette(float* f, float amount, int w, int h) {
 bool weaveOn(const tex::TextureParams& tp) { return finitePos(tp.weaveAmount); }
 bool acutOn(const tex::TextureParams& tp) { return std::isfinite(tp.acutanceAmount) && std::fabs(tp.acutanceAmount) > 1e-4f; }
 bool halOn(const tex::TextureParams& tp) { return finitePos(tp.halationAmount); }
-bool bloomOn(const tex::TextureParams& tp) { return finitePos(tp.bloomAmount); }
+bool bloomFilterOn(const tex::TextureParams& tp) { return tex::bloomFilterFraction(tp.bloomFilter, tp.bloomFilterGrade) > 0.0; }
+// the bloom runs when the classic amount is non-zero or (v1.3) a diffusion filter is chosen; the Plugin
+// zeroes bloomAmount when the module is off and then also passes bloomFilter 0
+bool bloomOn(const tex::TextureParams& tp) { return tp.bloomFilter > 0 ? bloomFilterOn(tp) : finitePos(tp.bloomAmount); }
+bool sharpRemovalOn(const tex::TextureParams& tp, float ps) {
+    return std::isfinite(tp.sharpenRemoval) && tp.sharpenRemoval > 1e-4f && tex::kSharpRemovalSigma1920 * ps >= 0.25;
+}
 bool vigOn(const tex::TextureParams& tp) { return finitePos(tp.vignette); }
 bool auraOn(const tex::TextureParams& tp) { return tp.auraEnabled && finitePos(tp.auraStrength); }
 
@@ -245,7 +251,7 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
     // Texture-Only: acutance and glow work in the film-like pseudo scene (log exposure semantics
     // and display-referred thresholds); the way back goes through the same curve, which for SDR
     // outputs never exceeds 1.0.
-    const bool pseudo = dr && (acutOn(tp) || hal || bloom || tex::designMtf(tp, ps).on);
+    const bool pseudo = dr && (acutOn(tp) || hal || bloom || tex::designMtf(tp, ps).on || sharpRemovalOn(tp, ps));
     if (pseudo) {
         int o = B.buffer(w, h);
         PassDesc& p = B.pass(KID_tx_tonemap, o, {cur});
@@ -253,19 +259,46 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
         p.args.i[0] = 0;
         cur = o;
     }
+    // ---- v1.3 Digital Sharpening Removal (before the film MTF): the inverse of the camera's unsharp mask,
+    // in log luminance at the camera's pixel scale (tx_acut_apply with a negative, nearly linear gain)
+    if (sharpRemovalOn(tp, ps)) {
+        tex::AcutDesign ad = tex::designAcutance(tex::kSharpRemovalSigma1920 * ps);
+        tex::Gauss1D g[4] = {ad.g, tex::Gauss1D{}, tex::Gauss1D{}, tex::Gauss1D{}};
+        g[1].w[0] = g[2].w[0] = g[3].w[0] = 0.f;
+        int t = B.buffer(w, h);
+        PassDesc& ph = B.pass(KID_tx_blur4, t, {cur});
+        setBlurWeights(ph, g, 0, true);
+        ph.args.i[6] = 1;
+        ph.args.f[8] = ad.eps;
+        int blurred = B.buffer(w, h);
+        setBlurWeights(B.pass(KID_tx_blur4, blurred, {t}), g, 1, true);
+        int o = B.buffer(w, h);
+        PassDesc& p = B.pass(KID_tx_acut_apply, o, {cur, blurred});
+        const float k = 4.f;   // log2 units: linear for every real halo (|d| << k)
+        p.args.f[0] = -std::min(1.5f, tp.sharpenRemoval) * tex::kSharpRemovalGain;
+        p.args.f[1] = k;
+        p.args.f[2] = 1.f;
+        p.args.f[3] = ad.eps;
+        p.args.f[4] = 1.f;
+        p.args.f[5] = 0.f;
+        p.args.i[0] = 0;
+        cur = o;
+    }
     // ---- film resolution (v1.2): negative MTF + Integrate, per channel, alpha kept
     {
         const tex::MtfDesign md = tex::designMtf(tp, ps);
         if (md.on) {
-            int t = B.buffer(w, h);
-            PassDesc& ph = B.pass(KID_tx_blur4, t, {cur});
-            setBlurWeights(ph, md.g, 0, false);
-            ph.args.i[5] = 1;
-            int o = B.buffer(w, h);
-            PassDesc& pv = B.pass(KID_tx_blur4, o, {t});
-            setBlurWeights(pv, md.g, 1, false);
-            pv.args.i[5] = 1;
-            cur = o;
+            for (int n = 0; n < md.passes; ++n) {   // v1.3: cascaded when a sigma exceeds the 7-tap kernel
+                int t = B.buffer(w, h);
+                PassDesc& ph = B.pass(KID_tx_blur4, t, {cur});
+                setBlurWeights(ph, md.g, 0, false);
+                ph.args.i[5] = 1;
+                int o = B.buffer(w, h);
+                PassDesc& pv = B.pass(KID_tx_blur4, o, {t});
+                setBlurWeights(pv, md.g, 1, false);
+                pv.args.i[5] = 1;
+                cur = o;
+            }
         }
     }
     // ---- acutance (log2 luminance computed on the fly by the first blur / downsample pass)
@@ -303,6 +336,7 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
         p.args.f[2] = ad.gmax;
         p.args.f[3] = ad.eps;
         p.args.f[4] = float(std::ldexp(1.0, -ad.level));
+        p.args.f[5] = float(0.18 * std::exp2(tex::kAcutToeStops));   // v1.3: weaker in the negative's toe
         p.args.i[0] = ad.level > 0 ? 1 : 0;
         cur = o;
     }
@@ -312,13 +346,14 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
         double hr = (std::isfinite(tp.halationRadius) ? std::max(0.1, double(tp.halationRadius)) : 20.0) * ps
                     * tex::gaugeRadiusScale(tp.grainFormat);
         double br = (std::isfinite(tp.bloomRadius) ? std::max(0.1, double(tp.bloomRadius)) : 40.0) * ps;
-        tex::HalationLook hl = tex::halationLook(tp.halationAmount, tp.halationThreshold, tp.halationHue);
+        tex::HalationLook hl = tex::halationLook(tp.halationAmount, tp.halationThreshold, tp.halationHue, dr);
         // v1.3 P1 bloom threshold (stops over grey -> linear: 0.18 (2^s - 1), 0 = none) and Keep Highlights
         const float bth = bloom && std::isfinite(tp.bloomThreshold) && tp.bloomThreshold > 0.f
                               ? float(0.18 * (std::exp2(double(std::min(8.f, tp.bloomThreshold))) - 1.0)) : 0.f;
         const int bkeep = bloom && std::isfinite(tp.bloomKeep)
                               ? int(std::lround(1000.0 * double(std::min(1.f, std::max(0.f, tp.bloomKeep))))) : 0;
-        tex::GlowDesign gd = tex::designGlow(bloom, br, hal, hr, w, h, hl.ring);
+        const int bf = bloom && bloomFilterOn(tp) ? tp.bloomFilter : 0;   // v1.3 Bloom Filter (0 = Classic)
+        tex::GlowDesign gd = tex::designGlow(bloom, br, hal, hr, w, h, hl.ring, bf);
         // v1.3 aura: a second, wide base-reflection lobe on the same pyramid (halation channel only)
         const bool aura = hal && auraOn(tp);
         tex::GlowDesign ga;
@@ -386,7 +421,9 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
             PassDesc& p = auraUp >= 0 ? B.pass(KID_tx_hb_composite, o, {cur, accUp, auraUp})
                                       : B.pass(KID_tx_hb_composite, o, {cur, accUp});
             float* f = p.args.f;
-            f[0] = bloom ? std::min(2.f, tp.bloomAmount) * tex::kBloomMixPerAmount : 0.f;
+            f[0] = !bloom ? 0.f
+                   : bf > 0 ? float(tex::bloomFilterFraction(bf, tp.bloomFilterGrade))
+                            : std::min(2.f, tp.bloomAmount) * tex::kBloomMixPerAmount;
             f[1] = hl.gain;
             f[2] = hl.tint[0]; f[3] = hl.tint[1]; f[4] = hl.tint[2];
             f[5] = hl.threshold; f[6] = hl.knee; f[7] = hl.emax; f[8] = tex::kBloomBMax;

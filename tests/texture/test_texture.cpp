@@ -807,8 +807,10 @@ void testV12Texture() {
         std::printf("  physical halation: added red for a 0.5 / 1.0 spot %.4f / %.4f (ratio %.4f, model %.4f)\n", e1, e2, e2 / e1, want);
         CHECK(e1 > 0.0, "physical halation must not have a threshold (%g)", e1);
         CHECK(std::fabs(e2 / e1 / want - 1.0) < 0.03, "physical halation follows the emphasis law: %f vs %f", e2 / e1, want);
-        CHECK(emph(0.18 * 256.0) / (0.18 * 256.0) > 0.9 && emph(0.18 * 18.4) / (0.18 * 18.4) < 0.12,
-              "halation emphasis: full share for a +8-stop practical, small for a +4.2-stop sky");
+        CHECK(emph(0.18 * 256.0) / (0.18 * 256.0) > 0.95 && emph(0.18 * 2.0) / (0.18 * 2.0) < 0.05 &&
+              emph(0.18 * 18.4) / (0.18 * 18.4) > 0.6 && emph(0.18 * 18.4) / (0.18 * 18.4) < 0.85,
+              "halation emphasis (v1.3): full share for a +8-stop practical, ~3/4 for a +4.2-stop sky edge, "
+              "tiny for +1-stop skin");
         // the added light is warm: R >> G, no blue (hue 0), never magenta; chroma activity: faint
         // halation (weak sources, the outer tail) is deeper red than strong halation near bright sources
         Img s = spot(20.f, 3), so = textured(s, tp);

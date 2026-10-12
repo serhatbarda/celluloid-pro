@@ -502,14 +502,14 @@ std::vector<ParamDef> build() {
           "Size of the halation ring in pixels at 1920 px image width for Super 35 (automatically scaled for other "
           "resolutions, proxy render scales and the Gauge: smaller gauges enlarge the ring).",
           true);
-    b.dbl(id::halationThreshold, "Halation Threshold", 0.0, 0.0, 6.0, 0.05, 2,
-          "0 (default) = physical halation: no threshold - light reflects off the film base, so bright edges get a "
-          "thin warm ring, strongest around practicals, lamps and speculars (their full share from about 6 "
-          "stops above middle grey; a bright overcast sky contributes little, so it does not tint the dark "
-          "objects in front of it). Flat areas stay clean because the ring only shows where light spills "
-          "beyond an edge. Above 0 = an artistic "
-          "gate: only highlights brighter than this many stops above middle grey halate (the v1.1 behaviour; "
-          "the glow eases in over about a stop and a half).",
+    b.dbl(id::halationThreshold, "Halation Threshold (0 = physical)", 0.0, 0.0, 6.0, 0.05, 2,
+          "0 (default) = physical halation, no threshold: light reflects off the film base, so bright edges get a "
+          "thin warm ring. Practicals, lamps, the sun, speculars and clipped highlights get the full share; a "
+          "bright sky edge (about 4 stops above middle grey) still gets about three quarters of it, while skin "
+          "and mid-tones hardly halate. Flat areas stay clean because the ring only shows where light spills "
+          "beyond an edge. Any value above 0 switches to a different, artistic mode: a gate where only "
+          "highlights brighter than this many stops above middle grey halate (the v1.1 behaviour; the glow "
+          "eases in over about a stop and a half). Small values therefore halate MORE of the image than 0.",
           true);
     b.dbl(id::halationHue, "Halation Hue", 0.0, -1.0, 1.0, 0.01, 2,
           "Colour of the glow: how much of the reflected light re-exposes the green layer as well as the red. "
@@ -558,6 +558,22 @@ std::vector<ParamDef> build() {
           "0 = energy preserving (as before): the light that spreads into the glow is taken from the bright "
           "source, so highlights soften a little and overall brightness stays the same. Higher values keep the "
           "source at full brightness and add the glow on top (brighter, more 'mist').",
+          true);
+    // v1.3 reference look: lens diffusion filter (append-only options; Classic = the bloom as before)
+    b.choice(id::bloomFilter, "Bloom Filter",
+             {"Classic", "Black Pro-Mist", "Pro-Mist (white)", "Glimmerglass", "Hollywood Black Magic", "CineBloom"}, 0,
+             "Classic: the bloom as before (Bloom Amount sets it). The others emulate a diffusion filter in front "
+             "of the lens, modelled from the physics of each filter type (our own model, not measured filter data): "
+             "a fixed share of ALL light is scattered into a soft halo, so highlights glow, every bright edge gets "
+             "a soft halo and the scattered light lifts the shadows. The share is set by Filter Grade; Bloom "
+             "Amount is not used.\nBlack Pro-Mist: halo with a restrained veil, keeps the blacks fairly deep.\n"
+             "Pro-Mist (white): more light in a wide veil - milky, lower contrast.\nGlimmerglass: tight, bright "
+             "halo around highlights, little veil.\nHollywood Black Magic: fine, close diffusion that softens "
+             "detail more than it glows.\nCineBloom: soft, medium glow without a wide tail.",
+             true);
+    b.dbl(id::bloomFilterGrade, "Filter Grade", 0.25, 0.125, 2.0, 0.005, 3,
+          "Strength of the diffusion filter in filter grades: 0.125 = 1/8, 0.25 = 1/4, 0.5 = 1/2, 1, 2. "
+          "Bloom Radius scales the size of its halo. Classic ignores it.",
           true);
 
     // ---------------------------------------------------------------- [Grain]
@@ -616,6 +632,12 @@ std::vector<ParamDef> build() {
           "The print and scan resolution that picture AND grain share: higher values soften both together, so the "
           "grain is part of the image instead of an overlay (the colourist's 'defocus under the grain', done "
           "physically). 0 = off.",
+          true);
+    b.dbl(id::sharpenRemoval, "Digital Sharpening Removal", 0.0, 0.0, 1.5, 0.01, 2,
+          "Undoes the edge sharpening of mirrorless cameras before the film resolution: the fine bright and dark "
+          "halos along edges are pulled back, so film edges replace digital ones. 1 = removes a typical "
+          "in-camera sharpening (strength 0.5 at the camera's own pixel size); frame relative, so a downscaled "
+          "timeline gets correspondingly less. 0 = off.",
           true);
 
     // ---------------------------------------------------------------- [Lens & Gate]

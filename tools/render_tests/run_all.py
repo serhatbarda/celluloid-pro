@@ -950,8 +950,13 @@ class Suite:
         wr, sr = self.hal_regions["window"], self.hal_regions["skin"]
         cx, cy, r, s = self.hal_regions["practical"]
         pr = float(d[int(cy), int(cx + r + 6 * s), 0])
-        self.check(g, "halation (default): overcast sky does not flood a dark window red", float(rg[wr].max()) <= 0.02,
-                   "window max d(R-G) %.4f" % float(rg[wr].max()), "<= 0.02")
+        # v1.3 (owner: halation must be visible at bright sky edges): the window's edge under the sky glows
+        # warm, but the glow stays a fringe of about the halation radius and does not flood the window
+        wi = (slice(wr[0].start + int(round(60 * s)), wr[0].stop), wr[1])
+        self.check(g, "halation (default): overcast sky does not flood a dark window red", float(rg[wi].mean()) <= 0.02,
+                   "window interior (> 3 radii from the sky) mean d(R-G) %.4f" % float(rg[wi].mean()), "<= 0.02")
+        self.check(g, "halation (default): bright sky edge gets a visible warm fringe", float(rg[wr].max()) >= 0.03,
+                   "window edge max d(R-G) %.4f" % float(rg[wr].max()), ">= 0.03")
         self.check(g, "halation (default): skin against the sky keeps its colour", float(d[..., 0][sr].max()) <= 0.03,
                    "skin edge max dR %.4f" % float(d[..., 0][sr].max()), "<= 0.03")
         self.check(g, "halation (default): +8-stop practical glows clearly", pr >= 0.08,

@@ -589,6 +589,9 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     tp.bloomRadius = float(num(id::bloomRadius, t));
     tp.bloomThreshold = float(num(id::bloomThreshold, t));   // v1.3 P1 (0 / 0 = the bloom as before)
     tp.bloomKeep = float(num(id::bloomKeepHighlights, t));
+    // v1.3 Bloom Filter (a lens filter: not scaled by the stock); module off = no filter either
+    tp.bloomFilter = flag(id::bloomEnable, t) ? std::min(std::max(choice(id::bloomFilter, t), 0), tex::kBloomFilterCount - 1) : 0;
+    tp.bloomFilterGrade = float(num(id::bloomFilterGrade, t));
     tp.vignette = flag(id::vignetteEnable, t) ? float(num(id::vignette, t)) : 0.f;
     tp.grainEnabled = flag(id::grainEnable, t) && fs.look.grainAmount > 0.f;
     tp.grainFormat = tex::GrainFormat(std::min(std::max(choice(id::grainFormat, t), 0), int(tex::GrainFormat::Count) - 1));
@@ -624,6 +627,7 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     // film resolution (v1.2): negative MTF of the gauge + Integrate (print / scan, shared with the grain)
     tp.filmResolution = flag(id::filmResolutionEnable, t);
     tp.integrate = float(num(id::integrate, t));
+    tp.sharpenRemoval = flag(id::filmResolutionEnable, t) ? float(num(id::sharpenRemoval, t)) : 0.f;
     // The grain model is normalised to unit std at grey for every gauge (cel::tex); visible granularity
     // grows with the enlargement of the gate, so the density amplitude carries the gauge ladder
     // (Super 8 2.6x, 16 mm 1.7x ... 65 mm 0.67x of Super 35). Applied here, exactly once.
@@ -1235,8 +1239,13 @@ void ReafilmEffect::refreshEnabledness(double t) {
         setEnabled(p, texture && halOn);
     for (const char* p : {id::auraRadius, id::auraStrength, id::auraGreen})   // v1.3 Aura (needs halation)
         setEnabled(p, texture && halOn && flag(id::auraEnable, t));
-    for (const char* p : {id::bloomAmount, id::bloomRadius, id::bloomThreshold, id::bloomKeepHighlights})
+    for (const char* p : {id::bloomRadius, id::bloomThreshold, id::bloomKeepHighlights, id::bloomFilter})
         setEnabled(p, texture && bloomOn);
+    {   // v1.3 Bloom Filter: Classic uses Bloom Amount, a diffusion filter its Filter Grade
+        const bool classic = choice(id::bloomFilter, t) <= 0;
+        setEnabled(id::bloomAmount, texture && bloomOn && classic);
+        setEnabled(id::bloomFilterGrade, texture && bloomOn && !classic);
+    }
     for (const char* p : {id::acutanceAmount, id::acutanceRadius}) setEnabled(p, texture && acutOn);
     for (const char* p : {id::weaveAmount, id::weaveSpeed}) setEnabled(p, texture && weaveOn);
     setEnabled(id::vignette, texture && vigOn);
@@ -1247,6 +1256,7 @@ void ReafilmEffect::refreshEnabledness(double t) {
     setEnabled(id::grainFormat, texture);   // the gauge drives grain, film resolution, halation and acutance
     setEnabled(id::filmResolutionEnable, texture);
     setEnabled(id::integrate, texture);
+    setEnabled(id::sharpenRemoval, texture && flag(id::filmResolutionEnable, t));
     // film damage (master switch + dust / scratches / hair sub-switches) and film blur
     const bool dmgOn = texture && flag(id::damageEnable, t);
     setEnabled(id::damageEnable, texture);

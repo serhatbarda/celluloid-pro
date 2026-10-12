@@ -188,9 +188,9 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_s2d(float x, float x0, float p, float Yk
 CEL_DEVICE CEL_TXH_INLINE float cel_txh_hal_energy(CelF4 v, float T, float k, float emax, float wr, float wg, float wb) {
     float yh = cel_txh_max(wr * v.x + wg * v.y + wb * v.z, 0.0f);
     /* v1.2 physical halation (T <= 0): a fixed fraction of the light, no threshold; k > 0 = highlight
-     * emphasis in LINEAR units, e = yh / (1 + (k / yh)^2) (full share from about a stop over k, x0.08
-     * for an overcast sky 1.75 stops under k), so broad mid-bright areas do not tint the dark objects
-     * next to them; only extreme energies compressed */
+     * emphasis in LINEAR units, e = yh / (1 + (k / yh)^2) (full share from about a stop over k, small
+     * for skin and mid-tones well under k), so broad mid-bright areas do not tint the dark objects next
+     * to them; only extreme energies compressed */
     if (!(T > 0.0f)) {
         float e = yh;
         if (k > 0.0f) { float q = k / cel_txh_max(yh, 1e-20f); e = yh / (1.0f + q * q); }
@@ -305,6 +305,10 @@ CEL_DEVICE void cel_k_tx_acut_luma(CEL_KERNEL_PARAMS) {
  *   out.rgb = in0.rgb * 2^g (alpha kept).  Negative amount softens (pulls log luminance to blur).
  *   f[0] = amount   f[1] = k (log2 units)   f[2] = gmax (log2)   f[3] = eps (as tx_acut_luma)
  *   f[4] = in1 column scale (1 / 2^L)
+ *   f[5] = v1.3 toe weight Yt (linear luminance, 0 = off): g *= Yb / (Yb + Yt), Yb = 2^blur - eps the
+ *         local mean luminance. The adjacency effect follows the density difference on the negative,
+ *         i.e. the local negative gamma, which falls off in the toe (thin negative): shadow edges get
+ *         less snap than mid-tone edges (D = gamma log(E + Et) has dD/dlogE = gamma E / (E + Et))
  *   i[0] = 1: in1 is level L upsampled vertically by tx_up_v (size w_L x h): horizontal B-spline
  *         sampling here; 0: in1 is full res, direct load */
 CEL_DEVICE void cel_k_tx_acut_apply(CEL_KERNEL_PARAMS) {
@@ -322,6 +326,10 @@ CEL_DEVICE void cel_k_tx_acut_apply(CEL_KERNEL_PARAMS) {
     float u = (l - b) / k;
     float g = a->f[0] * k * u / cel_sqrt(1.0f + u * u);
     g = cel_txh_clampf(g, -a->f[2], a->f[2]);
+    if (a->f[5] > 0.0f) {
+        float yb = cel_exp2(b);          /* local mean luminance (+ eps << Yt: no cancellation) */
+        g *= yb / (yb + a->f[5]);
+    }
     float m = cel_exp2(g);
     cel_store(out, a->outStride, x, y, cel_f4(v.x * m, v.y * m, v.z * m, v.w));
 }

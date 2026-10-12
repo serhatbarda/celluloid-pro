@@ -76,6 +76,18 @@ unchanged in a newer one.
     sim (appended to Output Space).
   - **Bloom Threshold** and **Bloom Keep Highlights**.
   - Defaults render exactly as before.
+- **Lens diffusion filters, a softer film edge and a reference-look preset**:
+  - **Bloom Filter** (Bloom group): *Classic* (the bloom as before, default) or emulations of
+    *Black Pro-Mist*, *Pro-Mist (white)*, *Glimmerglass*, *Hollywood Black Magic* and *CineBloom*, with
+    **Filter Grade** 1/8 .. 2. The filter scatters a fixed share of all light: a sharp core plus a
+    wide halo, in scene light before the negative, with no threshold. Total light is kept. Black
+    mists lift the shadows slightly with veiling glare; white mist is milkier. These are modelled
+    from how the filters work, not from measured filter data.
+  - **Digital Sharpening Removal** (Film Resolution group, default 0): undoes in-camera edge
+    sharpening before the film resolution is applied, scaled with the frame size.
+  - **Sunlit 35mm (soft scan)** look preset (appended): soft-aim print, full crossover, yellow-green
+    mids, lifted blacks from a 1/8 Black Pro-Mist, halation, and a gentle edge that stays soft in
+    the shadows. The recipe is in the manual.
 
 ### Fixed
 
@@ -139,6 +151,22 @@ unchanged in a newer one.
   saturated, skin and orange separate more, and skin keeps its hue better from shadows to highlights.
   ALEXA Colour now also never pushes a colour past Rec.2020 into the negative. With ALEXA Colour off,
   nothing changes. The film's own cool, green-poor shadows are kept.
+
+- **Halation is visible at the defaults** (owner report "threshold 0 = no halation"). Physical
+  halation now gives its full share from about +3.5 stops over grey instead of +6. That level was
+  barely reached by a real camera clip, so the default halation was nearly invisible. Display-referred
+  textures (Texture Only, ALEXA Rec.709 stage) use a knee at +1.5 stops. The gain per unit of Amount
+  is 0.14 instead of 0.10. Projects with Halation Threshold 0 show clearly warmer rings around
+  practicals, the sun, speculars and bright sky edges. Skin and mid-tones are almost unaffected. The
+  control is now labelled **Halation Threshold (0 = physical)**, and its tool-tip explains that any
+  value above 0 switches to the old gate mode. Projects with a threshold above 0 are unchanged.
+- **Acutance fades out in the shadows**, as the adjacency effect does in the negative's toe (half
+  strength 4 stops under grey). Dark and underexposed shots no longer get extra edge contrast. In
+  Full mode, shadow edges are softer: overshoot 13 % -> 6 % on a -6 / -3.5 stop edge. Mid-tone edges
+  are about 6 % weaker.
+- **Film Resolution at 6K and above with high Integrate** is no longer capped by the 7-tap kernel. It
+  is applied as cascaded passes, so the softness is the same fraction of the frame at every
+  resolution. Lower resolutions render exactly as before.
 
 ### Fixed
 

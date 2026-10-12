@@ -7,6 +7,7 @@
 #include "UserPresets.h"
 #include "../core/Core.h"
 #include "../texture/Texture.h"
+#include "../texture/TextureDesign.h"   // kBloomFilterCount
 
 #include <cmath>
 #include <cstdio>
@@ -163,6 +164,9 @@ int main() {
         {"sceneWbTint", "groupInput", -100, 100, 0},
         {"bloomThreshold", "groupBloom", 0, 8, 0},
         {"bloomKeepHighlights", "groupBloom", 0, 1, 0},
+        // v1.3 reference look: diffusion filter grade, digital sharpening removal (0 = off)
+        {"bloomFilterGrade", "groupBloom", 0.125, 2, 0.25},
+        {"sharpenRemoval", "groupFilmResolution", 0, 1.5, 0},
     };
     for (const Spec& s : spec) {
         const ParamDef* d = findParam(s.id);
@@ -214,13 +218,14 @@ int main() {
                                                          "halationSaturation", "halationBackground", "auraEnable"}},
         // v1.3 Aura: sub-module of halation, OFF by default
         {"auraEnable", "groupHalation", false, true, {"auraRadius", "auraStrength", "auraGreen"}},
-        {"bloomEnable", "groupBloom", true, true, {"bloomAmount", "bloomRadius", "bloomThreshold", "bloomKeepHighlights"}},
+        {"bloomEnable", "groupBloom", true, true, {"bloomAmount", "bloomRadius", "bloomThreshold", "bloomKeepHighlights",
+                                                   "bloomFilter", "bloomFilterGrade"}},
         {"grainEnable", "groupGrain", true, true, {"grainAmount", "grainSize", "grainSoftness", "grainAnimated", "grainSeed",
                                                    "grainColour", "grainShadows", "grainMids", "grainHighlights"}},
         {"acutanceEnable", "groupLensGate", true, true, {"acutanceAmount", "acutanceRadius"}},
         // v1.2: film resolution (negative MTF + print/scan system); grainFormat moved to the Look
         // group as "Gauge" (it scales grain, halation and acutance), so no switch owns it
-        {"filmResolutionEnable", "groupFilmResolution", true, true, {"integrate"}},
+        {"filmResolutionEnable", "groupFilmResolution", true, true, {"integrate", "sharpenRemoval"}},
         {"weaveEnable", "groupLensGate", true, true, {"weaveAmount", "weaveSpeed"}},
         {"vignetteEnable", "groupLensGate", true, true, {"vignette"}},
         {"hdrUnrollEnable", "groupOutput", true, false, {"hdrUnroll"}},
@@ -283,6 +288,7 @@ int main() {
     check(count("printStock") == 11, "SPEC §4.6: 11 print stocks (6 designed + 5 data-sheet)");
     check(count("cameraEmulation") == int(core::CameraEmulation::Count) - 1, "cameraEmulation options != CameraEmulation::Count - 1");
     check(count("pipelineStage") == int(StageChoice::Count), "pipelineStage options != StageChoice::Count");
+    check(count("bloomFilter") == tex::kBloomFilterCount, "bloomFilter options != kBloomFilterCount");
 
     // every group of SPEC §7 exists
     for (const char* g : {"groupLook", "groupInput", "groupCameraEmulation", "groupNegative", "groupPrint", "groupHalation", "groupBloom",
