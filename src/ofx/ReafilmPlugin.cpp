@@ -982,6 +982,7 @@ void ReafilmEffect::refreshEnabledness(double t) {
     const bool vigOn = flag(id::vignetteEnable, t);
 
     // colour (negative/print)
+    setEnabled(id::negStock, true);   // re-enable after the ALEXA Rec.709 stage greyed it
     setEnabled(id::inputSpace, colour);
     setEnabled(id::exposureEnable, colour);
     setEnabled(id::exposure, colour && expOn);
