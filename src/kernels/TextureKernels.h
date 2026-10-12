@@ -203,9 +203,12 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_hal_energy(CelF4 v, float T, float k, fl
     return e * emax / (emax + e);
 }
 /* Bloom source: the image itself (diffusion is linear), with super-bright values compressed
- * (hue preserving) so a specular sun cannot wash out the whole frame. */
+ * (hue preserving) so a specular sun cannot wash out the whole frame. The compression follows the
+ * largest channel MAGNITUDE (== the max channel for non-negative pixels): a far out-of-gamut negative
+ * channel is bounded too, instead of smearing an unbounded negative glow (and its rounding error)
+ * over the neighbourhood. */
 CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_bloom_src(CelF4 v, float bmax) {
-    float m = cel_txh_max(cel_txh_max(v.x, v.y), cel_txh_max(v.z, 0.0f));
+    float m = cel_txh_max(cel_txh_max(cel_fabs(v.x), cel_fabs(v.y)), cel_fabs(v.z));
     float s = bmax / (bmax + m);
     return cel_f4(v.x * s, v.y * s, v.z * s, 0.0f);
 }
