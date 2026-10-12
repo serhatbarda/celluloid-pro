@@ -2,6 +2,7 @@
 // All strings are UTF-8; on Windows they are converted to UTF-16 at the OS boundary.
 #pragma once
 #include <string>
+#include <vector>
 
 namespace cel { namespace ofxp {
 
@@ -32,5 +33,21 @@ std::string envVar(const char* name);
 // Product setting from the environment: REAFILM_<suffix>, or the pre-rename CELLULOID_<suffix>
 // when the new name is unset or empty (e.g. productEnv("LOG")).
 std::string productEnv(const char* suffix);
+
+// v1.3 P1 user presets: the per-user preset folder (not created here). macOS: ~/Library/Application
+// Support/Reafilm/Presets, Windows: %APPDATA%\Reafilm\Presets, Linux: $XDG_CONFIG_HOME (or ~/.config)
+// /reafilm/presets. REAFILM_PRESET_DIR (or CELLULOID_PRESET_DIR) overrides it.
+std::string userPresetDirectory();
+// The same folder under the pre-rename product name (Celluloid / celluloid), read as a fallback;
+// "" when the override is set (an explicit folder has no legacy twin).
+std::string legacyUserPresetDirectory();
+
+// Whole-file text IO (UTF-8 paths). readTextFile returns false when the file cannot be opened;
+// writeTextFile writes a temporary file next to the target and renames it over the target.
+bool fileExists(const std::string& path);
+bool readTextFile(const std::string& path, std::string& out);
+bool writeTextFile(const std::string& path, const std::string& text, std::string* err);
+// File names (not paths) of the regular files in dir ending in `ext` (case-insensitive), sorted.
+std::vector<std::string> listFiles(const std::string& dir, const std::string& ext);
 
 }} // namespace cel::ofxp

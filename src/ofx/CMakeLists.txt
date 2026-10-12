@@ -40,7 +40,8 @@ set(CEL_OFX_SOURCES
   ReafilmPlugin.cpp
   Params.cpp
   Platform.cpp
-  Presets.cpp)
+  Presets.cpp
+  UserPresets.cpp)
 
 add_library(reafilm_ofx MODULE ${CEL_OFX_SOURCES})
 target_include_directories(reafilm_ofx PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -179,7 +180,7 @@ install(DIRECTORY "${CEL_BUNDLE_DIR}" DESTINATION "." USE_SOURCE_PERMISSIONS COM
 
 # ---- self test of the parameter registry and the preset table ------------------------------------
 if(CEL_BUILD_TESTS)
-  add_executable(cel_ofx_selftest SelfTest.cpp Params.cpp Presets.cpp Platform.cpp)
+  add_executable(cel_ofx_selftest SelfTest.cpp Params.cpp Presets.cpp Platform.cpp UserPresets.cpp)
   target_include_directories(cel_ofx_selftest PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated" "${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(cel_ofx_selftest PRIVATE celcore)
   target_compile_definitions(cel_ofx_selftest PRIVATE CEL_PERSONAL_BUILD=${_cel_personal})

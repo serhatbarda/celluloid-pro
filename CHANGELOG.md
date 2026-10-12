@@ -65,6 +65,17 @@ unchanged in a newer one.
     changes of exposure, development contrast and printer lights. Profiles Lab, Projector, Old
     Camera and Hand-cranked; Period and Seed.
   - Off or at the defaults these render unchanged, and all match across CPU, OpenCL, CUDA and Metal.
+- **P1 extras**:
+  - **User presets** (Save/Load User Preset in the Look group): every setting as versioned JSON in
+    the Reafilm Presets folder, with a fallback to the old Celluloid folder. Older or newer files load
+    tolerantly: missing settings return to their defaults, and unknown entries are reported.
+  - **Scene White Balance**: temperature and tint in scene light, before the negative. Off by default.
+  - **False Colour**: an exposure diagnostic in stops relative to 18 % grey. Off by default, never in
+    LUT exports or presets.
+  - **New outputs**: Rec.709 / P3-D65 Gamma 2.2, Rec.709 Gamma 2.4 D60 sim and P3-D65 Gamma 2.6 D60
+    sim (appended to Output Space).
+  - **Bloom Threshold** and **Bloom Keep Highlights**.
+  - Defaults render exactly as before.
 
 ### Fixed
 

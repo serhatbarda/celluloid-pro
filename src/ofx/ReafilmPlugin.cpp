@@ -44,6 +44,7 @@
 #include "Params.h"
 #include "Platform.h"
 #include "Presets.h"
+#include "UserPresets.h"
 #include "CelVersion.h"
 
 #include "ofxGPURender.h"
@@ -200,7 +201,10 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.dyeSatBalance == b.dyeSatBalance && a.alexaColour == b.alexaColour &&
            a.latitudeOn == b.latitudeOn && a.latitudeStops == b.latitudeStops && a.latitudeSoftness == b.latitudeSoftness &&
            a.latitudeReconstruct == b.latitudeReconstruct && a.latitudeDesaturate == b.latitudeDesaturate &&
-           a.latitudeClip == b.latitudeClip;
+           a.latitudeClip == b.latitudeClip &&
+           // v1.3 P1 extras
+           a.sceneWbOn == b.sceneWbOn && a.sceneWbKelvin == b.sceneWbKelvin && a.sceneWbTint == b.sceneWbTint &&
+           a.falseColour == b.falseColour;
 }
 
 std::string versionString() {
@@ -321,6 +325,8 @@ private:
     void refreshEnabledness(double t);
     void refreshLicenseStatus();
     void exportLut(double t);
+    void saveUserPreset(double t);   // v1.3 P1
+    void loadUserPreset(double t);
     void activateLicense();
     void deactivateLicense();
 
@@ -466,6 +472,12 @@ core::LookParams ReafilmEffect::lookAt(double t) const {
     lp.input = core::InputSpace(clampIdx(choice(id::inputSpace, t), int(core::InputSpace::Count)));
     lp.output = core::OutputSpace(clampIdx(choice(id::outputSpace, t), int(core::OutputSpace::Count)));
     lp.exposure = flag(id::exposureEnable, t) ? float(num(id::exposure, t)) : 0.f;
+    if (flag(id::sceneWbEnable, t)) {   // v1.3 P1 Scene White Balance (off = the footage's own balance)
+        lp.sceneWbOn = true;
+        lp.sceneWbKelvin = float(num(id::sceneWbTemperature, t));
+        lp.sceneWbTint = float(num(id::sceneWbTint, t));
+    }
+    lp.falseColour = flag(id::falseColourEnable, t);   // v1.3 P1 diagnostic view (never in LUT export)
     lp.negStock = clampIdx(choice(id::negStock, t), int(negStocks().size()));
     if (flag(id::developmentEnable, t)) {
         lp.pushPull = float(num(id::pushPull, t));
@@ -575,6 +587,8 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     tp.auraGreen = float(num(id::auraGreen, t));
     tp.bloomAmount = flag(id::bloomEnable, t) ? float(num(id::bloomAmount, t)) * bloomScale : 0.f;
     tp.bloomRadius = float(num(id::bloomRadius, t));
+    tp.bloomThreshold = float(num(id::bloomThreshold, t));   // v1.3 P1 (0 / 0 = the bloom as before)
+    tp.bloomKeep = float(num(id::bloomKeepHighlights, t));
     tp.vignette = flag(id::vignetteEnable, t) ? float(num(id::vignette, t)) : 0.f;
     tp.grainEnabled = flag(id::grainEnable, t) && fs.look.grainAmount > 0.f;
     tp.grainFormat = tex::GrainFormat(std::min(std::max(choice(id::grainFormat, t), 0), int(tex::GrainFormat::Count) - 1));
@@ -935,6 +949,9 @@ void ReafilmEffect::changedParam(const OFX::InstanceChangedArgs& args, const std
             return;
         }
         if (name == id::lutExport) { exportLut(args.time); return; }
+        if (name == id::userPresetSave) { saveUserPreset(args.time); return; }   // v1.3 P1 user presets
+        if (name == id::userPresetLoad) { loadUserPreset(args.time); return; }
+        if (name == id::userPresetName) return;
         if (name == id::licenseActivate) { activateLicense(); return; }
         if (name == id::licenseRemove) { deactivateLicense(); return; }
 
@@ -967,6 +984,92 @@ void ReafilmEffect::applyPreset(int choiceIdx) {
         throw;
     }
     m_applyingPreset = false;
+}
+
+// ---- v1.3 P1 user presets (UserPresets.h): every stored parameter at the current time, as JSON ----
+void ReafilmEffect::saveUserPreset(double t) {
+    const std::string name = normalizeUserPath(str(id::userPresetName));   // trims white space / quotes
+    if (name.empty()) {
+        sendMessage(OFX::Message::eMessageError, "", "Please type a name into the User Preset field first.");
+        return;
+    }
+    std::vector<UserPresetValue> values;
+    for (const ParamDef& d : paramDefs()) {
+        if (!userPresetStores(d)) continue;
+        UserPresetValue v;
+        v.param = d.id;
+        if (d.type == PType::String) v.text = str(d.id);
+        else v.num = num(d.id, t);
+        values.push_back(v);
+    }
+    const std::string dir = userPresetDirectory();
+    std::string err;
+    if (!ensureDirectory(dir, &err)) {
+        sendMessage(OFX::Message::eMessageError, "", "Saving the preset failed: " + err);
+        return;
+    }
+    const std::string path = joinPath(dir, userPresetFileName(name));
+    const bool replaced = fileExists(path);
+    if (!writeTextFile(path, userPresetToJson(name, versionString(), values), &err)) {
+        sendMessage(OFX::Message::eMessageError, "", "Saving the preset failed: " + err);
+        return;
+    }
+    sendMessage(OFX::Message::eMessageMessage, "",
+                "User preset \"" + name + "\" " + (replaced ? "replaced" : "saved") + ":\n" + path +
+                    (flag(id::falseColourEnable, t) ? "\n(False Colour is a diagnostic view and is not stored.)" : ""));
+}
+
+void ReafilmEffect::loadUserPreset(double t) {
+    const std::string name = normalizeUserPath(str(id::userPresetName));
+    const std::vector<std::string> available = listUserPresets();
+    auto availableText = [&]() {
+        if (available.empty()) return std::string("\nNo user presets saved yet (folder: ") + userPresetDirectory() + ").";
+        std::string s = "\nAvailable: ";
+        for (size_t i = 0; i < available.size(); ++i) s += (i ? ", " : "") + available[i];
+        return s;
+    };
+    if (name.empty()) {
+        sendMessage(OFX::Message::eMessageError, "", "Please type the name of the preset to load into the User Preset field." + availableText());
+        return;
+    }
+    const std::string path = findUserPresetFile(name);
+    if (path.empty()) {
+        sendMessage(OFX::Message::eMessageError, "", "There is no user preset \"" + name + "\"." + availableText());
+        return;
+    }
+    std::string text, err, fileName;
+    if (!readTextFile(path, text)) {
+        sendMessage(OFX::Message::eMessageError, "", "The preset file could not be read:\n" + path);
+        return;
+    }
+    std::vector<UserPresetValue> values;
+    std::vector<std::string> notes;
+    if (!userPresetFromJson(text, values, &fileName, &notes, &err)) {
+        sendMessage(OFX::Message::eMessageError, "", "The preset could not be loaded: " + err + "\n" + path);
+        return;
+    }
+    for (const std::string& n : notes) logf("user preset: " + n);
+    m_applyingPreset = true;
+    try {
+        beginEditBlock("Load User Preset");
+        for (const UserPresetValue& v : values) {
+            const ParamDef* d = findParam(v.param);
+            if (d && d->type == PType::String) setStr(v.param, v.text);
+            else setNum(v.param, v.num);
+        }
+        endEditBlock();
+    } catch (...) {
+        m_applyingPreset = false;
+        throw;
+    }
+    m_applyingPreset = false;
+    refreshPresetStatus(t);
+    refreshEnabledness(t);
+    std::string msg = "User preset \"" + (fileName.empty() ? name : fileName) + "\" loaded.";
+    const size_t shown = std::min<size_t>(notes.size(), 8);
+    for (size_t i = 0; i < shown; ++i) msg += "\n- " + notes[i];
+    if (notes.size() > shown) msg += "\n- ... (" + std::to_string(notes.size() - shown) + " more)";
+    sendMessage(OFX::Message::eMessageMessage, "", msg);
 }
 
 void ReafilmEffect::refreshPresetStatus(double t) {
@@ -1115,6 +1218,14 @@ void ReafilmEffect::refreshEnabledness(double t) {
                 setEnabled(p, false);
         }
     }
+    {   // v1.3 P1 Scene White Balance: scene light (not Print Only - its input is a Log Scan); False Colour:
+        // shows the scene light of every colour stage (Texture Only has none)
+        const bool wb = colour && stageChoice(t) != StageChoice::PrintOnly;
+        setEnabled(id::sceneWbEnable, wb);
+        setEnabled(id::sceneWbTemperature, wb && flag(id::sceneWbEnable, t));
+        setEnabled(id::sceneWbTint, wb && flag(id::sceneWbEnable, t));
+        setEnabled(id::falseColourEnable, colour);
+    }
     // texture
     for (const char* p : {id::halationEnable, id::bloomEnable, id::grainEnable, id::acutanceEnable, id::weaveEnable,
                           id::vignetteEnable})
@@ -1124,7 +1235,8 @@ void ReafilmEffect::refreshEnabledness(double t) {
         setEnabled(p, texture && halOn);
     for (const char* p : {id::auraRadius, id::auraStrength, id::auraGreen})   // v1.3 Aura (needs halation)
         setEnabled(p, texture && halOn && flag(id::auraEnable, t));
-    for (const char* p : {id::bloomAmount, id::bloomRadius}) setEnabled(p, texture && bloomOn);
+    for (const char* p : {id::bloomAmount, id::bloomRadius, id::bloomThreshold, id::bloomKeepHighlights})
+        setEnabled(p, texture && bloomOn);
     for (const char* p : {id::acutanceAmount, id::acutanceRadius}) setEnabled(p, texture && acutOn);
     for (const char* p : {id::weaveAmount, id::weaveSpeed}) setEnabled(p, texture && weaveOn);
     setEnabled(id::vignette, texture && vigOn);
@@ -1244,6 +1356,8 @@ void ReafilmEffect::exportLut(double t) {
 
     core::LookParams lp = lookAt(t);
     lp.grainAmount = 0.f;   // a LUT is the Color Only pipeline
+    const bool falseColourOn = lp.falseColour;
+    lp.falseColour = false;   // v1.3 P1: the diagnostic view is never baked into a LUT
 
     std::string dir = normalizeUserPath(str(id::lutPath));
     if (dir.empty()) dir = defaultLutDirectory();
@@ -1294,6 +1408,7 @@ void ReafilmEffect::exportLut(double t) {
     if (lp.input == core::InputSpace::LinearRec2020)
         note += "\nScene-linear input: the file carries a 1D log2 shaper (-8.5 .. +8.5 stops around mid grey) "
                 "in front of the 3D LUT.";
+    if (falseColourOn) note += "\nFalse Colour (diagnostic view) is on in the node; the LUT contains the normal rendering.";
     if (choice(id::mode, t) == int(core::Mode::TextureOnly))
         note += "\nNote: Texture Only mode is active in the node; the LUT contains the colour pipeline of the current "
                "settings (as in Color Only mode).";

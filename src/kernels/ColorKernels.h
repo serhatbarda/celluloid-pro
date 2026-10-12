@@ -725,7 +725,11 @@ CEL_DEVICE CelF3 celc_hlg_from_nits(CEL_GLOBAL const float* s, CelF3 nits) {
     return cel_f3(celc_hlg_oetf(cel_fmin(Fd.x * k, 1.0f)), celc_hlg_oetf(cel_fmin(Fd.y * k, 1.0f)), celc_hlg_oetf(cel_fmin(Fd.z * k, 1.0f)));
 }
 
-CEL_DEVICE CelF3 celc_encode_sdr(int out, CelF3 rgb) {
+CEL_DEVICE CelF3 celc_encode_sdr(int out, float gamma, CelF3 rgb) {
+    if (gamma > 0.0f) {   /* v1.3 P1: gamma override of the appended Gamma 2.2 outputs (0 = the code's own) */
+        float eg = 1.0f / gamma;
+        return cel_f3(celc_spow(rgb.x, eg), celc_spow(rgb.y, eg), celc_spow(rgb.z, eg));
+    }
     if (out == CEL_OUT_709_SRGB) return cel_f3(celc_srgb_enc(rgb.x), celc_srgb_enc(rgb.y), celc_srgb_enc(rgb.z));
     float e = (out == CEL_OUT_709_G24) ? (1.0f / 2.4f) : (1.0f / 2.6f);
     return cel_f3(celc_spow(rgb.x, e), celc_spow(rgb.y, e), celc_spow(rgb.z, e));
@@ -744,7 +748,7 @@ CEL_DEVICE CelF3 celc_output_k(CEL_GLOBAL const float* s, CelF3 XYZ, float xref,
         if (bn > 0) rgb = cel_f3(rgb.x + bfix.x, rgb.y + bfix.y, rgb.z + bfix.z);
         rgb = celc_gamut_compress(s, rgb);
         rgb = celc_limit(rgb, CEL_SDR_KNEE, 1.0f);
-        return celc_encode_sdr(out, rgb);
+        return celc_encode_sdr(out, s[CEL_CS_OUT_GAMMA], rgb);
     }
     float e = xref - CEL_LOG10_018;
     float t = cel_fmax(e - CEL_HDR_E0, 0.0f) / CEL_HDR_ER;
@@ -873,7 +877,7 @@ CEL_DEVICE CelF3 celc_display_encode(CEL_GLOBAL const float* s, CelF3 lin) {
     CelF3 o;
     if (out == CEL_OUT_PQ) o = cel_f3(celc_pq_enc(lin.x * 100.0f), celc_pq_enc(lin.y * 100.0f), celc_pq_enc(lin.z * 100.0f));
     else if (out == CEL_OUT_HLG) o = celc_hlg_from_nits(s, celc_scale(lin, 100.0f));
-    else o = celc_encode_sdr(out, lin);
+    else o = celc_encode_sdr(out, s[CEL_CS_OUT_GAMMA], lin);
     return cel_f3(cel_finite_or(o.x, 0.0f), cel_finite_or(o.y, 0.0f), cel_finite_or(o.z, 0.0f));
 }
 /* v1.3 ALEXA Rec.709 stage (4): scene -> ALEXA rendering -> output display; no film, so grain and damage are
@@ -889,8 +893,32 @@ CEL_DEVICE CelF3 celc_alexa_stage(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 no
     return celc_display_encode(s, lin);
 }
 
+/* v1.3 P1 False Colour (diagnostic): exposure zones of the scene luminance in stops relative to 18 % grey,
+ * shown in the output's display encoding instead of the rendering. Below -5 purple, -5..-3 blue, -3..-1.5 teal,
+ * -1.5..-0.5 and +1.5..+3 grey (the image's own level), -0.5..+0.5 green (grey), +0.5..+1.5 pink (skin),
+ * +3..+4.5 yellow, +4.5..+6 orange, above +6 red. */
+CEL_DEVICE CelF3 celc_false_colour(CEL_GLOBAL const float* s, CelF3 rgb) {
+    float Y = CEL_TONE_LW_R * rgb.x + CEL_TONE_LW_G * rgb.y + CEL_TONE_LW_B * rgb.z;
+    float x = cel_clamp(cel_log2(cel_fmax(Y, 1.6763806e-10f) * (1.0f / 0.18f)), -30.0f, 30.0f);
+    float gq = cel_clamp((x + 6.0f) * (1.0f / 12.0f), 0.0f, 1.0f);
+    float gl = gq * gq * gq;   /* grey zones: the level as a plain grey ramp (display-linear) */
+    CelF3 c;
+    if (x < -5.0f) c = cel_f3(0.22f, 0.0f, 0.32f);
+    else if (x < -3.0f) c = cel_f3(0.0f, 0.06f, 0.6f);
+    else if (x < -1.5f) c = cel_f3(0.0f, 0.28f, 0.32f);
+    else if (x < -0.5f) c = cel_f3(gl, gl, gl);
+    else if (x < 0.5f) c = cel_f3(0.08f, 0.55f, 0.08f);
+    else if (x < 1.5f) c = cel_f3(0.9f, 0.32f, 0.48f);
+    else if (x < 3.0f) c = cel_f3(gl, gl, gl);
+    else if (x < 4.5f) c = cel_f3(0.9f, 0.82f, 0.04f);
+    else if (x < 6.0f) c = cel_f3(0.95f, 0.32f, 0.0f);
+    else c = cel_f3(0.9f, 0.0f, 0.0f);
+    return celc_display_encode(s, c);
+}
+
 CEL_DEVICE CelF3 celc_scene_to_output_dmg(CEL_GLOBAL const float* s, CelF3 rgb, CelF3 noise, int hasNoise, CelF4 dmg) {
     rgb = cel_f3(celc_sanitize(rgb.x), celc_sanitize(rgb.y), celc_sanitize(rgb.z));
+    if (s[CEL_CS_FALSE_COLOUR] > 0.5f) return celc_false_colour(s, rgb);   /* v1.3 P1 diagnostic view (off = 0) */
     noise = cel_f3(cel_clamp(cel_finite_or(noise.x, 0.0f), -8.0f, 8.0f), cel_clamp(cel_finite_or(noise.y, 0.0f), -8.0f, 8.0f),
                    cel_clamp(cel_finite_or(noise.z, 0.0f), -8.0f, 8.0f));
     dmg = celc_dmg_clean(dmg);
@@ -916,6 +944,8 @@ CEL_DEVICE CelF3 celc_scene_to_output(CEL_GLOBAL const float* s, CelF3 rgb, CelF
 CEL_DEVICE CelF3 celc_display_decode_px(CEL_GLOBAL const float* s, CelF3 v) {
     int out = celc_i(s, CEL_CS_OUTPUT);
     v = cel_f3(celc_sanitize_d(v.x), celc_sanitize_d(v.y), celc_sanitize_d(v.z));
+    float gamma = s[CEL_CS_OUT_GAMMA];   /* v1.3 P1: Gamma 2.2 outputs (0 = the code's own) */
+    if (gamma > 0.0f && out <= CEL_OUT_P3DCI_G26) return cel_f3(celc_spow(v.x, gamma), celc_spow(v.y, gamma), celc_spow(v.z, gamma));
     if (out == CEL_OUT_709_SRGB) return cel_f3(celc_srgb_dec(v.x), celc_srgb_dec(v.y), celc_srgb_dec(v.z));
     if (out == CEL_OUT_709_G24) return cel_f3(celc_spow(v.x, 2.4f), celc_spow(v.y, 2.4f), celc_spow(v.z, 2.4f));
     if (out == CEL_OUT_PQ) return cel_f3(celc_pq_dec(v.x) * 0.01f, celc_pq_dec(v.y) * 0.01f, celc_pq_dec(v.z) * 0.01f);

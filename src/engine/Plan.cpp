@@ -313,6 +313,11 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
                     * tex::gaugeRadiusScale(tp.grainFormat);
         double br = (std::isfinite(tp.bloomRadius) ? std::max(0.1, double(tp.bloomRadius)) : 40.0) * ps;
         tex::HalationLook hl = tex::halationLook(tp.halationAmount, tp.halationThreshold, tp.halationHue);
+        // v1.3 P1 bloom threshold (stops over grey -> linear: 0.18 (2^s - 1), 0 = none) and Keep Highlights
+        const float bth = bloom && std::isfinite(tp.bloomThreshold) && tp.bloomThreshold > 0.f
+                              ? float(0.18 * (std::exp2(double(std::min(8.f, tp.bloomThreshold))) - 1.0)) : 0.f;
+        const int bkeep = bloom && std::isfinite(tp.bloomKeep)
+                              ? int(std::lround(1000.0 * double(std::min(1.f, std::max(0.f, tp.bloomKeep))))) : 0;
         tex::GlowDesign gd = tex::designGlow(bloom, br, hal, hr, w, h, hl.ring);
         // v1.3 aura: a second, wide base-reflection lobe on the same pyramid (halation channel only)
         const bool aura = hal && auraOn(tp);
@@ -331,6 +336,7 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
                 p.args.f[0] = hl.threshold; p.args.f[1] = hl.knee; p.args.f[2] = hl.emax;
                 p.args.f[3] = tex::kBloomBMax;
                 p.args.f[4] = hl.srcW[0]; p.args.f[5] = hl.srcW[1]; p.args.f[6] = hl.srcW[2];
+                p.args.f[7] = bth;
                 down[1] = d1;
             }
             for (int l = 2; l <= nDown; ++l) {
@@ -395,6 +401,7 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
             p.args.i[1] = hal ? 1 : 0;
             p.args.i[2] = bloom ? 1 : 0;
             p.args.i[3] = vigDone ? 1 : 0;
+            f[31] = bth; p.args.i[6] = bkeep;   // v1.3 P1 bloom threshold / Keep Highlights (0 = as before)
             if (hal && tex::halationChromaActive(tp)) {   // v1.3 chroma halation
                 p.args.i[4] = 1;
                 f[26] = std::isfinite(tp.halationSaturation) ? std::min(2.f, std::max(0.f, tp.halationSaturation)) : 1.f;

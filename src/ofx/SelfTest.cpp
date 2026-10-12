@@ -4,11 +4,14 @@
 #include "Params.h"
 #include "Platform.h"
 #include "Presets.h"
+#include "UserPresets.h"
 #include "../core/Core.h"
 #include "../texture/Texture.h"
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
 #include <set>
 #include <string>
 #include <vector>
@@ -25,6 +28,16 @@ static void check(bool ok, const std::string& what) {
         ++g_fail;
         std::printf("FAIL: %s\n", what.c_str());
     }
+}
+
+// v1.3 P1: set / clear an environment variable for the user preset folder tests
+static void setEnv(const char* name, const std::string& value) {
+#if defined(_WIN32)
+    _putenv_s(name, value.c_str());
+#else
+    if (value.empty()) unsetenv(name);
+    else setenv(name, value.c_str(), 1);
+#endif
 }
 
 struct Spec {
@@ -145,6 +158,11 @@ int main() {
         {"breathPrinter", "groupFilmBreath", 0, 3, 0.5},
         {"breathPeriod", "groupFilmBreath", 4, 240, 24},
         {"breathSeed", "groupFilmBreath", 0, 9999, 0},
+        // v1.3 P1 extras (neutral defaults)
+        {"sceneWbTemperature", "groupInput", 2000, 15000, 6500},
+        {"sceneWbTint", "groupInput", -100, 100, 0},
+        {"bloomThreshold", "groupBloom", 0, 8, 0},
+        {"bloomKeepHighlights", "groupBloom", 0, 1, 0},
     };
     for (const Spec& s : spec) {
         const ParamDef* d = findParam(s.id);
@@ -196,7 +214,7 @@ int main() {
                                                          "halationSaturation", "halationBackground", "auraEnable"}},
         // v1.3 Aura: sub-module of halation, OFF by default
         {"auraEnable", "groupHalation", false, true, {"auraRadius", "auraStrength", "auraGreen"}},
-        {"bloomEnable", "groupBloom", true, true, {"bloomAmount", "bloomRadius"}},
+        {"bloomEnable", "groupBloom", true, true, {"bloomAmount", "bloomRadius", "bloomThreshold", "bloomKeepHighlights"}},
         {"grainEnable", "groupGrain", true, true, {"grainAmount", "grainSize", "grainSoftness", "grainAnimated", "grainSeed",
                                                    "grainColour", "grainShadows", "grainMids", "grainHighlights"}},
         {"acutanceEnable", "groupLensGate", true, true, {"acutanceAmount", "acutanceRadius"}},
@@ -224,6 +242,9 @@ int main() {
         // v1.3 Film Breath: new module, OFF by default
         {"breathEnable", "groupFilmBreath", false, true, {"breathProfile", "breathExposure", "breathDevelopment", "breathPrinter",
                                                          "breathPeriod", "breathSeed"}},
+        // v1.3 P1 extras: new modules, OFF by default, not part of looks
+        {"sceneWbEnable", "groupInput", false, false, {"sceneWbTemperature", "sceneWbTint"}},
+        {"falseColourEnable", "groupOutput", false, false, {}},
     };
     auto position = [&](const std::string& pid) {
         for (size_t i = 0; i < defs.size(); ++i)
@@ -310,6 +331,103 @@ int main() {
     // absolute path in the cached descriptor or in saved projects)
     check(lutDefault.empty(), "lutPath default is empty (resolved at export time)");
     check(defaultLutDirectory().find("Reafilm LUTs") != std::string::npos, "default LUT folder is <Documents>/Reafilm LUTs/");
+
+    // ---- v1.3 P1 user presets: JSON round trip, tolerance, folders ----
+    {
+        std::vector<UserPresetValue> cur;
+        for (const ParamDef& d : defs) {
+            if (!userPresetStores(d)) continue;
+            UserPresetValue v;
+            v.param = d.id;
+            v.num = d.def;
+            v.text = d.defString;
+            if (d.id == "exposure") v.num = 1.25;
+            if (d.id == "negStock") v.num = 3;
+            if (d.id == "grainEnable") v.num = 0;
+            if (d.id == "halationRadius") v.num = 20.1 + 0.2;   // not exactly representable in short decimal
+            if (d.id == "userPresetName") v.text = "x";
+            cur.push_back(v);
+        }
+        check(!findParam("lutPath") || !userPresetStores(*findParam("lutPath")), "user presets do not store lutPath");
+        check(!userPresetStores(*findParam("falseColourEnable")), "user presets do not store False Colour");
+        check(!userPresetStores(*findParam("licenseKey")), "user presets do not store the license key");
+        check(userPresetStores(*findParam("inputSpace")) && userPresetStores(*findParam("sceneWbEnable")),
+              "user presets store input and module switches");
+        const std::string js = userPresetToJson("My \"Look\" 1", "test", cur);
+        std::vector<UserPresetValue> back;
+        std::vector<std::string> notes;
+        std::string nm, err;
+        check(userPresetFromJson(js, back, &nm, &notes, &err), "user preset round trip parses: " + err);
+        check(nm == "My \"Look\" 1", "user preset name round trip");
+        check(back.size() == cur.size() && notes.empty(), "user preset round trip: same values, no notes");
+        for (const std::string& n : notes) std::printf("  note: %s\n", n.c_str());
+        for (size_t i = 0; i < back.size() && i < cur.size(); ++i)
+            if (back[i].param != cur[i].param || back[i].num != cur[i].num || back[i].text != cur[i].text)
+                std::printf("  differs: %s %.17g / %.17g\n", cur[i].param.c_str(), cur[i].num, back[i].num);
+        bool same = back.size() == cur.size();
+        for (size_t i = 0; same && i < back.size(); ++i)
+            same = back[i].param == cur[i].param && back[i].num == cur[i].num && back[i].text == cur[i].text;
+        check(same, "user preset round trip is exact");
+        check(js.find("\"negStock\": \"") != std::string::npos, "choices are stored as labels");
+        // tolerance: unknown keys ignored + reported, missing keys at defaults, labels or indices, clamping
+        const std::string old = "\xEF\xBB\xBF{\"format\":\"reafilm-preset\",\"version\":1,\"future\":[1,{\"a\":null}],"
+                                "\"params\":{\"exposure\":9.5,\"negStock\":2,\"process\":\"lab scan\",\"noSuchParam\":3,"
+                                "\"grainEnable\":false,\"printStock\":\"No Such Print\"}}";
+        back.clear(); notes.clear();
+        check(userPresetFromJson(old, back, nullptr, &notes, &err), "tolerant user preset parses: " + err);
+        auto val = [&](const char* pid) {
+            for (const UserPresetValue& v : back) if (v.param == pid) return v.num;
+            return -999.0;
+        };
+        check(val("exposure") == 4.0, "user preset numbers are clamped to the range");
+        check(val("negStock") == 2.0, "user preset choice by index");
+        check(val("process") == double(int(core::Process::NegativeScan)), "user preset choice by label (case-insensitive)");
+        check(val("grainEnable") == 0.0, "user preset bool");
+        check(val("printStock") == findParam("printStock")->def, "unknown choice label keeps the default");
+        check(val("halationRadius") == findParam("halationRadius")->def && val("sceneWbEnable") == 0.0,
+              "missing params return to their defaults");
+        bool unknownNoted = false, futureNoted = false;
+        for (const std::string& n : notes) {
+            unknownNoted |= n.find("noSuchParam") != std::string::npos;
+            futureNoted |= n.find("future") != std::string::npos;
+        }
+        check(unknownNoted && futureNoted, "unknown keys are reported");
+        check(!userPresetFromJson("{\"params\":{}}", back, nullptr, nullptr, &err), "a file without the format tag is refused");
+        check(!userPresetFromJson("{\"format\":\"reafilm-preset\",\"params\":{", back, nullptr, nullptr, &err), "truncated JSON is refused");
+        check(userPresetFileName("My Look 2") == "My-Look-2.json", "user preset file name");
+
+        // folders: the override, then (Linux) the XDG folder with the legacy Celluloid fallback
+        namespace fs = std::filesystem;
+        std::error_code ec;
+        const fs::path tmp = fs::temp_directory_path(ec) / ("reafilm_selftest_" + std::to_string(std::rand()));
+        const std::string tdir = tmp.string();
+        setEnv("REAFILM_PRESET_DIR", tdir);
+        check(userPresetDirectory() == tdir && legacyUserPresetDirectory().empty(), "REAFILM_PRESET_DIR override");
+        check(ensureDirectory(tdir, &err), "preset folder created");
+        check(writeTextFile(joinPath(tdir, userPresetFileName("Round Trip")), js, &err), "preset written: " + err);
+        check(writeTextFile(joinPath(tdir, userPresetFileName("Round Trip")), js, &err), "preset replaced: " + err);
+        const std::string found = findUserPresetFile("Round Trip");
+        std::string text;
+        check(!found.empty() && readTextFile(found, text) && text == js, "preset found and read back");
+        check(listUserPresets() == std::vector<std::string>{"Round-Trip"}, "preset listed");
+        setEnv("REAFILM_PRESET_DIR", "");
+        setEnv("CELLULOID_PRESET_DIR", "");
+#if !defined(_WIN32) && !defined(__APPLE__)
+        const std::string xdgOld = envVar("XDG_CONFIG_HOME");
+        setEnv("XDG_CONFIG_HOME", tdir);
+        check(userPresetDirectory() == joinPath(joinPath(tdir, "reafilm"), "presets"), "Linux preset folder");
+        const std::string legacy = legacyUserPresetDirectory();
+        check(legacy == joinPath(joinPath(tdir, "celluloid"), "presets"), "Linux legacy preset folder");
+        check(ensureDirectory(legacy, &err) && writeTextFile(joinPath(legacy, "Old-One.json"), js, &err), "legacy preset written");
+        check(findUserPresetFile("Old One") == joinPath(legacy, "Old-One.json"), "legacy folder is the fallback");
+        check(ensureDirectory(userPresetDirectory(), &err) &&
+                  writeTextFile(joinPath(userPresetDirectory(), "Old-One.json"), js, &err) &&
+                  findUserPresetFile("Old One") == joinPath(userPresetDirectory(), "Old-One.json"),
+              "the Reafilm folder wins over the legacy folder");
+        setEnv("XDG_CONFIG_HOME", xdgOld);
+#endif
+        fs::remove_all(tmp, ec);
+    }
 
     std::printf("ofx self test: %d checks, %d failures (%zu params, %zu presets)\n", g_checks, g_fail, defs.size(),
                 lookPresets().size());

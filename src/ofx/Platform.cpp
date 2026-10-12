@@ -1,9 +1,12 @@
 // Reafilm Pro - platform helpers for the OFX shell.
 #include "Platform.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <system_error>
 
 #if defined(_WIN32)
@@ -161,6 +164,112 @@ std::string fileComponent(const std::string& label) {
         }
     }
     return out.empty() ? std::string("Untitled") : out;
+}
+
+// ---- v1.3 P1 user presets ----------------------------------------------------------------------------
+namespace {
+// the per-user configuration folder of a product name ("Reafilm" / "Celluloid"); Linux uses lower case
+std::string configDirectory(const std::string& product) {
+#if defined(_WIN32)
+    std::string base = envVar("APPDATA");
+    if (base.empty()) {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &p)) && p) base = narrow(p);
+        if (p) CoTaskMemFree(p);
+    }
+    if (base.empty()) base = homeDirectory();
+    return joinPath(joinPath(base.empty() ? std::string(".") : base, product), "Presets");
+#elif defined(__APPLE__)
+    std::string home = homeDirectory();
+    return joinPath(joinPath(joinPath(joinPath(home.empty() ? std::string(".") : home, "Library"), "Application Support"),
+                             product), "Presets");
+#else
+    std::string base = envVar("XDG_CONFIG_HOME");
+    if (base.empty()) {
+        std::string home = homeDirectory();
+        base = joinPath(home.empty() ? std::string(".") : home, ".config");
+    }
+    std::string lower = product;
+    for (char& c : lower) c = char(std::tolower(static_cast<unsigned char>(c)));
+    return joinPath(joinPath(base, lower), "presets");
+#endif
+}
+} // namespace
+
+std::string userPresetDirectory() {
+    const std::string o = productEnv("PRESET_DIR");
+    if (!o.empty()) return normalizeUserPath(o);
+    return configDirectory("Reafilm");
+}
+
+std::string legacyUserPresetDirectory() {
+    if (!productEnv("PRESET_DIR").empty()) return std::string();
+    return configDirectory("Celluloid");
+}
+
+bool fileExists(const std::string& path) {
+    std::error_code ec;
+    return fs::is_regular_file(toPath(path), ec);
+}
+
+bool readTextFile(const std::string& path, std::string& out) {
+    std::ifstream f(toPath(path), std::ios::binary);
+    if (!f) return false;
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    out = ss.str();
+    return !f.bad();
+}
+
+bool writeTextFile(const std::string& path, const std::string& text, std::string* err) {
+    const fs::path target = toPath(path);
+    fs::path tmp = target;
+    tmp += ".tmp";
+    {
+        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
+        if (!f) {
+            if (err) *err = "cannot write \"" + fromPath(tmp) + "\"";
+            return false;
+        }
+        f << text;
+        f.flush();
+        if (!f) {
+            if (err) *err = "write failed for \"" + fromPath(tmp) + "\"";
+            return false;
+        }
+    }
+    std::error_code ec;
+    fs::rename(tmp, target, ec);
+    if (ec) {   // Windows: rename onto an existing file can fail; replace it
+        std::error_code ec2;
+        fs::remove(target, ec2);
+        fs::rename(tmp, target, ec);
+    }
+    if (ec) {
+        std::error_code ec3;
+        fs::remove(tmp, ec3);
+        if (err) *err = "cannot replace \"" + fromPath(target) + "\": " + ec.message();
+        return false;
+    }
+    return true;
+}
+
+std::vector<std::string> listFiles(const std::string& dir, const std::string& ext) {
+    std::vector<std::string> out;
+    std::error_code ec;
+    auto lower = [](std::string s) {
+        for (char& c : s) c = char(std::tolower(static_cast<unsigned char>(c)));
+        return s;
+    };
+    const std::string le = lower(ext);
+    for (fs::directory_iterator it(toPath(dir), ec), end; !ec && it != end; it.increment(ec)) {
+        std::error_code ec2;
+        if (!it->is_regular_file(ec2)) continue;
+        const std::string name = fromPath(it->path().filename());
+        if (name.size() > le.size() && lower(name.substr(name.size() - le.size())) == le) out.push_back(name);
+    }
+    std::sort(out.begin(), out.end());
+    return out;
 }
 
 }} // namespace cel::ofxp

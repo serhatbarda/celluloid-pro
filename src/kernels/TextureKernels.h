@@ -209,6 +209,17 @@ CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_bloom_src(CelF4 v, float bmax) {
     float s = bmax / (bmax + m);
     return cel_f4(v.x * s, v.y * s, v.z * s, 0.0f);
 }
+/* v1.3 P1 bloom threshold: the source weighted by m^2 / (m^2 + T^2) of its max channel (hue preserving,
+ * soft); T <= 0 = no threshold (exactly the plain source) */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_bloom_src_t(CelF4 v, float bmax, float T) {
+    CelF4 b = cel_txh_bloom_src(v, bmax);
+    if (T > 0.0f) {
+        float m = cel_txh_max(cel_txh_max(v.x, v.y), cel_txh_max(v.z, 0.0f));
+        float k = m * m / (m * m + T * T);
+        b = cel_f4(b.x * k, b.y * k, b.z * k, 0.0f);
+    }
+    return b;
+}
 /* natural vignette: cos^4 of the field angle, field angle from the distance to the optical centre
  * in units of the half diagonal (circular for every aspect ratio). */
 CEL_DEVICE CEL_TXH_INLINE float cel_txh_vig_factor(int x, int y, float amount, float k, float cx, float cy, float invHalfDiag) {
@@ -445,11 +456,11 @@ CEL_DEVICE void cel_k_tx_pyr_up_add(CEL_KERNEL_PARAMS) {
  *   xyz = bloom source (cel_txh_bloom_src), w = halation energy (cel_txh_hal_energy),
  * BEFORE any filtering, so thin bright lines keep their full halation energy.
  *   f[0] = threshold T   f[1] = knee k (stops over T)   f[2] = emax   f[3] = bloom bmax
- *   f[4..6] = halation source weights (r, g, b) */
+ *   f[4..6] = halation source weights (r, g, b)   f[7] = v1.3 P1 bloom threshold (linear, 0 = none) */
 CEL_DEVICE void cel_k_tx_hb_prefilter(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
     CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
-    CelF4 b = cel_txh_bloom_src(v, a->f[3]);
+    CelF4 b = cel_txh_bloom_src_t(v, a->f[3], a->f[7]);
     b.w = cel_txh_hal_energy(v, a->f[0], a->f[1], a->f[2], a->f[4], a->f[5], a->f[6]);
     cel_store(out, a->outStride, x, y, b);
 }
@@ -460,7 +471,7 @@ CEL_DEVICE void cel_k_tx_hb_prefilter(CEL_KERNEL_PARAMS) {
  * equals the two-pass chain. f[] as tx_hb_prefilter. */
 CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_prefilter_px(CEL_GLOBAL const float* row, int xi, CEL_CONSTANT const CelPassArgs* a) {
     CelF4 v = cel_txh_clean4(cel_txh_px(row, xi));
-    CelF4 b = cel_txh_bloom_src(v, a->f[3]);
+    CelF4 b = cel_txh_bloom_src_t(v, a->f[3], a->f[7]);
     b.w = cel_txh_hal_energy(v, a->f[0], a->f[1], a->f[2], a->f[4], a->f[5], a->f[6]);
     return b;
 }
@@ -507,6 +518,8 @@ CEL_DEVICE void cel_k_tx_hb_prefilter_down(CEL_KERNEL_PARAMS) {
  *   v1.3 chroma halation (i[4] = 1): the added tint t is desaturated / saturated around its luminance
  *           Yt: t' = Yt + S (t - Yt), S = max(f[26] (1 + f[27] (1 - 2 Y / (Y + 0.18))), 0), Y = the
  *           luminance of the image under the halo (f[27] > 0: stronger colour over dark backgrounds)
+ *   v1.3 P1 bloom: f[31] = bloom threshold (linear, 0 = none, as the prefilter's f[7]); i[6] = Keep
+ *           Highlights in 1/1000 (the source is subtracted x (1 - i[6] / 1000); 0 = energy conserving)
  *   v1.3 aura (i[5] = 1): in2 = second, wide halation lobe (w channel, finest level column scale f[30],
  *           upsampled vertically like in1): out += f[28] max(aura.w - E(v), 0) (1, f[29], 0) (same
  *           chroma rule) */
@@ -525,8 +538,12 @@ CEL_DEVICE void cel_k_tx_hb_composite(CEL_KERNEL_PARAMS) {
     CelF4 g = cel_txh_sample_bspline_h(in1, a->inStride[1], a->inW[1], a->inH[1], ((float)x + 0.5f) * s, y);
     CelF4 o = v;
     if (a->i[2] != 0) {
-        CelF4 b = cel_txh_bloom_src(v, a->f[8]);
+        CelF4 b = cel_txh_bloom_src_t(v, a->f[8], a->f[31]);
         float m = a->f[0];
+        if (a->i[6] != 0) {   /* v1.3 P1 Keep Highlights: part of the blooming light is not taken from its source */
+            float kk = 1.0f - 0.001f * (float)a->i[6];
+            b = cel_f4(b.x * kk, b.y * kk, b.z * kk, 0.0f);
+        }
         o.x += m * (g.x - b.x); o.y += m * (g.y - b.y); o.z += m * (g.z - b.z);
     }
     if (a->i[1] != 0) {

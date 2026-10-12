@@ -127,7 +127,10 @@
 #define CEL_CS_MMASK        178  /* 178..186 Negative -> Scene: grey-preserving dye-crosstalk correction (linear) */
 #define CEL_CS_MASK_ON      187  /* 1 = apply MMASK */
 #define CEL_CS_MMASKI       188  /* 188..196 inverse of MMASK (Print Only: scene level -> film layer level) */
-/* 197..204 free */
+/* ---- v1.3 P1 extras (indices 197..198). 0 / unset = off (bit-identical to the render without them) */
+#define CEL_CS_FALSE_COLOUR 197  /* 1 = False Colour diagnostic view (exposure zones instead of the rendering) */
+#define CEL_CS_OUT_GAMMA    198  /* SDR display gamma override (2.2 for the appended Gamma 2.2 outputs; 0 = per code) */
+/* 199..204 free */
 /* ---- v1.3 ALEXA Rendering (indices 205..207; AL block, see celc_alexa_* in ColorKernels.h). Absent = off:
  * the block is only appended when Pipeline Stage = ALEXA Rec.709 or ALEXA Colour > 0 (bit-identical otherwise) */
 #define CEL_CS_AL_OFF       205  /* offset of the AL block (0 = no block) */

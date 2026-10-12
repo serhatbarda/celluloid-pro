@@ -105,6 +105,9 @@ struct TextureParams {
     float auraStrength       = 0.5f;  // 0 .. 2, relative to the halation amount
     float renderScale        = 1.f;   // v1.3 host render scale (proxy < 1): the scan aperture is per full-res pixel
     float auraGreen          = 0.35f; // 0 .. 1 green share of the aura light (red = 1)
+    // ---- v1.3 P1 extras (appended): bloom threshold and Keep Highlights; defaults = the bloom as before
+    float bloomThreshold     = 0.f;   // 0 .. 8 stops: only levels above ~this far over 18 % grey bloom (0 = all)
+    float bloomKeep          = 0.f;   // 0 .. 1: share of the blooming light NOT taken from its source (0 = energy kept)
 };
 
 // ---- v1.3 Film Breath: per-frame exposure / development / printer-light variation ----------------

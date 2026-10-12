@@ -101,6 +101,8 @@ static double toDisplayLinear(OutputSpace o, double v) {
     case OutputSpace::Rec709_sRGB: return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
     case OutputSpace::Rec2100_PQ: return celc_pq_dec(float(v));
     case OutputSpace::Rec2100_HLG: return celc_hlg_oetf_inv(float(v));
+    case OutputSpace::Rec709_G22: case OutputSpace::P3D65_G22: return std::pow(std::max(v, 0.0), 2.2);   // v1.3 P1
+    case OutputSpace::Rec709_G24_D60: return std::pow(std::max(v, 0.0), 2.4);
     default: return std::pow(std::max(v, 0.0), 2.6);
     }
 }
@@ -127,8 +129,10 @@ static void testNeutrality() {
                            b = toDisplayLinear(OutputSpace(o), g.b);
                     double encSpread = std::max({g.r, g.g, g.b}) - std::min({g.r, g.g, g.b});
                     bool monoTint = negs[size_t(n)].monochrome && pr == 0;   // B&W shows the print base tint
-                    if (OutputSpace(o) == OutputSpace::P3DCI_G26) {
-                        // DCI white encoding with D65 simulated: grey must have the D65 white's channel ratios
+                    if (OutputSpace(o) == OutputSpace::P3DCI_G26 || OutputSpace(o) == OutputSpace::Rec709_G24_D60 ||
+                        OutputSpace(o) == OutputSpace::P3D65_G26_D60) {
+                        // DCI white encoding with D65 simulated (and v1.3 P1 D60 sim): grey must have the channel
+                        // ratios of the output matrix's image of the D65 white
                         const float* s = P.state().data();
                         double w[3];
                         for (int c = 0; c < 3; ++c) w[c] = s[CEL_CS_MOUT + c * 3] * 0.3127 / 0.3290 + s[CEL_CS_MOUT + c * 3 + 1] +
@@ -358,6 +362,73 @@ static void testRobustness() {
         }
     }
     std::printf("  %ld evaluations, %ld non-finite / out of range\n", n, badc);
+}
+
+// ----------------------------------------------------------------------- v1.3 P1 extras
+static void testP1Extras() {
+    std::printf("[v1.3 P1: scene white balance, false colour, display outputs]\n");
+    const LookParams base = lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+    {   // defaults / switched off / neutral settings = bit-identical state
+        Pipeline A, B, C;
+        LookParams b = base, c = base;
+        b.sceneWbOn = true;                                  // on at 6500 K / tint 0 = neutral
+        c.sceneWbKelvin = 3200.f; c.sceneWbTint = 40.f;     // values but switched off
+        A.prepare(base); B.prepare(b); C.prepare(c);
+        CHECK(A.state() == B.state() && A.state() == C.state(), "neutral / off scene white balance changes the state");
+        CHECK(A.state()[CEL_CS_FALSE_COLOUR] == 0.f && A.state()[CEL_CS_OUT_GAMMA] == 0.f, "P1 header slots must be 0 by default");
+    }
+    {   // direction: higher K = warmer, lower = cooler, + tint = more magenta; grey luminance stays close
+        auto grey = [&](float K, float tint) {
+            LookParams p = base;
+            p.input = InputSpace::LinearRec2020;   // decode = identity: the balance acts in the input matrix
+            p.sceneWbOn = true; p.sceneWbKelvin = K; p.sceneWbTint = tint;
+            Pipeline P;
+            P.prepare(p);
+            return P.processColor({0.18f, 0.18f, 0.18f});
+        };
+        const Float3 n = grey(6500.f, 0.f), w = grey(10000.f, 0.f), c = grey(3200.f, 0.f), m = grey(6500.f, 50.f);
+        std::printf("  grey: 6500 K %.4f %.4f %.4f, 10000 K %.4f %.4f %.4f, 3200 K %.4f %.4f %.4f, tint +50 %.4f %.4f %.4f\n",
+                    n.r, n.g, n.b, w.r, w.g, w.b, c.r, c.g, c.b, m.r, m.g, m.b);
+        CHECK(w.r - w.b > n.r - n.b + 0.02f, "higher temperature must warm the image");
+        CHECK(c.b - c.r > n.b - n.r + 0.02f, "lower temperature must cool the image");
+        CHECK(m.g < 0.5f * (m.r + m.b) - 0.01f, "positive tint must add magenta");
+        CHECK(std::fabs(w.g - n.g) < 0.06f && std::fabs(c.g - n.g) < 0.06f, "white balance keeps grey brightness close");
+    }
+    {   // false colour: zone colours by stops of scene luminance (Rec.709 gamma 2.4 code values)
+        LookParams p = base;
+        p.falseColour = true;
+        Pipeline P;
+        P.prepare(p);
+        auto at = [&](float stops) { const float v = 0.18f * std::exp2(stops); return P.sceneToOutput({v, v, v}, {0, 0, 0}); };
+        const Float3 g = at(0.f), sk = at(1.f), hi = at(5.f), cl = at(7.f), lo = at(-6.f), dk = at(-4.f);
+        CHECK(g.g > 0.6f && g.r < 0.4f && g.b < 0.4f, "false colour: grey is green");
+        CHECK(sk.r > 0.8f && sk.g < sk.r && sk.b < sk.r, "false colour: +1 stop is pink");
+        CHECK(hi.r > 0.9f && hi.g > 0.4f && hi.g < 0.8f && hi.b < 0.1f, "false colour: +5 stops is orange");
+        CHECK(cl.r > 0.9f && cl.g < 0.05f && cl.b < 0.05f, "false colour: +7 stops is red");
+        CHECK(lo.b > lo.g && lo.r > lo.g, "false colour: -6 stops is purple");
+        CHECK(dk.b > 0.7f && dk.r < 0.05f, "false colour: -4 stops is blue");
+        Float3 h = P.sceneToOutput({NAN, INFINITY, -1.f}, {0, 0, 0});
+        CHECK(finite3(h), "false colour: finite on hostile input");
+        CHECK(!writeCubeLUT(P, 17, "/nonexistent-dir/x.cube", "t", nullptr), "false colour must never be exported as a LUT");
+    }
+    {   // display outputs: Gamma 2.2 = pure 2.2 of the gamma 2.4 output's display light; D60 sim warmer than D65
+        Pipeline A, B, D;
+        A.prepare(lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24));
+        B.prepare(lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G22));
+        D.prepare(lpFor(1, 0, Process::NegativeToPrint, OutputSpace::Rec709_G24_D60));
+        double worst = 0;
+        for (float v : {0.01f, 0.05f, 0.18f, 0.5f, 1.f, 3.f}) {
+            Float3 a = outGrey(A, v), b = outGrey(B, v);
+            worst = std::max(worst, std::fabs(std::pow(double(a.g), 2.4) - std::pow(double(b.g), 2.2)));
+        }
+        CHECK(worst < 1e-4, "Gamma 2.2 output is not the same display light (%.2e)", worst);
+        CHECK(B.state()[CEL_CS_OUTPUT] == float(int(OutputSpace::Rec709_G24)) && B.state()[CEL_CS_OUT_GAMMA] == 2.2f,
+              "Gamma 2.2 = base code + gamma override");
+        const Float3 w = outGrey(D, 0.18f), n = outGrey(A, 0.18f);
+        CHECK(w.r > w.b + 0.005f && std::fabs(n.r - n.b) < 0.005f, "D60 sim shows neutrals warmer (D60) than D65");
+        const Float3 white = outGrey(D, 1000.f);
+        CHECK(std::max({white.r, white.g, white.b}) <= 1.f, "D60 sim stays inside the display");
+    }
 }
 
 // texture-only round trip: display_decode -> display_finish (no grain) is the identity
@@ -1228,8 +1299,9 @@ static void testAlexa() {
                 prev = std::max(prev, l);
                 worstN = std::max(worstN, double(std::max(std::fabs(y.r - y.g), std::fabs(y.b - y.g))));
             }
-            // (DCI-P3 encodes the D65 neutral with the DCI white: unequal code values by design)
-            CHECK(o == int(OutputSpace::P3DCI_G26) || worstN < 2e-3, "ALEXA stage greys not neutral (%.5f, output %d)", worstN, o);
+            // (DCI-P3 encodes the D65 neutral with the DCI white, D60 sim shows it at D60: unequal code values by design)
+            CHECK(o == int(OutputSpace::P3DCI_G26) || o == int(OutputSpace::Rec709_G24_D60) ||
+                      o == int(OutputSpace::P3D65_G26_D60) || worstN < 2e-3, "ALEXA stage greys not neutral (%.5f, output %d)", worstN, o);
             const bool sdr = o != int(OutputSpace::Rec2100_PQ) && o != int(OutputSpace::Rec2100_HLG);
             for (Float3 c : {Float3{NAN, 0.2f, 0.1f}, Float3{INFINITY, -INFINITY, 1e30f}, Float3{-1.f, 0.5f, 3.f},
                              Float3{1e6f, 0.f, 0.f}, Float3{0.f, 0.f, 50.f}, Float3{-1e-20f, 0.f, 1e-30f}}) {
@@ -1355,6 +1427,7 @@ int main(int argc, char** argv) {
     testPrintLab();
     testTone(quick);
     testAlexa();
+    testP1Extras();
     testGolden(golden);
     testCube(tmp);
     testCubeAccuracy(tmp);

@@ -36,7 +36,9 @@ std::vector<std::string> inputSpaceNames() {
 }
 std::vector<std::string> outputSpaceNames() {
     return {"Rec.709 (Gamma 2.4)", "Rec.709 (sRGB)", "P3-D65 (Gamma 2.6)", "DCI-P3 (Gamma 2.6, D65 sim)",
-            "Rec.2100 PQ (HDR)", "Rec.2100 HLG (HDR)"};
+            "Rec.2100 PQ (HDR)", "Rec.2100 HLG (HDR)",
+            // v1.3 P1 extras (appended)
+            "Rec.709 (Gamma 2.2)", "P3-D65 (Gamma 2.2)", "Rec.709 (Gamma 2.4, D60 sim)", "P3-D65 (Gamma 2.6, D60 sim)"};
 }
 std::vector<std::string> stageNames() {
     return {"Full Chain", "Negative -> Log Scan", "Negative -> Scene", "Print Only", "ALEXA Rec.709"};
@@ -130,7 +132,9 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.alexaColour == b.alexaColour &&       // v1.3 ALEXA Rendering
            a.latitudeOn == b.latitudeOn && a.latitudeStops == b.latitudeStops &&   // v1.3 Highlight Latitude
            a.latitudeSoftness == b.latitudeSoftness && a.latitudeReconstruct == b.latitudeReconstruct &&
-           a.latitudeDesaturate == b.latitudeDesaturate && a.latitudeClip == b.latitudeClip;
+           a.latitudeDesaturate == b.latitudeDesaturate && a.latitudeClip == b.latitudeClip &&
+           a.sceneWbOn == b.sceneWbOn && a.sceneWbKelvin == b.sceneWbKelvin && a.sceneWbTint == b.sceneWbTint &&   // v1.3 P1
+           a.falseColour == b.falseColour;
 }
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
@@ -220,7 +224,40 @@ static LookParams sanitize(LookParams p) {
             p.dyeRichness = d.dyeRichness;
         }
     }
+    // v1.3 P1 extras: a neutral white balance (or one switched off) is the same cache key as no module
+    {
+        const LookParams d;
+        p.sceneWbKelvin = std::isfinite(p.sceneWbKelvin) ? clampf(p.sceneWbKelvin, 2000.f, 15000.f) : d.sceneWbKelvin;
+        p.sceneWbTint = std::isfinite(p.sceneWbTint) ? clampf(p.sceneWbTint, -100.f, 100.f) : 0.f;
+        if (p.sceneWbKelvin == d.sceneWbKelvin && p.sceneWbTint == 0.f) p.sceneWbOn = false;
+        if (p.stage == int(Stage::PrintOnly)) p.sceneWbOn = false;   // the input is a Log Scan, not scene light
+        if (!p.sceneWbOn) { p.sceneWbKelvin = d.sceneWbKelvin; p.sceneWbTint = 0.f; }
+    }
     return p;
+}
+
+// v1.3 P1 Scene White Balance: CIE 1931 xy of a Planckian source at T kelvin (Krystek 1985 rational fit of the
+// CIE 1960 uv locus, 1000 .. 15000 K) moved `duv` along the locus normal (+ = above the locus = greener)
+static spec::Vec3 planckianWhite(double T, double duv) {
+    auto uv = [](double t, double& u, double& v) {
+        u = (0.860117757 + 1.54118254e-4 * t + 1.28641212e-7 * t * t) / (1.0 + 8.42420235e-4 * t + 7.08145163e-7 * t * t);
+        v = (0.317398726 + 4.22806245e-5 * t + 4.20481691e-8 * t * t) / (1.0 - 2.89741816e-5 * t + 1.61456053e-7 * t * t);
+    };
+    double u, v, u1, v1;
+    uv(T, u, v);
+    uv(T + 1.0, u1, v1);
+    const double du = u1 - u, dv = v1 - v, n = std::sqrt(du * du + dv * dv);
+    if (n > 0) { u += duv * dv / n; v -= duv * du / n; }   // T increases toward blue (du < 0): (dv, -du) points up
+    const double den = 2.0 * u - 8.0 * v + 4.0;
+    return spec::xyToXYZ(3.0 * u / den, 2.0 * v / den);
+}
+
+// Rec.2020 (scene-linear) matrix of the Scene White Balance: the assumed source white -> the 6500 K reference
+static spec::Mat3 sceneWbMatrix(const LookParams& p) {
+    const spec::Vec3 src = planckianWhite(double(p.sceneWbKelvin), double(p.sceneWbTint) * 2e-4);
+    const spec::Vec3 dst = planckianWhite(6500.0, 0.0);
+    const spec::Mat3 N = spec::npm(spec::Gamut::Rec2020);
+    return N.inverse() * spec::catMatrix(src, dst, true) * N;
 }
 
 static spec::Gamut inputGamut(InputSpace s) {
@@ -244,7 +281,18 @@ static spec::Mat3 outputMatrix(OutputSpace o) {
     if (o == OutputSpace::Rec709_G24 || o == OutputSpace::Rec709_sRGB) g = spec::Gamut::Rec709;
     else if (o == OutputSpace::P3D65_G26) g = spec::Gamut::P3D65;
     else if (o == OutputSpace::P3DCI_G26) g = spec::Gamut::DCIP3;
+    if (o == OutputSpace::Rec709_G22 || o == OutputSpace::Rec709_G24_D60) g = spec::Gamut::Rec709;
+    else if (o == OutputSpace::P3D65_G22 || o == OutputSpace::P3D65_G26_D60) g = spec::Gamut::P3D65;
     spec::Mat3 M = spec::npm(g).inverse();
+    if (o == OutputSpace::Rec709_G24_D60 || o == OutputSpace::P3D65_G26_D60) {
+        // v1.3 P1: D60 sim - the (D65-referred) image white is adapted to the ACES white (Bradford, as ACES
+        // output transforms do) and scaled so its brightest channel reaches display white
+        const spec::Vec3 d65 = spec::xyToXYZ(0.3127, 0.3290);
+        M = M * spec::catMatrix(d65, spec::xyToXYZ(0.32168, 0.33767), false);
+        spec::Vec3 w = M * d65;
+        double mx = std::max({w[0], w[1], w[2]});
+        for (auto& r : M.m) for (double& v : r) v /= mx;
+    }
     if (o == OutputSpace::P3DCI_G26) {   // D65 white simulated inside the DCI white encoding
         spec::Vec3 w = M * spec::xyToXYZ(0.3127, 0.3290);
         double mx = std::max({w[0], w[1], w[2]});
@@ -751,12 +799,26 @@ void Pipeline::prepare(const LookParams& pin) {
     s[CEL_CS_LAYOUT] = CEL_CS_LAYOUT_VALUE;
     s[CEL_CS_TOTAL] = float(total);
     s[CEL_CS_INPUT] = float(int(p.input));
-    s[CEL_CS_OUTPUT] = float(int(p.output));
+    // v1.3 P1: the appended SDR outputs are the base encoding + a gamma override (0 = the base encoding's own)
+    {
+        int base = int(p.output);
+        float gamma = 0.f;
+        if (p.output == OutputSpace::Rec709_G22) { base = int(OutputSpace::Rec709_G24); gamma = 2.2f; }
+        else if (p.output == OutputSpace::P3D65_G22) { base = int(OutputSpace::P3D65_G26); gamma = 2.2f; }
+        else if (p.output == OutputSpace::Rec709_G24_D60) base = int(OutputSpace::Rec709_G24);
+        else if (p.output == OutputSpace::P3D65_G26_D60) base = int(OutputSpace::P3D65_G26);
+        s[CEL_CS_OUTPUT] = float(base);
+        s[CEL_CS_OUT_GAMMA] = gamma;
+    }
+    s[CEL_CS_FALSE_COLOUR] = p.falseColour ? 1.f : 0.f;
     s[CEL_CS_KIND] = float(kind);
     s[CEL_CS_MONO] = mono ? 1.f : 0.f;
     s[CEL_CS_HDR] = p.output == OutputSpace::Rec2100_PQ ? 1.f : (p.output == OutputSpace::Rec2100_HLG ? 2.f : 0.f);
     s[CEL_CS_GAIN] = float(std::exp2(double(p.exposure)));
-    putMat(s, CEL_CS_MIN, spec::rgbToRgb(inputGamut(p.input), spec::Gamut::Rec2020));
+    if (p.sceneWbOn)   // v1.3 P1 Scene White Balance (scene light, before everything after the input matrix)
+        putMat(s, CEL_CS_MIN, sceneWbMatrix(p) * spec::rgbToRgb(inputGamut(p.input), spec::Gamut::Rec2020));
+    else
+        putMat(s, CEL_CS_MIN, spec::rgbToRgb(inputGamut(p.input), spec::Gamut::Rec2020));
     // ---- camera emulation (v1.2): only for footage of the source camera family (Fujifilm log inputs)
     {
         const bool fuji = p.input == InputSpace::FLog2C || p.input == InputSpace::FLog2 || p.input == InputSpace::FLog;
@@ -1140,6 +1202,10 @@ bool cubeUsesShaper(InputSpace in) { return in == InputSpace::LinearRec2020; }
 bool writeCubeLUT(const Pipeline& pipe, int size, const std::string& path, const std::string& title, std::string* err) {
     if (size != 17 && size != 33 && size != 65) {
         if (err) *err = "LUT size must be 17, 33 or 65";
+        return false;
+    }
+    if (pipe.params().falseColour) {   // v1.3 P1: the diagnostic view is never baked into a LUT
+        if (err) *err = "False Colour (a diagnostic view) is on; switch it off to export a LUT";
         return false;
     }
     const int N = size;

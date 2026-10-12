@@ -186,6 +186,16 @@ std::vector<Case> makeCases(bool all) {
         fullTexture(c.fs); c.fs.tex.halationSaturation = 0.0f; c.fs.tex.halationBackground = -1.0f;
         c.fs.tex.auraEnabled = true; c.fs.tex.auraRadius = 40.0f; c.fs.tex.grainMonochrome = true;
         c.fs.tex.grainShadows = 0.0f; c.fs.tex.grainHighlights = 2.0f; });
+    // v1.3 P1 extras: bloom threshold / Keep Highlights, scene white balance, false colour
+    add("bloom threshold 3 + keep highlights 0.6", [](Case& c) {
+        fullTexture(c.fs); c.fs.tex.bloomAmount = 2.0f; c.fs.tex.bloomThreshold = 3.0f; c.fs.tex.bloomKeep = 0.6f; });
+    add("bloom keep highlights 1, no halation", [](Case& c) {
+        fullTexture(c.fs); c.fs.tex.halationAmount = 0.0f; c.fs.tex.bloomKeep = 1.0f; c.fs.tex.bloomThreshold = 8.0f; });
+    add("scene white balance 3200 K tint +60", [](Case& c) {
+        fullTexture(c.fs); c.fs.look.sceneWbOn = true; c.fs.look.sceneWbKelvin = 3200.0f; c.fs.look.sceneWbTint = 60.0f; });
+    add("false colour", [](Case& c) { fullTexture(c.fs); c.fs.look.falseColour = true; });
+    add("false colour, PQ, torture", [](Case& c) {
+        c.fs.look.falseColour = true; c.fs.look.output = OS::Rec2100_PQ; c.scene = Scene::Torture; });
     add("render scale 0.5 (pixelScale)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale *= 0.5f; });
     add("pixelScale 3 (tiny frame of a huge one)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale = 3.0f; });
     add("tiny 7x5", [](Case& c) { c.w = 7; c.h = 5; c.fs = baseSettings(7); fullTexture(c.fs); });

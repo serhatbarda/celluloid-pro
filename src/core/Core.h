@@ -35,6 +35,12 @@ enum class OutputSpace : int {
     P3DCI_G26,           // DCI-P3 primaries + DCI white encoding, gamma 2.6, D65 white simulated (neutrals stay D65)
     Rec2100_PQ,          // Rec.2020 primaries, ST.2084 PQ, peak = hdrPeakNits
     Rec2100_HLG,         // Rec.2020 primaries, HLG (1000 nit reference)
+    // v1.3 P1 extras (appended): SDR display variants. Kernels see the base encoding (Rec709_G24 / P3D65_G26)
+    // plus a gamma override (CEL_CS_OUT_GAMMA); D60 sim = neutrals shown at the ACES D60 white
+    Rec709_G22,          // Rec.709 primaries, pure gamma 2.2
+    P3D65_G22,           // P3-D65, pure gamma 2.2 (Apple / P3 displays in gamma 2.2)
+    Rec709_G24_D60,      // Rec.709 gamma 2.4, D60 white simulated (neutrals = D60)
+    P3D65_G26_D60,       // P3-D65 gamma 2.6, D60 white simulated
     Count
 };
 
@@ -122,6 +128,16 @@ struct LookParams {
     float latitudeReconstruct = 1.f; // 0 .. 1: clip reconstruction (lagging channels of near-white clips -> white)
     float latitudeDesaturate = 0.3f; // 0 .. 1: desaturation of the stretched top stops toward white
     float latitudeClip = 0.854f;     // F-Log2 code value of the sensor clip (X-H2S: 0.854 = 10-bit 874)
+    // ---- v1.3 P1 extras (appended, SPEC 13): defaults = off, bit-identical
+    // Scene White Balance: von Kries (CAT16) adaptation in scene light, composed into the input matrix (before
+    // Sensor Match, Exposure and the negative). The footage is treated as lit by a Planckian source at
+    // sceneWbKelvin (+ tint off the locus) and adapted to 6500 K: higher = warmer, + tint = more magenta.
+    bool  sceneWbOn = false;
+    float sceneWbKelvin = 6500.f;    // 2000 .. 15000 K
+    float sceneWbTint = 0.f;         // -100 .. 100 (x 0.0002 Duv)
+    // False Colour: diagnostic exposure zones of the scene luminance (stops rel. to 18 % grey) instead of the
+    // rendering. Never part of looks, presets or LUT exports.
+    bool  falseColour = false;
 };
 
 // v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 5c.1

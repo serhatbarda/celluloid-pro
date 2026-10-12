@@ -152,6 +152,18 @@ std::vector<ParamDef> build() {
              "standard, 65 mm very fine; 35 mm Stills between Super 35 and 65 mm), the film's own sharpness "
              "(Film Resolution), and the size of the halation ring and of the acutance edge effect.",
              true);
+    // v1.3 P1: user presets - the complete parameter set as a JSON file in the user's Reafilm folder
+    b.str(id::userPresetName, "User Preset", "", StrKind::SingleLine,
+          "Name of your own preset. Save User Preset writes every setting of this node (all groups, including "
+          "input, output and every module switch; not the License, the LUT folder or False Colour) as "
+          "<name>.json to the Reafilm Presets folder of your user account (macOS: ~/Library/Application "
+          "Support/Reafilm/Presets, Windows: %APPDATA%\\Reafilm\\Presets, Linux: ~/.config/reafilm/presets). "
+          "Load User Preset reads it back. Presets are plain text and can be copied between computers.");
+    b.push(id::userPresetSave, "Save User Preset",
+           "Saves all current settings under the User Preset name (an existing preset of that name is replaced).");
+    b.push(id::userPresetLoad, "Load User Preset",
+           "Loads the preset named in User Preset. Settings missing from the file (e.g. from an older version) "
+           "return to their defaults; entries this version does not know are ignored and reported.");
 
     // ---------------------------------------------------------------- [Input]
     const std::vector<std::string> inputs = core::inputSpaceNames();
@@ -170,6 +182,20 @@ std::vector<ParamDef> build() {
           "Camera exposure correction in stops, applied to the scene before it reaches the film. Because it acts "
           "before the negative, +/- exposure slides the image along the film's characteristic curve: highlights "
           "roll off and shadows build density the way a real over/under-exposed negative does.",
+          false);
+    // v1.3 P1: scene white balance (new module, OFF by default; a camera setting like Exposure, not part of looks)
+    b.boolean(id::sceneWbEnable, "Enable Scene White Balance", false,
+              "Corrects the white balance of the footage in scene light, before it reaches the film (as if the "
+              "camera had been set differently). Off = the footage's own white balance.",
+              false);
+    b.dbl(id::sceneWbTemperature, "Scene Temperature (K)", 6500.0, 2000.0, 15000.0, 50.0, 0,
+          "Colour temperature of the light the footage is assumed to be balanced for. 6500 = unchanged. Higher "
+          "values warm the image, lower values cool it (set 3200 for daylight-balanced footage shot under "
+          "tungsten light). Applied before the negative, so the film responds to the corrected light.",
+          false);
+    b.dbl(id::sceneWbTint, "Scene Tint", 0.0, -100.0, 100.0, 1.0, 0,
+          "Green-magenta correction: positive values add magenta (remove a green cast, e.g. from fluorescent "
+          "or LED light), negative values add green. 0 = unchanged.",
           false);
 
     // ---------------------------------------------------------------- [Highlight Latitude] (v1.3)
@@ -522,6 +548,17 @@ std::vector<ParamDef> build() {
     b.dbl(id::bloomRadius, "Bloom Radius", 40.0, 5.0, 200.0, 0.5, 1,
           "Spread of the bloom in pixels at 1920 px image width (scaled automatically for other resolutions).",
           true);
+    // v1.3 P1: bloom threshold and Keep Highlights (neutral defaults = the bloom as before)
+    b.dbl(id::bloomThreshold, "Bloom Threshold", 0.0, 0.0, 8.0, 0.1, 1,
+          "Limits the bloom to bright areas: only levels from about this many stops above 18 % grey glow "
+          "(soft onset). 0 = off, every level contributes as before (diffusion is linear, so the glow follows "
+          "the brightest parts anyway).",
+          true);
+    b.dbl(id::bloomKeepHighlights, "Bloom Keep Highlights", 0.0, 0.0, 1.0, 0.01, 2,
+          "0 = energy preserving (as before): the light that spreads into the glow is taken from the bright "
+          "source, so highlights soften a little and overall brightness stays the same. Higher values keep the "
+          "source at full brightness and add the glow on top (brighter, more 'mist').",
+          true);
 
     // ---------------------------------------------------------------- [Grain]
     b.beginGroup(id::gGrain, "Grain", true, "Film grain, generated in the film's density domain.");
@@ -759,6 +796,14 @@ std::vector<ParamDef> build() {
              "display transform. ARRI LogC4 / AWG4 is the default; ACEScct for ACES pipelines, DaVinci "
              "Intermediate for DaVinci Wide Gamut timelines, Linear Rec.2020 for compositing.",
              false);
+    // v1.3 P1: diagnostic view, OFF by default, never part of looks, user presets or LUT exports
+    b.boolean(id::falseColourEnable, "Enable False Colour (diagnostic)", false,
+              "DIAGNOSTIC VIEW - switch off before rendering. Replaces the image with exposure zones of the scene "
+              "light that reaches the film, in stops relative to 18 % grey: purple below -5, blue -5 to -3, teal "
+              "-3 to -1.5, grey -1.5 to -0.5, green +/-0.5 (grey card), pink +0.5 to +1.5 (skin), grey +1.5 "
+              "to +3, yellow +3 to +4.5, orange +4.5 to +6, red above +6. Never saved in user presets and never "
+              "written into exported LUTs.",
+              false);
 
     // ---------------------------------------------------------------- [LUT Export]
     b.beginGroup(id::gLut, "LUT Export", false, "Export the colour pipeline as a 3D LUT (.cube).");

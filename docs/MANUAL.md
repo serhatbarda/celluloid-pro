@@ -284,6 +284,9 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - Options: Full Chain · Negative -> Log Scan · Negative -> Scene · Print Only · Texture Only · Negative Only (clean) · ALEXA Rec.709
 - **Gauge** (`grainFormat`; default: Super 35) — Film gauge the image was 'shot' on. It sets the whole texture ladder at once, like changing the camera: grain size and strength (Super 8 very coarse, 16 mm clearly visible, Super 35 the cinema standard, 65 mm very fine; 35 mm Stills between Super 35 and 65 mm), the film's own sharpness (Film Resolution), and the size of the halation ring and of the acutance edge effect.
   - Options: Super 8 · 16 mm · Super 35 · 65 mm · 35 mm Stills
+- **User Preset** (`userPresetName`; text field) — Name of your own preset. Save User Preset writes every setting of this node (all groups, including input, output and every module switch; not the License, the LUT folder or False Colour) as `<name>.json` to the Reafilm Presets folder of your user account (macOS: ~/Library/Application Support/Reafilm/Presets, Windows: %APPDATA%\Reafilm\Presets, Linux: ~/.config/reafilm/presets). Load User Preset reads it back. Presets are plain text and can be copied between computers.
+- **Save User Preset** (`userPresetSave`; button) — Saves all current settings under the User Preset name (an existing preset of that name is replaced).
+- **Load User Preset** (`userPresetLoad`; button) — Loads the preset named in User Preset. Settings missing from the file (e.g. from an older version) return to their defaults; entries this version does not know are ignored and reported.
 
 ### Input
 
@@ -293,6 +296,9 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - Options: Fujifilm F-Log2 C / F-Gamut C · Fujifilm F-Log2 / F-Gamut · Fujifilm F-Log / F-Gamut · DaVinci Intermediate / DaVinci Wide Gamut · ARRI LogC3 (EI 800) / ARRI Wide Gamut 3 · ARRI LogC4 / ARRI Wide Gamut 4 · Sony S-Log3 / S-Gamut3.Cine · Panasonic V-Log / V-Gamut · Canon Log 3 / Cinema Gamut · Blackmagic Film Gen 5 / BMD Wide Gamut Gen 5 · ACEScct / AP1 · Linear Rec.2020
 - **Enable Exposure** (`exposureEnable`; default on) — Switches the Exposure trim below on or off without losing its value. Off = the footage reaches the film exactly as it was recorded (0 stops).
 - **Exposure** (`exposure`; -4 … 4; default 0; keyframable) — Camera exposure correction in stops, applied to the scene before it reaches the film. Because it acts before the negative, +/- exposure slides the image along the film's characteristic curve: highlights roll off and shadows build density the way a real over/under-exposed negative does.
+- **Enable Scene White Balance** (`sceneWbEnable`; default off) — Corrects the white balance of the footage in scene light, before it reaches the film (as if the camera had been set differently). Off = the footage's own white balance.
+- **Scene Temperature (K)** (`sceneWbTemperature`; 2000 … 15000; default 6500; keyframable) — Colour temperature of the light the footage is assumed to be balanced for. 6500 = unchanged. Higher values warm the image, lower values cool it (set 3200 for daylight-balanced footage shot under tungsten light). Applied before the negative, so the film responds to the corrected light.
+- **Scene Tint** (`sceneWbTint`; -100 … 100; default 0; keyframable) — Green-magenta correction: positive values add magenta (remove a green cast, e.g. from fluorescent or LED light), negative values add green. 0 = unchanged.
 
 ### Highlight Latitude
 
@@ -434,6 +440,8 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Enable Bloom** (`bloomEnable`; default on) — Switches bloom on or off without losing its settings. Off skips the bloom passes entirely (no render cost).
 - **Bloom Amount** (`bloomAmount`; 0 … 2; default 0.15; keyframable) — Gentle, neutral glow of bright areas from lens and emulsion scatter - softens harsh digital highlights without the warm tint of halation. Scaled by the stock. 0 = off.
 - **Bloom Radius** (`bloomRadius`; 5 … 200; default 40; keyframable) — Spread of the bloom in pixels at 1920 px image width (scaled automatically for other resolutions).
+- **Bloom Threshold** (`bloomThreshold`; 0 … 8; default 0; keyframable) — Limits the bloom to bright areas: only levels from about this many stops above 18 % grey glow (soft onset). 0 = off, every level contributes as before (diffusion is linear, so the glow follows the brightest parts anyway).
+- **Bloom Keep Highlights** (`bloomKeepHighlights`; 0 … 1; default 0; keyframable) — 0 = energy preserving (as before): the light that spreads into the glow is taken from the bright source, so highlights soften a little and overall brightness stays the same. Higher values keep the source at full brightness and add the glow on top (brighter, more 'mist').
 
 ### Grain
 
@@ -519,12 +527,13 @@ Resolve's keyframe editor. Read-only rows are status lines.
 *Display encoding of the result.*
 
 - **Output** (`outputSpace`; default: Rec.709 (Gamma 2.4)) — The display the result is encoded for. Rec.709 Gamma 2.4 for broadcast/HD grading monitors, sRGB for web/computer displays, P3 for cinema (DCI) or Apple/P3 displays, PQ or HLG for HDR deliverables. Your timeline/output colour space should match. In Texture Only mode this is the encoding of the incoming (already graded) image.
-  - Options: Rec.709 (Gamma 2.4) · Rec.709 (sRGB) · P3-D65 (Gamma 2.6) · DCI-P3 (Gamma 2.6, D65 sim) · Rec.2100 PQ (HDR) · Rec.2100 HLG (HDR)
+  - Options: Rec.709 (Gamma 2.4) · Rec.709 (sRGB) · P3-D65 (Gamma 2.6) · DCI-P3 (Gamma 2.6, D65 sim) · Rec.2100 PQ (HDR) · Rec.2100 HLG (HDR) · Rec.709 (Gamma 2.2) · P3-D65 (Gamma 2.2) · Rec.709 (Gamma 2.4, D60 sim) · P3-D65 (Gamma 2.6, D60 sim)
 - **HDR Peak (nits)** (`hdrPeakNits`; 300 … 4000; default 1000; keyframable) — PQ output only: peak luminance of the HDR master. The film shoulder is unrolled smoothly so the brightest highlights reach this level.
 - **Enable Highlight Unroll** (`hdrUnrollEnable`; default on) — PQ/HLG only: switches the HDR Highlight Unroll on or off without losing its value. Off = the SDR print look placed in the HDR container unchanged (as Unroll 0).
 - **HDR Highlight Unroll** (`hdrUnroll`; 0 … 1; default 1; keyframable) — PQ/HLG only: 0 places the SDR print look in HDR unchanged (soft film highlights), 1 expands the print shoulder to use the full HDR range while keeping mid-tones and colour consistent with SDR.
 - **Scene Encoding** (`sceneEncoding`; default: ARRI LogC4 / ARRI Wide Gamut 4) — Pipeline Stage = Negative -> Scene / Negative Only (clean) only: the scene-referred encoding of the result. Set the next node (or Resolve's colour management) to read this encoding, then apply your display transform. ARRI LogC4 / AWG4 is the default; ACEScct for ACES pipelines, DaVinci Intermediate for DaVinci Wide Gamut timelines, Linear Rec.2020 for compositing.
   - Options: ARRI LogC4 / ARRI Wide Gamut 4 · ARRI LogC3 (EI 800) / ARRI Wide Gamut 3 · ACEScct / AP1 · DaVinci Intermediate / DaVinci Wide Gamut · Linear Rec.2020
+- **Enable False Colour (diagnostic)** (`falseColourEnable`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Replaces the image with exposure zones of the scene light that reaches the film, in stops relative to 18 % grey: purple below -5, blue -5 to -3, teal -3 to -1.5, grey -1.5 to -0.5, green +/-0.5 (grey card), pink +0.5 to +1.5 (skin), grey +1.5 to +3, yellow +3 to +4.5, orange +4.5 to +6, red above +6. Never saved in user presets and never written into exported LUTs.
 
 ### LUT Export
 
@@ -988,6 +997,64 @@ colour, and about 15 % less strong at HD. Raise Grain Amount slightly if you wan
   from frame to frame. *Lab* is barely visible drift, *Projector* a faster flicker, *Old Camera*
   and *Hand-cranked* are stronger and more uneven. The changes repeat exactly for the same Breath
   Seed and frame, so renders are deterministic. Give each shot its own seed.
+
+### User presets, scene white balance, false colour and more outputs (v1.3)
+
+**User presets.** Type a name into **User Preset** (Look group) and press **Save User Preset**.
+Every setting of the node is written to `<name>.json`: the look, input, output and every module
+switch. The License, the LUT folder and False Colour are not saved. To use it in another node or
+project, type the same name and press **Load User Preset**. If you press Load with an unknown name,
+the message lists the presets you have saved. Presets are plain text files in your user folder:
+
+- macOS: `~/Library/Application Support/Reafilm/Presets`
+- Windows: `%APPDATA%\Reafilm\Presets`
+- Linux: `~/.config/reafilm/presets`
+
+If a preset is not found there, the plug-in also looks in the folder of the same name from before
+the rename (`Celluloid` / `celluloid`). You can copy preset files between computers. A preset from
+an older version loads fine: settings it does not contain return to their defaults. Entries this
+version does not know are ignored, and the message lists them.
+
+**Scene White Balance** (Input group, off by default). This corrects the colour of the light before
+the film sees it, as if the camera had been set differently. Set **Scene Temperature** to the colour
+temperature the footage looks balanced for. For example, use 3200 K for daylight-balanced footage
+shot under tungsten light; it removes the orange cast. Higher values warm the picture. **Scene Tint**
+adds magenta (+) or green (-). Because the correction acts in scene light, the negative and the print
+react to it like a real camera filter; it is not a grade on top. It is not available in Print Only,
+because that stage's input is already a film scan.
+
+**False Colour** (Output group, off by default) is a diagnostic view for exposure. Each zone is
+measured in stops of scene brightness relative to 18 % grey, before the film:
+
+| Colour | Stops from 18 % grey |
+|---|---|
+| purple | below -5 (crushed) |
+| blue | -5 to -3 |
+| teal | -3 to -1.5 |
+| grey ramp | -1.5 to -0.5 |
+| **green** | -0.5 to +0.5 (mid grey) |
+| **pink** | +0.5 to +1.5 (typical skin) |
+| grey ramp | +1.5 to +3 |
+| yellow | +3 to +4.5 |
+| orange | +4.5 to +6 |
+| red | above +6 (clipping) |
+
+**Switch it off before you render.** A LUT export never contains it, and user presets do not save it.
+
+**Display outputs.** Output Space now also offers four new choices:
+
+- **Rec.709 (Gamma 2.2)** and **P3-D65 (Gamma 2.2)**: for computer monitors and web viewing. The
+  light on screen is the same as with the gamma 2.4 / 2.6 output.
+- **Rec.709 (Gamma 2.4, D60 sim)** and **P3-D65 (Gamma 2.6, D60 sim)**: the image shows white at
+  D60, the slightly warmer white of film projection. The monitor itself stays calibrated to D65.
+
+**Bloom Threshold and Keep Highlights** (Bloom group):
+
+- **Bloom Threshold** (stops above 18 % grey, 0 = off): only parts of the image brighter than the
+  threshold bloom. Try 3 to 4 stops to make only practicals and specular highlights glow.
+- **Bloom Keep Highlights**: 0 is the normal bloom, which spreads the light of bright areas into
+  their surroundings and keeps the total energy. 1 adds the glow on top and keeps the source at full
+  brightness, so light sources stay bright and crisp.
 
 ---
 

@@ -246,6 +246,16 @@ constexpr const char* breathDevelopment = "breathDevelopment";
 constexpr const char* breathPrinter = "breathPrinter";
 constexpr const char* breathPeriod = "breathPeriod";
 constexpr const char* breathSeed = "breathSeed";
+// ---- v1.3 P1 extras: user presets, scene white balance, false colour, bloom threshold ----------
+constexpr const char* userPresetName = "userPresetName";
+constexpr const char* userPresetSave = "userPresetSave";
+constexpr const char* userPresetLoad = "userPresetLoad";
+constexpr const char* sceneWbEnable = "sceneWbEnable";
+constexpr const char* sceneWbTemperature = "sceneWbTemperature";
+constexpr const char* sceneWbTint = "sceneWbTint";
+constexpr const char* falseColourEnable = "falseColourEnable";
+constexpr const char* bloomThreshold = "bloomThreshold";
+constexpr const char* bloomKeepHighlights = "bloomKeepHighlights";
 } // namespace id
 
 // v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are
