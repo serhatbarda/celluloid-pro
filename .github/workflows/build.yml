@@ -214,8 +214,6 @@ jobs:
 
           If the installer is not signed yet, macOS may block it: right-click the
           .pkg and choose Open, or allow it in System Settings > Privacy & Security.
-          Or install without the prompt from Terminal (one line):
-          curl -fsSL https://raw.githubusercontent.com/serhatbarda/celluloid-pro/main/installers/macos/install.sh | bash
           EOF
           if [ "$CEL_LICENSING" = "ON" ]; then
             echo "Without a license key the plug-in runs as a full trial with a watermark." >> "$STAGE/READ ME FIRST.txt"

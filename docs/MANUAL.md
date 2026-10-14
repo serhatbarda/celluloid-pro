@@ -60,14 +60,7 @@ Linux builds exist only for development and testing; they are not a product.
 
 **Unsigned installers (Gatekeeper).** Until a Developer ID certificate is in place, the installer
 is not signed or notarized and macOS refuses to open it with a message that it "cannot be verified".
-The easiest way round it is one line in Terminal. It downloads the latest release and installs it
-with no security prompt (macOS only asks for your password):
-
-```
-curl -fsSL https://raw.githubusercontent.com/serhatbarda/celluloid-pro/main/installers/macos/install.sh | bash
-```
-
-Or open the downloaded installer by hand:
+To install anyway:
 
 - macOS 14 and earlier: right-click (Control-click) the `.pkg`, choose **Open**, then **Open** again.
 - macOS 15 and later: double-click the `.pkg` once and dismiss the warning, then open
