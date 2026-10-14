@@ -22,8 +22,7 @@ title, production or commercial product. They were designed and checked on real-
 scenes (skin under tungsten and daylight at -2/0/+2 stops, golden hour, night city with neon and sodium light,
 foliage, overcast exterior, high-key and low-key interiors) rendered through the real plug-in.
 
-Contact sheet: [`docs/validation/presets.png`](validation/presets.png) (regenerate with
-`python3 tools/look/preset_sheet.py --dev-license`; scenes from `tools/look/lookscenes.py`).
+Contact sheet: [`docs/validation/presets.png`](validation/presets.png) (made with the private look-dev tools).
 
 **Working with presets.** Set the Camera Log first and expose so that a grey card sits at 0 Exposure; then
 pick a look. Fine-tune with Exposure (moves the image along the film curve), Print Density (brighter / denser

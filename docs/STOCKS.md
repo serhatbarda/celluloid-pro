@@ -421,7 +421,8 @@ prints 5-8; the designed stocks keep their indices):
 
 Pipeline: `reference/datasheets/fit_stocks.py` fits lobes / curves to the digitised data
 (`reference/datasheets/data/*.csv`, writes `fits.json`), `build_stocks.py` writes the stocks into
-`reference/stocks.json`, `reference/fit_look.py calibrate` fits only the interlayer matrix and the mask
+`reference/stocks.json`, `reference/fit_look.py calibrate` (a look-dev script kept in a private repository, like the other
+fits against reference renderings) fits only the interlayer matrix and the mask
 couplers per stock against the owner's reference chains (weighted rms of the look metrics, e.g. 250D
 7.5 -> 5.3, 500T 7.1 -> 5.5, Eterna 9.7 -> 6.0), and `fit_look.py p6` fits the P6 tone scale to the
 default-look target (ARRI LogC3 -> Rec.709 x 0.6 + Referent x 0.4; `reference/targets/look_targets.json`).

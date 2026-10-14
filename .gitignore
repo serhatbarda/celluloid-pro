@@ -17,3 +17,11 @@ __pycache__/
 /docs/validation/film_blur_strip_24f.png
 /HANDOFF.md
 /tools/workflow/
+/SPEC.md
+/docs/VALIDATION.md
+/tools/look/
+/reference/fit_look.py
+/reference/alexa_rendering.py
+/reference/alexa_film_fit.py
+/reference/camera_emulation.py
+/reference/targets/

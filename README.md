@@ -9,11 +9,11 @@ interlayer effects, bleach bypass) → print with printer lights, or lab scan �
 display encoding (SDR or HDR). Halation, bloom, film grain, acutance, gate weave, vignetting and (1.1)
 film damage (dust, scratches, hair) and momentary film blur are added at the stage where they
 physically arise; every module has its own Enable switch. All stocks, presets and colour science are original
-designs; see the originality rules in [SPEC.md](SPEC.md) §1.
+designs.
 
 | | |
 |---|---|
-| Plug-in | `de.serhatbarda.CelluloidPro` · "Reafilm Pro" · OpenFX group "Reafilm" · version 1.0.0 |
+| Plug-in | `de.serhatbarda.CelluloidPro` · "Reafilm Pro" · OpenFX group "Reafilm" · version 1.3.0 |
 | Stocks | 11 negatives (incl. reversal and black & white) · 5 prints · Lab Scan process |
 | Looks | 14 curated presets (2 with film damage) |
 | Cameras | Fujifilm F-Log2 C (primary), F-Log2, F-Log, ARRI LogC3/LogC4, Sony S-Log3, Panasonic V-Log, Canon Log 3, Blackmagic Film Gen 5, DaVinci Intermediate, ACEScct, Linear Rec.2020 |
@@ -34,8 +34,6 @@ Documentation:
 - [docs/MANUAL.md](docs/MANUAL.md) — user manual (installed in the plug-in bundle).
 - [docs/STOCKS.md](docs/STOCKS.md) — colour model and stock designs.
 - [docs/LOOKS.md](docs/LOOKS.md) — look presets.
-- [docs/VALIDATION.md](docs/VALIDATION.md) — measured results, timings, contact sheets, open items.
-- [SPEC.md](SPEC.md) — the engineering specification and its change log (§13).
 - [tools/licensegen/README.md](tools/licensegen/README.md) — license keys, signing and shop integration
   (licensed build only).
 - [CHANGELOG.md](CHANGELOG.md) · [docs/EULA_TEMPLATE.md](docs/EULA_TEMPLATE.md) (template, not yet
@@ -82,7 +80,7 @@ Documentation:
   directly, with pooled internal buffers. Only backends that pass a self test at load are declared to
   the host. A failed GPU frame is re-rendered on the CPU while the images stay on the device.
 
-Details: [SPEC.md](SPEC.md) §2–§8, [src/gpu/README.md](src/gpu/README.md),
+Details: [src/gpu/README.md](src/gpu/README.md),
 [src/ofx/README.md](src/ofx/README.md).
 
 ---
@@ -103,7 +101,6 @@ Details: [SPEC.md](SPEC.md) §2–§8, [src/gpu/README.md](src/gpu/README.md),
 | `tools/ofxhost/` | headless OpenFX test host (CPU, OpenCL and Metal render paths) + CI smoke test |
 | `tools/render_tests/` | end-to-end render tests through the real bundle (Python, NumPy, Pillow) |
 | `tools/licensegen/` | key generation and signing CLI, Python reference implementation, development keys |
-| `tools/look/` | look-design scenes and preset contact sheets |
 | `tools/docs/` | generator of the manual's controls reference |
 | `reference/` | NumPy reference model of the colour science, design and gate scripts, CIE data |
 | `installers/` | macOS `.pkg` builder, Windows Inno Setup script, CI helpers (version, bundle check, release gate) |
@@ -145,7 +142,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
       -DCEL_ENABLE_METAL=ON -DCEL_ENABLE_OPENCL=ON
 cmake --build build --parallel
 bash installers/ci/verify_bundle.sh build/ReafilmPro.ofx.bundle macos
-installers/macos/build_pkg.sh --bundle build/ReafilmPro.ofx.bundle --version 1.0.0 --out dist
+installers/macos/build_pkg.sh --bundle build/ReafilmPro.ofx.bundle --version 1.3.0 --out dist
 ```
 
 For a quick local test, copy the bundle to `/Library/OFX/Plugins/` and restart Resolve.
@@ -161,7 +158,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ^
       -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
       -DCEL_ENABLE_CUDA=ON -DCEL_ENABLE_OPENCL=ON
 cmake --build build --parallel
-powershell -File installers\windows\build_installer.ps1 -BundleDir build\ReafilmPro.ofx.bundle -Version 1.0.0 -OutDir dist
+powershell -File installers\windows\build_installer.ps1 -BundleDir build\ReafilmPro.ofx.bundle -Version 1.3.0 -OutDir dist
 ```
 
 The plug-in DLL links the MSVC runtime and the CUDA runtime statically; OpenCL is loaded at run time
@@ -200,8 +197,7 @@ tools/render_tests/run_all.sh build/ReafilmPro.ofx.bundle /tmp/cel-render   # en
 
 `ctest` labels: `gpu-device` (needs a GPU or POCL device; exits 77 = skipped without one),
 `linux-only` (workbench tools), `ofx` (the real bundle in `ofxhost`), `docs` (the manual's controls
-reference matches the plug-in; personal build only). Results and numbers are in
-[docs/VALIDATION.md](docs/VALIDATION.md). The license unit tests (`cel_license_tests*`) run in both
+reference matches the plug-in; personal build only). The license unit tests (`cel_license_tests*`) run in both
 build variants; the end-to-end smoke test (`ofx_smoke`) checks the variant it finds (personal: no
 watermark, hidden License group, LUT export without a key; licensed: trial watermark and refused
 LUT export) against its own reference render.
@@ -241,112 +237,31 @@ Every job uploads its installers as workflow artifacts
 (`ReafilmPro-<version>-macOS.{pkg,dmg}`, `ReafilmPro-<version>-Windows-Setup.exe`,
 `ReafilmPro-<version>-Windows-bundle.zip`). There is deliberately no Linux job.
 
-### Signing secrets
+### Signing and releases
 
-Signing switches on automatically when these repository secrets exist (Settings › Secrets and
-variables › Actions). Without them the macOS plug-in is ad-hoc signed and **the installers are
-unsigned**: Gatekeeper and SmartScreen warn the user (the manual explains how to proceed).
+Signing switches on automatically when the signing secrets exist in the repository's Actions
+secrets; without them the macOS plug-in is ad-hoc signed and the installers are unsigned (the
+manual explains how to open them). A release is a tag `vX.Y.Z` equal to the project version in
+`CMakeLists.txt`.
 
-| Secret | Content |
-|---|---|
-| `MACOS_CERT_P12` | base64 of the *Developer ID Application* certificate + private key (`.p12`) |
-| `MACOS_CERT_PASSWORD` | password of the `.p12` files |
-| `MACOS_INSTALLER_CERT_P12` | base64 of the *Developer ID Installer* `.p12` (same password) |
-| `APPLE_ID` | Apple ID used for notarization |
-| `APPLE_TEAM_ID` | 10-character team ID |
-| `APPLE_APP_PASSWORD` | app-specific password of that Apple ID |
-| `WINDOWS_CERT_PFX` | base64 of the Authenticode code-signing certificate (`.pfx`) |
-| `WINDOWS_CERT_PASSWORD` | password of the `.pfx` |
-
-Create the base64 values with `base64 -i cert.p12 | pbcopy` (macOS) or
-`[Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))` (PowerShell). With all macOS
-secrets present the plug-in is signed with the hardened runtime, the `.pkg` is signed, notarized
-and stapled, and the `.dmg` is signed.
-
-### Release checklist
-
-1. Licensed builds only: **license key ceremony done** (next section) — the release gate (which
-   runs only for licensed builds) refuses any `v*` tag while
-   `src/license/PublicKey.h` is provisional, the build has `CEL_DEV_LICENSE=ON`, or the development
-   public key is found in the plug-in binary (`installers/ci/release_gate.sh`).
-2. Signing secrets added (strongly recommended for any build installed outside CI).
-3. Version bumped in `CMakeLists.txt` (`project(ReafilmPro VERSION x.y.z …)`) and
-   [CHANGELOG.md](CHANGELOG.md) updated.
-4. `git tag vX.Y.Z && git push origin vX.Y.Z` — the tag must equal the project version
-   (`installers/ci/version.sh` checks it). CI builds, tests, gates and publishes the release.
-
----
-
-## License keys: generation workflow
+## License keys
 
 *Licensed build (`-DCEL_LICENSING=ON`) only; the default personal build has no license keys.*
 
-Reafilm Pro uses **offline, signed keys**: `CELL1-` + Base32 of a small payload (product, edition,
-licensee, order id, issue and expiry dates, seats) and an Ed25519 signature. The plug-in contains
-only the public key and verifies keys locally. Full documentation:
-[tools/licensegen/README.md](tools/licensegen/README.md).
-
-### One-time key ceremony (product owner, before the first release)
-
-The repository currently ships a **provisional** production public key that was generated on a
-development machine; its private half must not be relied on. Replace it once, on your own computer
-(ideally offline and with an encrypted disk):
-
-1. Build `licensegen` (`cmake --build build --target licensegen`, or the one-line compiler command
-   in the licensegen README).
-2. Generate the production keypair **outside any git repository** (the tool refuses otherwise):
-
-   ```sh
-   licensegen keygen --name celluloid-signing
-   # ~/.celluloid-license-keys/celluloid-signing.private.key  (mode 0600 — KEEP SECRET)
-   # ~/.celluloid-license-keys/celluloid-signing.public.key
-   ```
-
-3. **Back up the private key** in at least two safe places (encrypted USB stick, password manager).
-   Losing it means no new keys can be issued without shipping a new public key.
-4. Write the public key into the source tree and commit it:
-
-   ```sh
-   licensegen header --pub ~/.celluloid-license-keys/celluloid-signing.public.key \
-                     --out src/license/PublicKey.h
-   git add src/license/PublicKey.h && git commit -m "Production license public key"
-   ```
-
-5. Verify with a release-configured build (`-DCEL_DEV_LICENSE=OFF`):
-   `licensegen verify "$(licensegen sign --key <private.key> --licensee Test)"`.
-
-Never commit a private key (`tools/licensegen/private-keys/` is git-ignored as a safety net). The
-key pair in `tools/licensegen/dev-keys/` is a public **development** pair, accepted only by builds
+Offline, signed keys: `CELL1-` + Base32 of a small payload and an Ed25519 signature; the plug-in
+contains only the public key. See [tools/licensegen/README.md](tools/licensegen/README.md). The key
+pair in `tools/licensegen/dev-keys/` is a public **development** pair, accepted only by builds
 configured with `CEL_DEV_LICENSE=ON`.
-
-### Issuing keys
-
-```sh
-licensegen sign --key ~/.celluloid-license-keys/celluloid-signing.private.key \
-                --licensee "Jane Colourist <jane@example.com>" \
-                --edition pro --id ORDER-10045 --seats 1 --expires never
-licensegen verify 'CELL1-…'          # check a key a customer reports
-```
-
-Editions: `trial` (signed evaluation key, watermark stays), `indie`, `pro`, `studio`. For a web shop,
-a small webhook service can sign keys with `licensegen sign … --json` or with the Python reference
-implementation `tools/licensegen/celluloid_license.py` (byte-identical to the C++ code); see the
-licensegen README for the flow, an e-mail template and how to protect the signing key.
-
-What offline keys cannot do: they can be copied (seat counts are informational, enforced by the
-license agreement), they cannot be revoked (rotate the signing key in a release if one leaks), and a
-patched binary bypasses any local check. They keep honest customers honest.
 
 ---
 
 ## Status
 
-Version 1.0.0. Built and tested on the Linux workbench (unit tests, CPU and POCL/OpenCL parity,
+Version 1.3.0. Built and tested on the Linux workbench (unit tests, CPU and POCL/OpenCL parity,
 end-to-end render tests through the real bundle) and in CI on macOS and Windows (including Metal
 execution on the macOS runner's virtual GPU). Not yet verified: CUDA execution on NVIDIA hardware,
 real-GPU performance (the < 8 ms UHD target is an estimate, not a measurement), and use inside
-DaVinci Resolve, which is being tested now. See the open items in
-[docs/VALIDATION.md](docs/VALIDATION.md) §6.
+DaVinci Resolve, which is being tested now.
 
 ## Legal
 
