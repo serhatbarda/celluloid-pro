@@ -104,7 +104,7 @@ struct Pipeline::Cache {
 };
 static constexpr size_t kHoldCacheEntries = 8;
 
-// Beyond Filmbox I: the print-curve fields of the colour timer (the Colour Head is a light change: sameParams)
+// Lab & Gate: the print-curve fields of the colour timer (the Colour Head is a light change: sameParams)
 static bool sameTimer(const LookParams& a, const LookParams& b) {
     return a.printBlack == b.printBlack && a.printWhite == b.printWhite && a.printDefog == b.printDefog &&
            a.toneShadowHue == b.toneShadowHue && a.toneShadowAmount == b.toneShadowAmount &&
@@ -118,7 +118,7 @@ static bool sameFilm(const LookParams& a, const LookParams& b) {
            a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
            a.printContrast == b.printContrast &&   // v1.3 print lab
            a.rolloffStart == b.rolloffStart && a.rolloffSoftness == b.rolloffSoftness &&   // v1.3: the print curve
-           sameTimer(a, b);   // Beyond Filmbox I: print black / white / de-fog / toning reshape the print curve
+           sameTimer(a, b);   // Lab & Gate: print black / white / de-fog / toning reshape the print curve
 }
 
 // v1.3 Tone: the appended tone fields (Zones, Filmic Contrast, Film Roll-off, Dye Saturation)
@@ -149,7 +149,7 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.latitudeDesaturate == b.latitudeDesaturate && a.latitudeClip == b.latitudeClip &&
            a.sceneWbOn == b.sceneWbOn && a.sceneWbKelvin == b.sceneWbKelvin && a.sceneWbTint == b.sceneWbTint &&   // v1.3 P1
            a.falseColour == b.falseColour &&
-           sameTimer(a, b) && a.headCyan == b.headCyan && a.headMagenta == b.headMagenta &&   // Beyond Filmbox I
+           sameTimer(a, b) && a.headCyan == b.headCyan && a.headMagenta == b.headMagenta &&   // Lab & Gate
            a.headYellow == b.headYellow && a.headPreserve == b.headPreserve;
 }
 
@@ -249,7 +249,7 @@ static LookParams sanitize(LookParams p) {
         if (p.stage == int(Stage::PrintOnly)) p.sceneWbOn = false;   // the input is a Log Scan, not scene light
         if (!p.sceneWbOn) { p.sceneWbKelvin = d.sceneWbKelvin; p.sceneWbTint = 0.f; }
     }
-    // Beyond Filmbox I colour timer: the print process only (a scan / reversal original has no printer head and no
+    // Lab & Gate colour timer: the print process only (a scan / reversal original has no printer head and no
     // print curve); every neutral control normalises its companions, so "off" is the same cache key as before
     {
         const LookParams d;
@@ -273,7 +273,7 @@ static LookParams sanitize(LookParams p) {
     return p;
 }
 
-// Beyond Filmbox I: Print Black / Print White / De-Fog / Print Toning, in the density of the print (the PC block,
+// Lab & Gate: Print Black / Print White / De-Fog / Print Toning, in the density of the print (the PC block,
 // after the grey balance and Film Roll-off; the lab does not re-time them). q = dye amount above the curve's D-min.
 //   white end:  q1 = q + (white - defog D-min) e^(-q / 0.35)   (+ softly floored at 0 when it would go below)
 //   black end:  q2 = q1 (1 + a u^4)^(-1/4), u = q1 / span, a = r^-4 - 1, r = (span + black) / span: the D-max end
@@ -1127,7 +1127,7 @@ void Pipeline::prepare(const LookParams& pin) {
         setOff(off);
         // v1.3 Film Roll-off: the print curve's highlight shoulder, on the grey-balanced print (points 0)
         if (kind == 0 && p.rolloffSoftness != 0.f) filmRolloff(s, p, int(oPC), int(oPL), dye->lut.n, float(dye->lut.maxv));
-        if (kind == 0 && printTimerActive(p)) printTimer(s, p, int(oPC));   // Beyond Filmbox I
+        if (kind == 0 && printTimerActive(p)) printTimer(s, p, int(oPC));   // Lab & Gate
     }
 
     // ---- HDR calibration on the balanced state: mid grey -> 15 nits, unroll to peak
@@ -1205,7 +1205,7 @@ void Pipeline::prepare(const LookParams& pin) {
         else if (kind == 1) o = -0.075 / scanGamma * pts[j];
         s[CEL_CS_OFF + j] = float(o);
     }
-    // Beyond Filmbox I Colour Head: the dichroic filtration's log exposure change per print layer, then (Preserve
+    // Lab & Gate Colour Head: the dichroic filtration's log exposure change per print layer, then (Preserve
     // Exposure) a common light change that keeps the print's grey luminance of the unfiltered light
     if (kind == 0 && (p.headCyan != 0.f || p.headMagenta != 0.f || p.headYellow != 0.f)) {
         const double cmy[3] = {p.headCyan, p.headMagenta, p.headYellow};

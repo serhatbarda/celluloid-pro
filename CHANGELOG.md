@@ -95,7 +95,7 @@ unchanged in a newer one.
   while their module is off, the one furthest down the pipeline wins, never stored in presets nor in
   LUTs, and with every view off the render is unchanged and costs nothing. Manual: "Checking where
   effects apply".
-- **Beyond Filmbox I** (each module has its own switch; at the defaults projects render unchanged):
+- **Lab & Gate** (each module has its own switch; at the defaults projects render unchanged):
   - **Colour timer** (Print group, Print process only). The **Colour Head** adds Cyan / Magenta / Yellow
     dichroic filtration in CC units. It is computed through the printer lamp, the print stock's
     sensitivities and the negative's dyes, with **Preserve Exposure**. **Print Black / Print White / De-Fog**

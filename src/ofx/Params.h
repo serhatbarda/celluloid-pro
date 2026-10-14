@@ -269,7 +269,7 @@ constexpr const char* acutanceShow = "acutanceShow";
 constexpr const char* textureDiffShow = "textureDiffShow";      // [Output]
 constexpr const char* diagWipe = "diagWipe";                    // [Output]
 constexpr const char* diagWipePosition = "diagWipePosition";    // [Output]
-// ---- Beyond Filmbox I: colour timer [Print], film gate [Film Gate], weave styles / mechanical vignette [Lens & Gate]
+// ---- Lab & Gate: colour timer [Print], film gate [Film Gate], weave styles / mechanical vignette [Lens & Gate]
 constexpr const char* colourHeadEnable = "colourHeadEnable";
 constexpr const char* headCyan = "headCyan";
 constexpr const char* headMagenta = "headMagenta";
@@ -322,7 +322,7 @@ enum class StageChoice : int { Full = 0, NegativeLogScan, NegativeToScene, Print
 inline bool isDiagnosticViewParam(const std::string& p) {
     return p == id::halationShow || p == id::bloomShow || p == id::grainShow || p == id::filmResolutionShow ||
            p == id::acutanceShow || p == id::textureDiffShow || p == id::diagWipe || p == id::diagWipePosition ||
-           p == id::gateShow;   // Beyond Filmbox I
+           p == id::gateShow;   // Lab & Gate
 }
 
 // LUT sizes offered by lutSize, in option order.

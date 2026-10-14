@@ -565,7 +565,7 @@ std::vector<ParamDef> build() {
                  "the black is set just above D-max - neutral blacks and highlights.",
                  true);
     }
-    // Beyond Filmbox I: the colour timer's controls in print density (print process only)
+    // Lab & Gate: the colour timer's controls in print density (print process only)
     {
         b.boolean(id::colourHeadEnable, "Enable Colour Head", true,
                   "Switches the Colour Head (Cyan / Magenta / Yellow filtration, Preserve Exposure) on or off without "
@@ -842,7 +842,7 @@ std::vector<ParamDef> build() {
           "Natural lens light fall-off towards the corners, applied to the scene light before the film (so it "
           "darkens like an optical vignette, not a grey overlay). 0 = off.",
           true);
-    // Beyond Filmbox I: weave style, mechanical vignette
+    // Lab & Gate: weave style, mechanical vignette
     b.choice(id::weaveStyle, "Weave Style", {"Projector", "Camera (Pin-Registered)", "Telecine (Float)"}, 0,
              "The kind of gate weave (Gate Weave sets its size).\nProjector: the classic 35 mm projection weave, mostly "
              "vertical, wandering slowly with a little frame-to-frame jitter.\nCamera (Pin-Registered): a registration-pin "
@@ -863,7 +863,7 @@ std::vector<ParamDef> build() {
           "roll-off.",
           true);
 
-    // ---------------------------------------------------------------- [Film Gate] (Beyond Filmbox I)
+    // ---------------------------------------------------------------- [Film Gate] (Lab & Gate)
     b.beginGroup(id::gFilmGate, "Film Gate", false,
                  "The film gate's frame line as a density event on the film: aspect, rounded corners, soft edge, gate hair.");
     b.boolean(id::gateEnable, "Enable Film Gate", false,

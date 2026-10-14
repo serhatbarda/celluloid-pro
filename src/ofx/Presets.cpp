@@ -485,7 +485,7 @@ const std::vector<LookPreset>& lookPresets() {
                 {"grainAmount", "0.7"},
             },
         },
-        // ---- Beyond Filmbox I looks (appended): colour timer, film gate, weave styles, mechanical vignette
+        // ---- Lab & Gate looks (appended): colour timer, film gate, weave styles, mechanical vignette
         {
             "Theatrical 2383 Warm",
             "A warm theatrical release: VISION3 250D through the IP / IN release chain onto 2383, the colour head "

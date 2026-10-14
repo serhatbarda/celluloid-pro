@@ -1208,7 +1208,7 @@ normal one and costs nothing extra.
 Highlight Latitude and Film Damage have no view of their own yet; Show Texture Difference includes the
 damage.
 
-### Colour timing, the film gate and seven new looks (Beyond Filmbox I)
+### Colour timing, the film gate and seven new looks (Lab & Gate)
 
 **Colour timer** (Print group; Print process only, greyed for Lab Scan, reversal and the negative stages):
 

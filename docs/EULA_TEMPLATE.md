@@ -87,7 +87,7 @@ interoperability under the conditions of § 69e German Copyright Act / Art. 6 Di
 (e) extract film-stock data, presets or other content from the Software to build a competing product;
 (f) use the Software in violation of applicable law.
 
-*Drafting note: the source code is kept in the vendor's private repository. This Agreement covers
+*Drafting note: the source code is published in the vendor's repository without a licence. This Agreement covers
 the distributed plug-in; the repository has no open-source licence. Decide with counsel whether the
 repository needs its own notice and how it relates to this Agreement.*
 

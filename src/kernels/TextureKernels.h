@@ -592,7 +592,7 @@ CEL_DEVICE void cel_k_tx_hb_composite(CEL_KERNEL_PARAMS) {
 /* tx_vignette: out.rgb = in0.rgb * vignette (alpha kept).
  *   f[0] = amount (0..1)   f[1] = k = tan(field angle at the corner)   f[2], f[3] = optical centre
  *   f[4] = 1 / half diagonal (px)
- *   Beyond Filmbox I mechanical vignette (i[0] = 1): f[5] = amount (0..1), f[6] = start radius (x half diagonal),
+ *   Lab & Gate mechanical vignette (i[0] = 1): f[5] = amount (0..1), f[6] = start radius (x half diagonal),
  *   f[7] = edge width (x half diagonal): x (1 - f[5] smoothstep(f[6] - f[7], f[6] + f[7], r)), r = distance to
  *   the centre / half diagonal (a lens hood / matte box cutting the light cone) */
 CEL_DEVICE void cel_k_tx_vignette(CEL_KERNEL_PARAMS) {
@@ -716,7 +716,7 @@ CEL_DEVICE void cel_k_tx_diag(CEL_KERNEL_PARAMS) {
     cel_store(out, a->outStride, x, y, o);
 }
 
-/* Beyond Filmbox I: film gate transmission at pixel (x, y): a rounded rectangle (signed distance d, < 0 inside)
+/* Lab & Gate: film gate transmission at pixel (x, y): a rounded rectangle (signed distance d, < 0 inside)
  * with a soft edge (smoothstep over +-f[5] px) times an optional gate hair (a 4-segment polyline of half width
  * f[7] px, 1 px anti-aliasing, opacity 0.95). f[] as documented at tx_gate. */
 CEL_DEVICE CEL_TXH_INLINE float cel_txh_gate_mask(int x, int y, CEL_CONSTANT const CelPassArgs* a) {
@@ -741,7 +741,7 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_gate_mask(int x, int y, CEL_CONSTANT con
     return m;
 }
 
-/* tx_gate (Beyond Filmbox I): the film gate (frame line) as a density event.
+/* tx_gate (Lab & Gate): the film gate (frame line) as a density event.
  *   f[0], f[1] = gate centre (px)   f[2], f[3] = half width / height (px)   f[4] = corner radius (px, <= half size)
  *   f[5] = edge half width (px, > 0)   f[6] = rebate density (mode 1)   f[7] = hair half width (px; 0 = no hair)
  *   f[8 .. 17] = the hair's 5 polyline points (x, y px)

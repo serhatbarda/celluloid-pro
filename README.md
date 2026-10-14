@@ -350,8 +350,7 @@ DaVinci Resolve, which is being tested now. See the open items in
 
 ## Legal
 
-Copyright © 2026 Serhat (serhatbarda.de). The source code is kept in a private repository for the
-owner's personal, non-commercial use; no open-source licence is granted, and all rights are reserved unless a separate
+Copyright © 2026 Serhat (serhatbarda.de). The source code is published for reference; no open-source licence is granted, and all rights are reserved unless a separate
 licence says otherwise. End users receive the plug-in under the end-user licence agreement (see the
 [template](docs/EULA_TEMPLATE.md)). Third-party components: Monocypher (BSD-2-Clause / CC0),
 Khronos OpenCL headers (Apache-2.0, compile time), the OpenFX SDK Support library (BSD-3-Clause), and

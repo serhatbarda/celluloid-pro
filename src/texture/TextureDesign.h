@@ -253,10 +253,10 @@ constexpr float kVignetteCornerTan = 0.9f;   // tan(field angle) at the corner: 
 // ---- gate weave ------------------------------------------------------------------------------------
 struct WeaveOffset { double dx = 0, dy = 0, rot = 0; };   // px @1920, radians
 WeaveOffset weaveOffset(double time, float amount, float speed);
-// Beyond Filmbox I: the weave of a WeaveStyle (Projector = weaveOffset above, bit-identical)
+// Lab & Gate: the weave of a WeaveStyle (Projector = weaveOffset above, bit-identical)
 WeaveOffset weaveOffset(double time, float amount, float speed, int style);
 
-// ---- film gate (Beyond Filmbox I; kernel tx_gate in TextureKernels.h) ----------------------------
+// ---- film gate (Lab & Gate; kernel tx_gate in TextureKernels.h) ----------------------------
 constexpr int kGateAspectCount = 8;
 extern const float kGateAspects[kGateAspectCount];   // 0 = Full Frame (the frame's own aspect)
 constexpr float kGateRebateDensity = 4.f;             // printer gate: density of the unexposed print border (neg ND)

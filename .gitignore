@@ -7,3 +7,13 @@ __pycache__/
 /tools/licensegen/private-keys/
 # official ARRI LogC3 -> Rec.709 LUT used as a look-dev target (third-party file, kept local, not committed)
 /reference/targets/*.cube
+# kept on the owner's disk only, never committed: their footage, third-party LUTs, renders of the
+# footage and internal working notes
+/F-Log2 C Sample Footage/
+/grading samples/
+/docs/validation/damage_footage_100pct.png
+/docs/validation/damage_strip_24f.jpg
+/docs/validation/damage_24f.gif
+/docs/validation/film_blur_strip_24f.png
+/HANDOFF.md
+/tools/workflow/

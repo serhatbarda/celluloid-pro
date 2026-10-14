@@ -198,7 +198,7 @@ std::vector<Case> makeCases(bool all) {
         c.fs.look.falseColour = true; c.fs.look.output = OS::Rec2100_PQ; c.scene = Scene::Torture; });
     add("render scale 0.5 (pixelScale)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale *= 0.5f; });
     add("pixelScale 3 (tiny frame of a huge one)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale = 3.0f; });
-    // Beyond Filmbox I: film gate (camera / printer, every aspect), weave styles, mechanical vignette, colour timer
+    // Lab & Gate: film gate (camera / printer, every aspect), weave styles, mechanical vignette, colour timer
     for (int a = 0; a < tex::kGateAspectCount; ++a)
         add("camera gate aspect " + std::to_string(a) + " + hair", [a](Case& c) { fullTexture(c.fs); c.fs.tex.gateEnabled = true;
             c.fs.tex.gateAspect = a; c.fs.tex.gateHair = a % 2 == 1; c.fs.tex.gateHairSeed = 17 * a + 1; });

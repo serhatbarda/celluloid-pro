@@ -138,7 +138,7 @@ struct LookParams {
     // False Colour: diagnostic exposure zones of the scene luminance (stops rel. to 18 % grey) instead of the
     // rendering. Never part of looks, presets or LUT exports.
     bool  falseColour = false;
-    // ---- Beyond Filmbox I: colour timer (appended, SPEC 13): defaults = off, bit-identical. Print process only.
+    // ---- Lab & Gate: colour timer (appended, SPEC 13): defaults = off, bit-identical. Print process only.
     // Colour Head: dichroic C / M / Y filtration of the printer light in CC (1 CC = 0.01 density), relative to the
     // balanced filter pack; integrated over the printer lamp, the grey negative and the print layers' sensitivities.
     float headCyan = 0.f, headMagenta = 0.f, headYellow = 0.f;   // -60 .. 60 CC
@@ -219,7 +219,7 @@ std::vector<std::string> printStockProvenance(); // v1.3: same order, data sourc
 std::vector<std::string> projectionWhiteNames(); // v1.3: same order as ProjectionWhite
 std::vector<std::string> printAimNames();        // v1.3: same order as PrintAim
 std::vector<std::string> printRenderNames();     // v1.3: same order as PrintRender
-// Beyond Filmbox I: the Colour Head filtration (CC) as printer points per print layer (R, G, B; 1 point = 0.025
+// Lab & Gate: the Colour Head filtration (CC) as printer points per print layer (R, G, B; 1 point = 0.025
 // log E; before Preserve Exposure), for the given stock pair. The lab-lights display of the UI.
 void colourHeadPoints(int negStock, int printStock, float cyan, float magenta, float yellow, float out[3]);
 

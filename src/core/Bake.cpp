@@ -411,7 +411,7 @@ std::shared_ptr<const DyeLutBake> printLut(int neg, int prt, int render) {
     });
 }
 
-// Beyond Filmbox I: Colour Head. Idealised dichroic C / M / Y filters of a printer's colour head (density 1 per
+// Lab & Gate: Colour Head. Idealised dichroic C / M / Y filters of a printer's colour head (density 1 per
 // unit in the stop band, steep logistic edges at the dichroic cut-offs: yellow below 500 nm, magenta 490 .. 585 nm,
 // cyan above 595 nm), `cmy` in CC (0.01 density) relative to the balanced filter pack. The log exposure change of
 // each print layer is integrated over the printer lamp, the 18 % grey of the negative (normal development, with

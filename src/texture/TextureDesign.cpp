@@ -561,7 +561,7 @@ WeaveOffset weaveOffset(double time, float amount, float speed) {
     return o;
 }
 
-// Beyond Filmbox I: weave styles. Projector = the weave above (bit-identical). Camera (pin-registered): the
+// Lab & Gate: weave styles. Projector = the weave above (bit-identical). Camera (pin-registered): the
 // registration pins hold the frame, so only a small, mostly frame-to-frame jitter is left. Telecine (capstan
 // float): no pins at all - a slow, smooth float with a larger sideways and rotational share and almost no jitter.
 WeaveOffset weaveOffset(double time, float amount, float speed, int style) {
@@ -594,7 +594,7 @@ WeaveOffset weaveOffset(double time, float amount, float speed, int style) {
     return o;
 }
 
-// ---- film gate (Beyond Filmbox I) -------------------------------------------------------------------
+// ---- film gate (Lab & Gate) -------------------------------------------------------------------
 // OFX choice order (append only): Full Frame (the frame's own aspect), 1.33 Academy, 1.66, 1.85, 2.39, 1.43 IMAX,
 // Super 16 (1.66), 1.78
 const float kGateAspects[kGateAspectCount] = {0.f, 1.3333f, 1.66f, 1.85f, 2.39f, 1.43f, 1.66f, 1.7778f};
