@@ -4,7 +4,7 @@ All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
-## [1.3.0] — unreleased
+## [1.3.0] — 2026-10-14
 
 ### Added
 
