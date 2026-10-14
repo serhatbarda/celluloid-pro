@@ -299,7 +299,19 @@ constexpr const char* weaveStyle = "weaveStyle";                // append only (
 constexpr const char* vignetteMechanical = "vignetteMechanical";
 constexpr const char* vignetteMechSize = "vignetteMechSize";
 constexpr const char* vignetteMechSoftness = "vignetteMechSoftness";
+// real film only: the visible stock lists (UI views of negStock / printStock, not saved; see realNegStocks)
+constexpr const char* filmStock = "filmStock";
+constexpr const char* printFilm = "printFilm";
 } // namespace id
+
+// Real film only: Film Stock (filmStock) and Print Stock (printFilm) show the data-sheet stocks only. They are
+// non-persistent views: the original negStock / printStock (every stock, saved in projects, used by presets and
+// rendering) are secret and stay the source of truth. A designed stock of an old project is replaced by its
+// nearest real stock when the project opens.
+const std::vector<int>& realNegStocks();     // negStock index of every Film Stock option, in display order
+const std::vector<int>& realPrintStocks();   // printStock index of every Print Stock option
+int realNegFor(int negStock);                // Film Stock option for a negStock index (designed: nearest real)
+int realPrintFor(int printStock);
 
 // v1.3 WP-1: options of pipelineStage (append only). 0..3 = core::Stage; the two extra entries are
 // shortcuts: Texture Only = Mode Texture Only, Negative Only (clean) = Negative -> Scene with every texture

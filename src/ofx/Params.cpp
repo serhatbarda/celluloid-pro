@@ -23,6 +23,62 @@ int indexOf(const std::vector<std::string>& v, const std::string& name) {
     return -1;
 }
 
+// real film only (Params.h): display order of the data-sheet stocks and the nearest real stock of every designed one
+const char* const kRealNegOrder[] = {
+    "Kodak Vision3 50D 5203", "Kodak Vision3 250D 5207", "Kodak Vision3 200T 5213", "Kodak Vision3 500T 5219",
+    "Kodak Vision2 500T 5218", "Kodak Vision2 Expression 500T 5229", "Kodak Portra 400", "Kodak Ektachrome 100D 5294",
+    "Kodak Ektachrome E100", "Kodachrome 64 Style", "Kodak Double-X 5222", "Fujifilm Eterna Vivid 160 8543",
+    "Fujifilm Eterna 250D 8563", "Fujifilm Eterna 500 8573", "Fujifilm Reala 500D 8592"};
+const char* const kNegNearest[][2] = {
+    {"CN 50D Fine Daylight", "Kodak Vision3 50D 5203"}, {"CN 200T Studio Tungsten", "Kodak Vision3 200T 5213"},
+    {"CN 250D Soft Daylight", "Fujifilm Eterna 250D 8563"}, {"CN 500T High Speed", "Kodak Vision3 500T 5219"},
+    {"CN 800T No-Backing", "Kodak Vision3 500T 5219"}, {"CN Vintage 85", "Kodak Vision2 500T 5218"},
+    {"C41 Portrait 400", "Kodak Portra 400"}, {"C41 Consumer 200", "Kodak Portra 400"},
+    {"RV 100 Slide", "Kodak Ektachrome E100"}, {"BW 400 Panchromatic", "Kodak Double-X 5222"},
+    {"BW 100 Fine", "Kodak Double-X 5222"}};
+const char* const kRealPrintOrder[] = {"Kodak Vision 2383", "Kodak Vision Premier 2393", "Fujifilm Eterna-CP 3521XD",
+                                       "Fujifilm Eterna-CP 3513DI"};
+const char* const kPrintNearest[][2] = {
+    {"P1 Standard Projection", "Kodak Vision 2383"}, {"P2 Low Contrast", "Fujifilm Eterna-CP 3513DI"},
+    {"P3 Rich Contrast", "Kodak Vision Premier 2393"}, {"P4 Faded Archive", "Kodak Vision 2383"},
+    {"P5 Silver Retention", "Kodak Vision 2383"}, {"P6 Modern Print", "Kodak Vision 2383"},
+    {"Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)", "Fujifilm Eterna-CP 3513DI"}};
+
+std::vector<std::string> negStockNames() {
+    std::vector<std::string> v;
+    for (const auto& n : core::negativeStocks()) v.push_back(n.name);
+    return v;
+}
+template <size_t N, size_t M>
+std::vector<int> buildRealMap(const std::vector<std::string>& all, const char* const (&order)[N], const char* const (&nearest)[M][2],
+                              std::vector<int>* list) {
+    for (const char* n : order) {
+        const int k = indexOf(all, n);
+        if (k >= 0) list->push_back(k);
+    }
+    std::vector<int> map(all.size(), 0);
+    for (size_t i = 0; i < all.size(); ++i) {
+        std::string target = all[i];
+        for (const auto& pr : nearest)
+            if (all[i] == pr[0]) target = pr[1];
+        const int k = indexOf(all, target);
+        for (size_t o = 0; o < list->size(); ++o)
+            if ((*list)[o] == k) map[i] = int(o);
+    }
+    return map;
+}
+struct RealStocks {
+    std::vector<int> neg, print, negMap, printMap;
+    RealStocks() {
+        negMap = buildRealMap(negStockNames(), kRealNegOrder, kNegNearest, &neg);
+        printMap = buildRealMap(core::printStockNames(), kRealPrintOrder, kPrintNearest, &print);
+    }
+};
+const RealStocks& realStocks() {
+    static const RealStocks r;
+    return r;
+}
+
 struct Builder {
     std::vector<ParamDef> defs;
     std::string group;
@@ -367,7 +423,19 @@ std::vector<ParamDef> build() {
     // v1.2: the default look (ARRI-organic, Referent-dense) starts from the real VISION3 250D negative
     int negDefault = indexOf(negNames, "Kodak Vision3 250D 5207");
     b.beginGroup(id::gNegative, "Negative", true, "Camera film stock and its development.");
-    b.choice(id::negStock, "Film Stock", negNames, negDefault < 0 ? 0 : negDefault, negHint.c_str(), true);
+    b.choice(id::negStock, "Film Stock (all)", negNames, negDefault < 0 ? 0 : negDefault, negHint.c_str(), true).secret = true;
+    {   // real film only: the visible list (a view of negStock)
+        std::vector<std::string> realNames;
+        std::string realHint = "The camera negative (or reversal / black & white stock), from the manufacturer's data "
+                               "sheet. It defines spectral sensitivity, tone curve, colour crosstalk, grain character and "
+                               "halation behaviour.";
+        for (int k : realNegStocks()) {
+            realNames.push_back(negs[size_t(k)].name);
+            if (!negs[size_t(k)].description.empty()) realHint += "\n\n" + negs[size_t(k)].name + ": " + negs[size_t(k)].description;
+        }
+        b.choice(id::filmStock, "Film Stock", realNames, realNegFor(negDefault < 0 ? 0 : negDefault), realHint.c_str(), false)
+            .persistent = false;
+    }
     b.boolean(id::developmentEnable, "Enable Development", true,
               "Switches the development controls below (Push / Pull, Color Density, Neg Bleach Bypass, Neutralize) "
               "on or off without losing their values. Off = the stock's standard development: no push or pull, "
@@ -400,7 +468,7 @@ std::vector<ParamDef> build() {
 
     // ---------------------------------------------------------------- [Print]
     const std::vector<std::string> prints = core::printStockNames();
-    int printDefault = indexOf(prints, "P6 Modern Print");
+    int printDefault = indexOf(prints, "Kodak Vision 2383");   // real film only (was the designed P6 Modern Print)
     b.beginGroup(id::gPrint, "Print", true, "How the negative becomes a positive image.");
     b.choice(id::process, "Process", {"Print", "Lab Scan"}, 0,
              "Print: the negative is printed onto print stock and projected - the classic cinema look with dense "
@@ -408,10 +476,22 @@ std::vector<ParamDef> build() {
              "more neutral rendering that keeps the negative's character without print-stock contrast.\n"
              "Reversal (slide) stocks are direct positives and ignore this setting.",
              true);
-    b.choice(id::printStock, "Print Stock", prints, printDefault < 0 ? 0 : printDefault,
+    b.choice(id::printStock, "Print Stock (all)", prints, printDefault < 0 ? 0 : printDefault,
              "The print film the negative is printed on (Process = Print). It sets print contrast, black density, "
              "highlight roll-off and the colour of the projected image.",
-             true);
+             true).secret = true;
+    {   // real film only: the visible list (a view of printStock)
+        std::vector<std::string> realPrints;
+        for (int k : realPrintStocks()) realPrints.push_back(prints[size_t(k)]);
+        b.choice(id::printFilm, "Print Stock", realPrints, realPrintFor(printDefault < 0 ? 0 : printDefault),
+                 "The print film the negative is printed on (Process = Print), from the manufacturer's data sheet. It "
+                 "sets print contrast, black density, highlight roll-off and the colour of the projected image.\n\n"
+                 "Kodak Vision 2383: the standard release print.\nKodak Vision Premier 2393: higher D-max, denser "
+                 "blacks, more saturated.\nFujifilm Eterna-CP 3521XD: deep blacks, rich contrast.\nFujifilm Eterna-CP "
+                 "3513DI: neutral and gentle, made for digital intermediates.",
+                 false)
+            .persistent = false;
+    }
     b.boolean(id::printEnable, "Enable Print Timing", true,
               "Switches the lab timing controls below (Printer Red / Green / Blue, Print Density, Print Bleach "
               "Bypass) on or off without losing their values. Off = the automatically grey-balanced light at 0 "
@@ -666,9 +746,9 @@ std::vector<ParamDef> build() {
           "Grain strength. 1 = the stock's nominal granularity for the chosen Gauge and development; push "
           "processing increases it automatically.",
           true);
-    b.dbl(id::grainSize, "Grain Size", 1.0, 0.5, 3.0, 0.01, 2,
-          "Grain size relative to the stock and format (1 = nominal). Resolution independent: it looks the same "
-          "at HD, UHD and in proxy renders.",
+    b.dbl(id::grainSize, "Grain Size", 1.0, 0.25, 3.0, 0.01, 2,
+          "Grain size relative to the stock and format (1 = nominal; down to 0.25 for very fine grain, which resolves "
+          "best on a 4K-6K timeline). Resolution independent: it looks the same at HD, UHD and in proxy renders.",
           true);
     b.dbl(id::grainSoftness, "Grain Softness", 0.5, 0.0, 1.0, 0.01, 2,
           "0 = crisp, sharply defined dye clouds (like a sharp scan), 1 = soft clumps with soft edges (like an "
@@ -796,9 +876,9 @@ std::vector<ParamDef> build() {
              true);
     b.choice(id::gateSource, "Gate", {"Camera Gate (Rebate Prints Black)", "Printer Gate (Clear Print Border)"}, 0,
              "Which gate makes the edge.\nCamera Gate: the negative outside the camera aperture stays unexposed (clear "
-             "D-min), so it PRINTS BLACK - with grain, halation from the picture edge and the gate weave.\nPrinter Gate: "
+             "D-min), so it PRINTS BLACK.\nPrinter Gate: "
              "the print outside the printer aperture stays unexposed, so the border is the CLEAR print base (white on the "
-             "screen; dark on a reversal original, which has no print).",
+             "screen; dark on a reversal original, which has no print).\nEither way the border stays clean: grain, halation, bloom, dust, weave and projection blur only act on the picture; the frame line stays steady while the picture weaves.",
              true);
     b.dbl(id::gateOverscan, "Overscan", 0.03, 0.0, 0.15, 0.001, 3,
           "How much of the area outside the gate is visible: the gate is inset by this share of the frame height on every "
@@ -811,8 +891,8 @@ std::vector<ParamDef> build() {
           "Blur of the gate edge in pixels at 1920 px width: the aperture is slightly out of focus on the film.",
           true);
     b.boolean(id::gateHair, "Gate Hair", false,
-              "A hair caught in the gate: a thin curved fibre reaching in from the gate edge, steady from frame to frame "
-              "(it moves with the gate weave). Camera gate: prints black; printer gate: prints clear.",
+              "A hair caught in the gate: a thin curved fibre reaching in from the gate edge, steady from frame to frame."
+              " Camera gate: prints black; printer gate: prints clear.",
               true);
     b.integer(id::gateHairSeed, "Hair Seed", 1, 1, 9999, "Picks the shape and position of the gate hair.", true);
     b.boolean(id::gateShow, "Show Gate Mask (diagnostic)", false,
@@ -1057,6 +1137,17 @@ std::vector<ParamDef> build() {
 const std::vector<ParamDef>& paramDefs() {
     static const std::vector<ParamDef> defs = build();
     return defs;
+}
+
+const std::vector<int>& realNegStocks() { return realStocks().neg; }
+const std::vector<int>& realPrintStocks() { return realStocks().print; }
+int realNegFor(int negStock) {
+    const auto& m = realStocks().negMap;
+    return negStock >= 0 && size_t(negStock) < m.size() ? m[size_t(negStock)] : 0;
+}
+int realPrintFor(int printStock) {
+    const auto& m = realStocks().printMap;
+    return printStock >= 0 && size_t(printStock) < m.size() ? m[size_t(printStock)] : 0;
 }
 
 const ParamDef* findParam(const std::string& pid) {

@@ -22,11 +22,11 @@ const std::vector<LookPreset>& lookPresets() {
     static const std::vector<LookPreset> table = {
         {
             "Studio Classic",
-            "The house look: balanced tungsten negative on the standard projection print - natural skin, dense mid-tones, fine Super 35 grain.",
+            "The house look: VISION3 200T on the Kodak 2383 release print - natural skin, dense mid-tones, fine Super 35 grain.",
             {
-                {"negStock", "CN 200T Studio Tungsten"},
+                {"negStock", "Kodak Vision3 200T 5213"},
                 {"process", "Print"},
-                {"printStock", "P1 Standard Projection"},
+                {"printStock", "Kodak Vision 2383"},
                 {"halationAmount", "0.5"},
                 {"bloomAmount", "0.15"},
                 {"grainEnable", "true"},
@@ -37,12 +37,12 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Tungsten Night Drama",
-            "High-speed tungsten negative pushed half a stop on the rich-contrast print, timed cool: deep blacks, warm practicals, moody night interiors.",
+            "VISION2 500T pushed half a stop on the high-contrast Eterna-CP 3521XD print, timed cool: deep blacks, warm practicals, moody night interiors.",
             {
-                {"negStock", "CN 500T High Speed"},
+                {"negStock", "Kodak Vision2 500T 5218"},
                 {"pushPull", "0.5"},
                 {"process", "Print"},
-                {"printStock", "P3 Rich Contrast"},
+                {"printStock", "Fujifilm Eterna-CP 3521XD"},
                 {"printerR", "0.5"},
                 {"printerB", "-1"},
                 {"printExposure", "0.5"},
@@ -60,12 +60,12 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Soft Daylight Pastel",
-            "Soft daylight negative on the low-contrast print, printed light and warm: airy pastel colour, open shadows, gentle bloom.",
+            "Portra 400 on the gentle Eterna-CP 3513DI print, printed light and warm: airy pastel colour, open shadows, gentle bloom.",
             {
-                {"negStock", "CN 250D Soft Daylight"},
+                {"negStock", "Kodak Portra 400"},   // real film only: Eterna 250D sat too close to Soft Cinema
                 {"interlayer", "1.0"},
                 {"process", "Print"},
-                {"printStock", "P2 Low Contrast"},
+                {"printStock", "Fujifilm Eterna-CP 3513DI"},
                 {"printerR", "-0.5"},
                 {"printerG", "0.5"},
                 {"printerB", "1"},
@@ -82,11 +82,16 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Archive 1978",
-            "Vintage negative on a faded archive print: golden warmth, lifted brown blacks, 16 mm grain, gate weave and lens fall-off.",
+            "VISION2 500T on a faded 2383 print: golden warmth, lifted brown blacks, 16 mm grain, gate weave and lens fall-off.",
             {
-                {"negStock", "CN Vintage 85"},
+                {"negStock", "Kodak Vision2 500T 5218"},
                 {"process", "Print"},
-                {"printStock", "P4 Faded Archive"},
+                {"printStock", "Kodak Vision 2383"},
+                {"printBlack", "-0.5"},   // real film only: the faded print is 2383 with lifted blacks,
+                {"printWhite", "0.05"},   // greyed whites, warm-brown shadow toning and tired dyes
+                {"toneShadowAmount", "0.4"},
+                {"toneShadowHue", "30"},
+                {"dyeSaturation", "0.8"},
                 {"printerR", "-1"},
                 {"printerB", "1.5"},
                 {"printExposure", "-1"},
@@ -107,14 +112,15 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Silver Retention Thriller",
-            "Pushed tungsten negative with partial bleach bypass on the silver-retention print: hard, metallic, desaturated contrast with crisp edges.",
+            "VISION3 200T pushed, with partial bleach bypass on the negative and on the 2383 print: hard, metallic, desaturated contrast with crisp edges.",
             {
-                {"negStock", "CN 200T Studio Tungsten"},
+                {"negStock", "Kodak Vision3 200T 5213"},
                 {"pushPull", "0.5"},
                 {"interlayer", "0.85"},
                 {"negBleach", "0.15"},
                 {"process", "Print"},
-                {"printStock", "P5 Silver Retention"},
+                {"printStock", "Kodak Vision 2383"},
+                {"printBleach", "0.6"},   // real film only: silver retention as a bleach-bypassed 2383
                 {"printerR", "0.5"},
                 {"printerB", "-0.5"},
                 {"printExposure", "0.5"},
@@ -131,11 +137,11 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Neon Nocturne",
-            "Fast no-backing tungsten negative for city nights: red-orange halation around neon and practicals, coarse but soft grain, cool timing.",
+            "VISION2 500T for city nights: red-orange halation around neon and practicals, coarse but soft grain, cool timing.",
             {
-                {"negStock", "CN 800T No-Backing"},
+                {"negStock", "Kodak Vision2 500T 5218"},
                 {"process", "Print"},
-                {"printStock", "P1 Standard Projection"},
+                {"printStock", "Kodak Vision 2383"},
                 {"printerB", "-0.5"},
                 {"printExposure", "-0.5"},
                 {"halationAmount", "0.6"},
@@ -152,9 +158,9 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Golden Hour Portrait",
-            "Portrait colour negative through the lab scanner, timed warm: smooth golden skin, soft contrast, fine stills grain.",
+            "Portra 400 through the lab scanner, timed warm: smooth golden skin, soft contrast, fine stills grain.",
             {
-                {"negStock", "C41 Portrait 400"},
+                {"negStock", "Kodak Portra 400"},
                 {"process", "Lab Scan"},
                 {"printerR", "-0.5"},
                 {"printerB", "1"},
@@ -171,12 +177,12 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Crisp Commercial",
-            "Fine-grain daylight negative with extra colour density on the standard print: clean, saturated, sharp - restrained halation and grain.",
+            "VISION3 50D with extra colour density on the 2383 print: clean, saturated, sharp - restrained halation and grain.",
             {
-                {"negStock", "CN 50D Fine Daylight"},
+                {"negStock", "Kodak Vision3 50D 5203"},
                 {"interlayer", "1.1"},
                 {"process", "Print"},
-                {"printStock", "P1 Standard Projection"},
+                {"printStock", "Kodak Vision 2383"},
                 {"halationAmount", "0.25"},
                 {"bloomAmount", "0.1"},
                 {"grainEnable", "true"},
@@ -189,9 +195,9 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Summer Snapshot",
-            "Consumer colour negative scanned like a lab print, timed warm: punchy holiday colour, visible stills grain, light vignette.",
+            "Reala 500D scanned like a lab print, timed warm: punchy holiday colour, visible stills grain, light vignette.",
             {
-                {"negStock", "C41 Consumer 200"},
+                {"negStock", "Fujifilm Reala 500D 8592"},   // real film only (was the designed C41 Consumer 200)
                 {"process", "Lab Scan"},
                 {"printerR", "-0.5"},
                 {"printerB", "0.5"},
@@ -207,9 +213,9 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Slide Show Brilliance",
-            "Daylight reversal (slide) film projected directly: brilliant saturation, deep blacks, short latitude - expose carefully.",
+            "Ektachrome E100 reversal (slide) film projected directly: brilliant saturation, deep blacks, short latitude - expose carefully.",
             {
-                {"negStock", "RV 100 Slide"},
+                {"negStock", "Kodak Ektachrome E100"},
                 {"halationAmount", "0.3"},
                 {"bloomAmount", "0.15"},
                 {"grainEnable", "true"},
@@ -222,12 +228,12 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Monochrome Noir",
-            "Panchromatic black & white negative pushed one stop on the rich-contrast print: inky blacks, glowing highlights, strong vignette.",
+            "Double-X 5222 pushed one stop on the Premier 2393 print: inky blacks, glowing highlights, strong vignette.",
             {
-                {"negStock", "BW 400 Panchromatic"},
+                {"negStock", "Kodak Double-X 5222"},
                 {"pushPull", "1"},
                 {"process", "Print"},
-                {"printStock", "P3 Rich Contrast"},
+                {"printStock", "Kodak Vision Premier 2393"},
                 {"halationAmount", "0.45"},
                 {"bloomAmount", "0.3"},
                 {"bloomRadius", "55"},
@@ -243,9 +249,9 @@ const std::vector<LookPreset>& lookPresets() {
             "Home Movie Super 8",
             "Reversal film in the Super 8 gauge: bold colour, big soft grain, warm halation, nervous gate weave and heavy vignetting.",
             {
-                {"negStock", "RV 100 Slide"},
-                {"pushPull", "1.5"},
-                {"interlayer", "1.9"},   // v1.2: 1.6 -> 1.9 (keeps it >= 2 dE2000 from Slide Show Brilliance under the v1.2 hue hold)
+                {"negStock", "Kodak Ektachrome 100D 5294"},
+                {"pushPull", "1.0"},
+                {"interlayer", "1.6"},   // real film only (E100): push 1.5 -> 1, 1.9 -> 1.6 keeps the curve monotonic
                 {"halationAmount", "0.8"},
                 {"halationRadius", "30"},
                 {"halationHue", "0.3"},
@@ -264,12 +270,12 @@ const std::vector<LookPreset>& lookPresets() {
         // ---- v1.1 (appended): film damage looks ----
         {
             "Worn Release Print",
-            "A well-run 35 mm release print, timed warm: high-speed negative on the standard print with a few dark specks, the odd white "
+            "A well-run 35 mm release print, timed warm: Eterna Vivid 160 on the 2383 print with a few dark specks, the odd white "
             "negative speck, a persistent print scratch now and then, gentle gate weave and a rare moment of soft focus.",
             {
-                {"negStock", "CN 500T High Speed"},
+                {"negStock", "Fujifilm Eterna Vivid 160 8543"},
                 {"process", "Print"},
-                {"printStock", "P1 Standard Projection"},
+                {"printStock", "Kodak Vision 2383"},
                 {"printerR", "1"},
                 {"printerG", "0.5"},
                 {"printerB", "-0.5"},
@@ -300,12 +306,17 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "Found Footage 16",
-            "A forgotten 16 mm reel: daylight negative on the faded print, its cyan dye gone warm-magenta, coarse grain, nervous weave, lots of dust and lint, "
+            "A forgotten 16 mm reel: Eterna 250D on a faded 2383 print, its cyan dye gone warm-magenta, coarse grain, nervous weave, lots of dust and lint, "
             "flickering scratches, hairs in the gate and focus that drifts in and out.",
             {
-                {"negStock", "CN 250D Soft Daylight"},
+                {"negStock", "Fujifilm Eterna 250D 8563"},
                 {"process", "Print"},
-                {"printStock", "P4 Faded Archive"},
+                {"printStock", "Kodak Vision 2383"},
+                {"printBlack", "-0.6"},   // real film only: the faded print is 2383 with lifted blacks,
+                {"printWhite", "0.05"},   // greyed whites, magenta-brown shadow toning and tired dyes
+                {"toneShadowAmount", "0.5"},
+                {"toneShadowHue", "330"},
+                {"dyeSaturation", "0.75"},
                 {"printerR", "-1.5"},
                 {"printerG", "1"},
                 {"printExposure", "-1.5"},
@@ -342,12 +353,13 @@ const std::vector<LookPreset>& lookPresets() {
         // ---- v1.2 (look-dev item C4): the owner's three liked families on the data-sheet stocks
         {
             "Studio Modern",
-            "The v1.2 default look as a preset: VISION3 250D on the modern print - dense lower mids, true blacks, soft "
-            "ARRI-like highlight roll-off, calm skies and warm, low-chroma skin. Fine 35 mm grain.",
+            "VISION3 250D on the high-D-max Fujifilm Eterna-CP 3521XD print - dense lower mids, true deep blacks, soft "
+            "highlight roll-off, calm skies and warm, low-chroma skin. Fine 35 mm grain.",
             {
                 {"negStock", "Kodak Vision3 250D 5207"},
                 {"process", "Print"},
-                {"printStock", "P6 Modern Print"},
+                {"printStock", "Fujifilm Eterna-CP 3521XD"},
+                {"dyeSaturation", "0.75"},   // real film only: calm colour (P6 is gone; keeps it apart from Warm Print)
                 {"halationAmount", "0.4"},
                 {"bloomAmount", "0.12"},
                 {"grainEnable", "true"},
@@ -364,7 +376,7 @@ const std::vector<LookPreset>& lookPresets() {
             {
                 {"negStock", "Fujifilm Eterna 250D 8563"},
                 {"process", "Print"},
-                {"printStock", "Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)"},
+                {"printStock", "Fujifilm Eterna-CP 3513DI"},
                 {"halationAmount", "0.3"},
                 {"bloomAmount", "0.2"},
                 {"bloomRadius", "60"},
@@ -528,12 +540,12 @@ const std::vector<LookPreset>& lookPresets() {
         },
         {
             "16mm Documentary",
-            "Handheld Super 16 for documentary work: Eterna 250D on the modern print through the Super 16 camera "
+            "Handheld Super 16 for documentary work: Eterna 500 on the Kodak 2383 print through the Super 16 camera "
             "gate, big lively 16 mm grain, a touch of camera weave and a lens with real mechanical vignetting.",
             {
-                {"negStock", "Fujifilm Eterna 250D 8563"},
+                {"negStock", "Fujifilm Eterna 500 8573"},   // real film only: Eterna 250D sat too close to Soft Cinema
                 {"process", "Print"},
-                {"printStock", "P6 Modern Print"},
+                {"printStock", "Kodak Vision 2383"},
                 {"headCyan", "2"},
                 {"printBlack", "-0.3"},
                 {"halationAmount", "0.6"},

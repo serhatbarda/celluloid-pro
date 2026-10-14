@@ -750,11 +750,28 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_gate_mask(int x, int y, CEL_CONSTANT con
  *          1: printer gate: out = in0 (a damage field, when i[1] = 1, else 0) with x += the mean neutral density of
  *             a pixel a share (1 - mask) of which is covered by density f[6] (an unexposed print border = clear)
  *          2: diagnostic: out = (mask, mask, mask, in0.w or 1)
+ *          3: constant: out = (f[24], f[25], f[26], f[27]) (the 1 x 1 inputs of the clean border reference)
+ *          4: clean border: in0 = the finished frame, in1 = 1 x 1 border reference (the bare border rendered by
+ *             the same colour pass); out = in0 where the mask is 1 (bit-exact), else mix(in1, in0, mask), alpha
+ *             of in0: no effect (grain, glow, damage, weave, film blur) is left on top of the border
  *   i[1] = 1: in0 present (modes 1 and 2) */
 CEL_DEVICE void cel_k_tx_gate(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
     float m = cel_txh_gate_mask(x, y, a);
     int mode = a->i[0];
+    if (mode == 3) {
+        cel_store(out, a->outStride, x, y, cel_f4(a->f[24], a->f[25], a->f[26], a->f[27]));
+        return;
+    }
+    if (mode == 4) {
+        CelF4 p = cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y);
+        if (!(m >= 1.0f)) {
+            CelF4 b = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], 0, 0);
+            p = cel_f4(b.x + m * (p.x - b.x), b.y + m * (p.y - b.y), b.z + m * (p.z - b.z), p.w);
+        }
+        cel_store(out, a->outStride, x, y, p);
+        return;
+    }
     CelF4 v = cel_f4(0.0f, 0.0f, 0.0f, 1.0f);
     if (mode == 0 || a->i[1] != 0) v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
     CelF4 o;

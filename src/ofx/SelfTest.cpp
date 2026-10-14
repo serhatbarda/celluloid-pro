@@ -98,7 +98,7 @@ int main() {
         {"bloomAmount", "groupBloom", 0, 2, 0.15},
         {"bloomRadius", "groupBloom", 5, 200, 40},
         {"grainAmount", "groupGrain", 0, 3, 1},
-        {"grainSize", "groupGrain", 0.5, 3, 1},
+        {"grainSize", "groupGrain", 0.25, 3, 1},
         {"grainSoftness", "groupGrain", 0, 1, 0.5},
         {"grainSeed", "groupGrain", 0, 9999, 0},
         {"acutanceAmount", "groupLensGate", -1, 2, 0.35},   // v1.2
@@ -195,7 +195,9 @@ int main() {
           "inputSpace default must be F-Log2 C");
     check(defLabel("negStock") == "Kodak Vision3 250D 5207", "negStock default must be Vision3 250D 5207 (got " + defLabel("negStock") + ")");
     check(defLabel("process") == "Print", "process default must be Print");
-    check(defLabel("printStock") == "P6 Modern Print", "printStock default must be P6 Modern Print (got " + defLabel("printStock") + ")");
+    check(defLabel("printStock") == "Kodak Vision 2383", "printStock default must be Kodak Vision 2383 (got " + defLabel("printStock") + ")");
+    check(defLabel("filmStock") == "Kodak Vision3 250D 5207" && defLabel("printFilm") == "Kodak Vision 2383",
+          "the visible stock lists must default to the saved stocks' defaults");
     check(defLabel("cameraEmulation") == "Fujifilm X-H2S -> ARRI ALEXA / AMIRA", "cameraEmulation default must be X-H2S -> ALEXA");
     check(defLabel("grainFormat") == "Super 35", "grainFormat default must be Super 35");
     check(defLabel("lutSize") == "33", "lutSize default must be 33");
@@ -287,6 +289,19 @@ int main() {
     check(count("lookPreset") == int(lookPresets().size()) + 1, "lookPreset options != presets + Custom");
     check(count("negStock") == 26, "SPEC §4.6: 26 negative stocks (v1.3: 11 designed + 15 data-sheet / style)");
     check(count("printStock") == 11, "SPEC §4.6: 11 print stocks (6 designed + 5 data-sheet)");
+    // real film only: the visible lists hold the data-sheet stocks (plus the Kodachrome style), every stock maps to one
+    check(count("filmStock") == 15 && int(realNegStocks().size()) == 15, "Film Stock: 15 real negatives");
+    check(count("printFilm") == 4 && int(realPrintStocks().size()) == 4, "Print Stock: 4 real prints");
+    for (int i = 0; i < int(core::negativeStocks().size()); ++i)
+        check(realNegFor(i) >= 0 && realNegFor(i) < 15 && (core::negativeStocks()[size_t(i)].monochrome ==
+              core::negativeStocks()[size_t(realNegStocks()[size_t(realNegFor(i))])].monochrome) &&
+              (core::negativeStocks()[size_t(i)].reversal ==
+              core::negativeStocks()[size_t(realNegStocks()[size_t(realNegFor(i))])].reversal),
+              "negative " + std::to_string(i) + " must map to a real stock of the same kind");
+    for (int k = 0; k < 15; ++k) check(realNegFor(realNegStocks()[size_t(k)]) == k, "real negatives map to themselves");
+    for (int k = 0; k < 4; ++k) check(realPrintFor(realPrintStocks()[size_t(k)]) == k, "real prints map to themselves");
+    for (const char* p : {"filmStock", "printFilm"})
+        check(findParam(p) && !findParam(p)->persistent && !findParam(p)->look, std::string(p) + " must be a non-saved view");
     check(count("cameraEmulation") == int(core::CameraEmulation::Count) - 1, "cameraEmulation options != CameraEmulation::Count - 1");
     check(count("pipelineStage") == int(StageChoice::Count), "pipelineStage options != StageChoice::Count");
     check(count("bloomFilter") == tex::kBloomFilterCount, "bloomFilter options != kBloomFilterCount");
@@ -326,10 +341,12 @@ int main() {
                           "aboutManual"})
         check(findParam(p) != nullptr, std::string("missing param ") + p);
     // build variant (SPEC §9): the personal build keeps the License group (saved projects) but
-    // secret; the licensed build shows it. Nothing else is ever secret.
+    // secret; the licensed build shows it. Nothing else is ever secret except the full stock lists
+    // (real film only: Film Stock / Print Stock show them).
     for (const ParamDef& d : defs) {
         const bool inLicense = d.id == "groupLicense" || d.group == "groupLicense";
-        check(d.secret == (kPersonalBuild && inLicense),
+        const bool fullStocks = d.id == "negStock" || d.id == "printStock";
+        check(d.secret == (fullStocks || (kPersonalBuild && inLicense)),
               d.id + (d.secret ? " must not be secret" : " must be secret in the personal build"));
     }
 

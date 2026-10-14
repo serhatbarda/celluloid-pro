@@ -94,7 +94,10 @@ def main():
         lic = [n for n, p in params.items() if n == "groupLicense" or p.get("parent") == "groupLicense"]
         check(len(lic) == 5 and all(params[n].get("secret") for n in lic),
               "personal build: License group kept (saved projects) and secret", ", ".join(lic))
-        check(not any(p.get("secret") for n, p in params.items() if n not in lic), "no other parameter is secret")
+        # real film only: the full stock lists stay saved but hidden (Film Stock / Print Stock show the real stocks)
+        full = ["negStock", "printStock"]
+        check(all(params.get(n, {}).get("secret") for n in full), "full stock lists are secret")
+        check(not any(p.get("secret") for n, p in params.items() if n not in lic and n not in full), "no other parameter is secret")
         ver = str(params.get("aboutVersion", {}).get("value", ""))
         check("Personal build" in ver, "About shows the personal build", ver)
     REF = REF_PERSONAL if personal else REF_TRIAL

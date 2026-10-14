@@ -258,21 +258,21 @@ Resolve's keyframe editor. Read-only rows are status lines.
 *Look presets and processing mode.*
 
 - **Look Preset** (`lookPreset`; default: Custom) — Curated starting points. Choosing a look sets the stock pair, development, print, halation, bloom, grain and lens settings in one go (input/output colour space, exposure and HDR settings are kept). Any later tweak keeps your changes; the status line below then shows "(modified)". Choose "Custom" to leave all settings as they are.
-  - *Studio Classic* — The house look: balanced tungsten negative on the standard projection print - natural skin, dense mid-tones, fine Super 35 grain.
-  - *Tungsten Night Drama* — High-speed tungsten negative pushed half a stop on the rich-contrast print, timed cool: deep blacks, warm practicals, moody night interiors.
-  - *Soft Daylight Pastel* — Soft daylight negative on the low-contrast print, printed light and warm: airy pastel colour, open shadows, gentle bloom.
-  - *Archive 1978* — Vintage negative on a faded archive print: golden warmth, lifted brown blacks, 16 mm grain, gate weave and lens fall-off.
-  - *Silver Retention Thriller* — Pushed tungsten negative with partial bleach bypass on the silver-retention print: hard, metallic, desaturated contrast with crisp edges.
-  - *Neon Nocturne* — Fast no-backing tungsten negative for city nights: red-orange halation around neon and practicals, coarse but soft grain, cool timing.
-  - *Golden Hour Portrait* — Portrait colour negative through the lab scanner, timed warm: smooth golden skin, soft contrast, fine stills grain.
-  - *Crisp Commercial* — Fine-grain daylight negative with extra colour density on the standard print: clean, saturated, sharp - restrained halation and grain.
-  - *Summer Snapshot* — Consumer colour negative scanned like a lab print, timed warm: punchy holiday colour, visible stills grain, light vignette.
-  - *Slide Show Brilliance* — Daylight reversal (slide) film projected directly: brilliant saturation, deep blacks, short latitude - expose carefully.
-  - *Monochrome Noir* — Panchromatic black & white negative pushed one stop on the rich-contrast print: inky blacks, glowing highlights, strong vignette.
+  - *Studio Classic* — The house look: VISION3 200T on the Kodak 2383 release print - natural skin, dense mid-tones, fine Super 35 grain.
+  - *Tungsten Night Drama* — VISION2 500T pushed half a stop on the high-contrast Eterna-CP 3521XD print, timed cool: deep blacks, warm practicals, moody night interiors.
+  - *Soft Daylight Pastel* — Portra 400 on the gentle Eterna-CP 3513DI print, printed light and warm: airy pastel colour, open shadows, gentle bloom.
+  - *Archive 1978* — VISION2 500T on a faded 2383 print: golden warmth, lifted brown blacks, 16 mm grain, gate weave and lens fall-off.
+  - *Silver Retention Thriller* — VISION3 200T pushed, with partial bleach bypass on the negative and on the 2383 print: hard, metallic, desaturated contrast with crisp edges.
+  - *Neon Nocturne* — VISION2 500T for city nights: red-orange halation around neon and practicals, coarse but soft grain, cool timing.
+  - *Golden Hour Portrait* — Portra 400 through the lab scanner, timed warm: smooth golden skin, soft contrast, fine stills grain.
+  - *Crisp Commercial* — VISION3 50D with extra colour density on the 2383 print: clean, saturated, sharp - restrained halation and grain.
+  - *Summer Snapshot* — Reala 500D scanned like a lab print, timed warm: punchy holiday colour, visible stills grain, light vignette.
+  - *Slide Show Brilliance* — Ektachrome E100 reversal (slide) film projected directly: brilliant saturation, deep blacks, short latitude - expose carefully.
+  - *Monochrome Noir* — Double-X 5222 pushed one stop on the Premier 2393 print: inky blacks, glowing highlights, strong vignette.
   - *Home Movie Super 8* — Reversal film in the Super 8 gauge: bold colour, big soft grain, warm halation, nervous gate weave and heavy vignetting.
-  - *Worn Release Print* — A well-run 35 mm release print, timed warm: high-speed negative on the standard print with a few dark specks, the odd white negative speck, a persistent print scratch now and then, gentle gate weave and a rare moment of soft focus.
-  - *Found Footage 16* — A forgotten 16 mm reel: daylight negative on the faded print, its cyan dye gone warm-magenta, coarse grain, nervous weave, lots of dust and lint, flickering scratches, hairs in the gate and focus that drifts in and out.
-  - *Studio Modern* — The v1.2 default look as a preset: VISION3 250D on the modern print - dense lower mids, true blacks, soft ARRI-like highlight roll-off, calm skies and warm, low-chroma skin. Fine 35 mm grain.
+  - *Worn Release Print* — A well-run 35 mm release print, timed warm: Eterna Vivid 160 on the 2383 print with a few dark specks, the odd white negative speck, a persistent print scratch now and then, gentle gate weave and a rare moment of soft focus.
+  - *Found Footage 16* — A forgotten 16 mm reel: Eterna 250D on a faded 2383 print, its cyan dye gone warm-magenta, coarse grain, nervous weave, lots of dust and lint, flickering scratches, hairs in the gate and focus that drifts in and out.
+  - *Studio Modern* — VISION3 250D on the high-D-max Fujifilm Eterna-CP 3521XD print - dense lower mids, true deep blacks, soft highlight roll-off, calm skies and warm, low-chroma skin. Fine 35 mm grain.
   - *Soft Cinema* — ETERNA-style softness: low-contrast daylight negative on the matching Eterna-CP print - gentle contrast, restrained colour, open shadows and a quiet, slightly cool palette.
   - *Warm Print* — Classic release-print warmth: VISION3 250D printed on 2383 with Print Crossover - golden highlights, cool teal-leaning shadows, rich contrast. The character of a photochemical 2383 chain.
   - *Sunlit 35mm (soft scan)* — Sunlit 35 mm on a soft, low-contrast scan: a Soft-aim print with full Print Crossover, yellow-green mids, open lifted blacks from a light Black Pro-Mist veil plus halation, and a gentle film edge (digital sharpening removed, weak shadow acutance) that stays soft on dark scenes.
@@ -280,7 +280,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Soft Telecine Scan* — A flat, gentle telecine transfer: VISION3 250D on the telecine render, lifted printed blacks and a held-back white, a light white Pro-Mist, softened film edge and the slow float of a capstan transport.
   - *500T Night Exterior* — VISION3 500T pushed half a stop for night exteriors on Premier 2393: deep printed blacks, teal-toned shadows under warm practicals, strong halation, Super 35 grain and pin-registered camera weave.
   - *Scope Bleach Bypass* — A 2.39 scope frame through the camera gate with a partial bleach bypass on 2383: retained silver, steely desaturated contrast, cool-toned shadows and a hard, crisp edge.
-  - *16mm Documentary* — Handheld Super 16 for documentary work: Eterna 250D on the modern print through the Super 16 camera gate, big lively 16 mm grain, a touch of camera weave and a lens with real mechanical vignetting.
+  - *16mm Documentary* — Handheld Super 16 for documentary work: Eterna 500 on the Kodak 2383 print through the Super 16 camera gate, big lively 16 mm grain, a touch of camera weave and a lens with real mechanical vignetting.
   - *Faded Magenta Print* — An old release print gone magenta: lifted printed blacks, a softened white, the cyan dye faded towards magenta-red in highlight and shadow, printer-gate clear border, projector weave and soft 35 mm grain.
   - *Sunlit 35mm Full Gate* — The Sunlit 35mm look printed full gate and timed warmer: a warm colour head, lifted printed blacks and golden highlights, framed by the camera aperture's rounded rebate with a little overscan, a slow telecine float and the faint cos^4 fall-off of the taking lens.
 - **Preset Status** (`lookPresetStatus`; read-only; shows “Custom” until a preset is chosen) — Which look preset the current settings come from. "(modified)" means you have changed at least one look setting since applying it.
@@ -364,31 +364,20 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 *Camera film stock and its development.*
 
-- **Film Stock** (`negStock`; default: Kodak Vision3 250D 5207) — The camera negative (or reversal / black & white stock). It defines spectral sensitivity, tone curve, colour crosstalk, grain character and halation behaviour.
-  - *CN 50D Fine Daylight* — Fine-grain daylight negative: clean, crisp and richly saturated with a neutral-cool balance.
-  - *CN 200T Studio Tungsten* — Balanced tungsten studio negative: natural skin, dense mids, gently warm highlights. The reference stock.
-  - *CN 250D Soft Daylight* — Low-contrast daylight negative: soft pastel colour, wide latitude, open shadows.
-  - *CN 500T High Speed* — High-speed tungsten negative: visible grain, cool teal shadows, warm highlights.
-  - *CN 800T No-Backing* — Fast tungsten negative without anti-halation backing: strong red halation, cyan-leaning shadows, warm compressed highlights, coarse grain.
-  - *CN Vintage 85* — Vintage 1980s-style tungsten negative: golden highlights, green-teal shadows, softer saturation, denser base fog.
-  - *C41 Portrait 400* — Portrait colour negative: flattering, smooth skin, low contrast, soft saturation.
-  - *C41 Consumer 200* — Consumer colour negative: punchy, warm and saturated with yellow-leaning highlights.
-  - *RV 100 Slide* — Daylight colour reversal (slide) film: brilliant saturation, high contrast, deep blacks, short latitude.
-  - *BW 400 Panchromatic* — Classic panchromatic black & white negative: rich mid-tones, visible grain, natural tonal response to colour.
-  - *BW 100 Fine* — Fine-grain black & white negative: crisp, higher contrast, slightly blue-leaning (darker reds) panchromatic response.
+- **Film Stock** (`filmStock`; default: Kodak Vision3 250D 5207) — The camera negative (or reversal / black & white stock), from the manufacturer's data sheet. It defines spectral sensitivity, tone curve, colour crosstalk, grain character and halation behaviour.
   - *Kodak Vision3 50D 5203* — VISION3 50D: the finest-grain daylight negative, clean and saturated with long highlight latitude.
   - *Kodak Vision3 250D 5207* — VISION3 250D: medium-speed daylight negative, natural colour and soft, open highlights.
   - *Kodak Vision3 200T 5213* — VISION3 200T: tungsten negative with fine grain, rich mid-tones and clean shadows.
   - *Kodak Vision3 500T 5219* — VISION3 500T: the high-speed tungsten workhorse: low shadow grain, warm under tungsten, big latitude.
-  - *Fujifilm Eterna 250D 8563* — ETERNA 250D: soft-contrast daylight negative with restrained, calm colour (Fujifilm curves; spectral proxies).
+  - *Kodak Vision2 500T 5218* — VISION2 500T: the 2000s high-speed tungsten negative: a little more grain and less latitude than VISION3, warm, punchy mids.
+  - *Kodak Vision2 Expression 500T 5229* — VISION2 Expression 500T: low-contrast VISION2 tungsten negative for a soft, flat scan with lifted shadows.
   - *Kodak Portra 400* — PORTRA 400: portrait colour negative: warm, low-chroma skin, very wide latitude.
+  - *Kodak Ektachrome 100D 5294* — EKTACHROME 100D: the motion-picture colour reversal: clean, saturated, contrasty, short latitude.
   - *Kodak Ektachrome E100* — EKTACHROME E100: daylight reversal: clean neutral greys, crisp, saturated colour, short latitude.
   - *Kodachrome 64 Style* — Kodachrome-style reversal (designed, no data sheet): dense, contrasty, warm reds, deep blue skies.
-  - *Kodak Vision2 500T 5218* — VISION2 500T: the 2000s high-speed tungsten negative: a little more grain and less latitude than VISION3, warm, punchy mids.
-  - *Kodak Ektachrome 100D 5294* — EKTACHROME 100D: the motion-picture colour reversal: clean, saturated, contrasty, short latitude.
   - *Kodak Double-X 5222* — DOUBLE-X 5222: the classic panchromatic B&W negative: open grain, blue-heavy sensitivity, gentle toe.
-  - *Kodak Vision2 Expression 500T 5229* — VISION2 Expression 500T: low-contrast VISION2 tungsten negative for a soft, flat scan with lifted shadows.
   - *Fujifilm Eterna Vivid 160 8543* — ETERNA Vivid 160: tungsten negative with more saturation and contrast than ETERNA (Fujifilm curves; spectral proxies).
+  - *Fujifilm Eterna 250D 8563* — ETERNA 250D: soft-contrast daylight negative with restrained, calm colour (Fujifilm curves; spectral proxies).
   - *Fujifilm Eterna 500 8573* — ETERNA 500: high-speed tungsten negative with calm, low-saturation ETERNA colour (Fujifilm curves; spectral proxies).
   - *Fujifilm Reala 500D 8592* — REALA 500D: high-speed daylight negative (Fujifilm curves; spectral proxies, the fourth colour layer is not modelled).
 - **Enable Development** (`developmentEnable`; default on) — Switches the development controls below (Push / Pull, Color Density, Neg Bleach Bypass, Neutralize) on or off without losing their values. Off = the stock's standard development: no push or pull, nominal colour density, normal bleach, the stock's own curves. The film stock itself always stays active - it is the look.
@@ -406,8 +395,11 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Print* — the negative is printed onto print stock and projected - the classic cinema look with dense blacks and rich colour.
   - *Lab Scan* — the negative is scanned and inverted by a lab scanner - a flatter, more neutral rendering that keeps the negative's character without print-stock contrast.
   - Reversal (slide) stocks are direct positives and ignore this setting.
-- **Print Stock** (`printStock`; default: P6 Modern Print) — The print film the negative is printed on (Process = Print). It sets print contrast, black density, highlight roll-off and the colour of the projected image.
-  - Options: P1 Standard Projection · P2 Low Contrast · P3 Rich Contrast · P4 Faded Archive · P5 Silver Retention · Kodak Vision 2383 · Kodak Vision Premier 2393 · Fujifilm Eterna-CP 3513DI (v1.2 legacy curve) · P6 Modern Print · Fujifilm Eterna-CP 3521XD · Fujifilm Eterna-CP 3513DI
+- **Print Stock** (`printFilm`; default: Kodak Vision 2383) — The print film the negative is printed on (Process = Print), from the manufacturer's data sheet. It sets print contrast, black density, highlight roll-off and the colour of the projected image.
+  - *Kodak Vision 2383* — the standard release print.
+Kodak Vision Premier 2393: higher D-max, denser blacks, more saturated.
+Fujifilm Eterna-CP 3521XD: deep blacks, rich contrast.
+Fujifilm Eterna-CP 3513DI: neutral and gentle, made for digital intermediates.
 - **Enable Print Timing** (`printEnable`; default on) — Switches the lab timing controls below (Printer Red / Green / Blue, Print Density, Print Bleach Bypass) on or off without losing their values. Off = the automatically grey-balanced light at 0 points and normal print processing. Process and Print Stock always stay active - they are the look.
 - **Printer Red** (`printerR`; -12 … 12; default 0; keyframable) — Red printer light. More red light (+) adds cyan to the print: the image gets LESS red / more cyan. Fewer points (-) warm it towards red. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Printer Green** (`printerG`; -12 … 12; default 0; keyframable) — Green printer light. More green light (+) adds magenta to the print: the image gets LESS green / more magenta. Fewer points (-) push it towards green. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
@@ -415,7 +407,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Print Density** (`printExposure`; -12 … 12; default 0; keyframable) — Overall printer light in points on all three layers. Positive values make the print BRIGHTER (less print density), negative values darker and denser. This is the lab's way to brighten or darken a print: highlights and blacks respond like real print film, not like a gain.
 - **Print Bleach Bypass** (`printBleach`; 0 … 1; default 0; keyframable) — Bleach bypass on the print: retained silver deepens the blacks and shadows, raises contrast and desaturates - the classic gritty, metallic release-print look. 0 = normal processing.
 - **Print Crossover** (`printCrossover`; -1 … 1; default 0; keyframable) — Warm highlights and cool shadows the way many release prints render them (the classic 2383 chain): positive values add yellow and remove cyan in the bright end of the print and do the opposite in the shadows, growing from the middle of the scale outward, while middle grey stays neutral. Negative values reverse it (cool highlights, warm shadows). 0 = the print stock exactly as designed. Print process only.
-- **Print Stock Data** (`printProvenance`; read-only; “Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the default-look target).”) — Where the selected print stock's data comes from: a manufacturer data sheet (fitted, not measured from film), partly borrowed from a named proxy stock, a Reafilm design, or a style approximation.
+- **Print Stock Data** (`printProvenance`; read-only; “Data sheet: Kodak H-1-2383 (2022): spectral sensitivity, Status A curves, spectral dye density. ECP-2 nominal; lab aim, projection and rendering are set in this group. Fresh stock at the nominal process; fitted to the published curves, not measured from film.”) — Where the selected print stock's data comes from: a manufacturer data sheet (fitted, not measured from film), partly borrowed from a named proxy stock, a Reafilm design, or a style approximation.
 - **Enable Print Lab** (`printLabEnable`; default on) — Switches the print lab controls below (Projection White, Process Aim, Print Contrast, Rendering) on or off without losing their values. Off = a contact print at the nominal process aim, adapted to D65 - exactly the v1.2 print.
 - **Projection White** (`projectionWhite`; default: D65 (Adapted)) — The white the projected print is shown at. D65 (Adapted): the eye adapted to the projector lamp, mapped to the D65 white of a video display (the classic film-out preview). Theatre Xenon (Unadapted): the print as a colorimeter reads it off a xenon-lit screen - the clear print base and the lamp give a warmer, slightly yellow white. D60 Sim: adapted to the ACES D60 white and shown on a D65 display (a slightly warm white, as in DCI / ACES D60 sim mastering).
   - Options: D65 (Adapted) · Theatre Xenon (Unadapted) · D60 Sim
@@ -483,7 +475,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 - **Enable Grain** (`grainEnable`; default on) — Adds film grain: dye clouds of a fast (coarse) and a slow (fine) emulsion in every colour layer, developed from each layer's own exposure (granularity measured from published film data). Coarse, sparse grain lives in the shadows and lower mid-tones, finer grain in the highlights, and the film curves shape it - it sits inside the image instead of on top of it. Off skips the grain passes entirely and keeps the grain settings.
 - **Grain Amount** (`grainAmount`; 0 … 3; default 1; keyframable) — Grain strength. 1 = the stock's nominal granularity for the chosen Gauge and development; push processing increases it automatically.
-- **Grain Size** (`grainSize`; 0.5 … 3; default 1; keyframable) — Grain size relative to the stock and format (1 = nominal). Resolution independent: it looks the same at HD, UHD and in proxy renders.
+- **Grain Size** (`grainSize`; 0.25 … 3; default 1; keyframable) — Grain size relative to the stock and format (1 = nominal; down to 0.25 for very fine grain, which resolves best on a 4K-6K timeline). Resolution independent: it looks the same at HD, UHD and in proxy renders.
 - **Grain Softness** (`grainSoftness`; 0 … 1; default 0.5; keyframable) — 0 = crisp, sharply defined dye clouds (like a sharp scan), 1 = soft clumps with soft edges (like an optical print or a softer scan). Integrate (Film Resolution) softens grain and image together.
 - **Animated Grain** (`grainAnimated`; default on) — On: a new grain pattern every frame, like real film. Off: a frozen pattern (useful for stills or for matching a static texture).
 - **Grain Seed** (`grainSeed`; 0 … 9999; default 0; keyframable) — Changes the random grain pattern. Give different shots or layers different seeds so their grain never lines up.
@@ -528,12 +520,12 @@ Resolve's keyframe editor. Read-only rows are status lines.
 - **Enable Film Gate** (`gateEnable`; default off) — Shows the edge of the film gate (the frame line). Off = the full picture, as before.
 - **Gate Aspect** (`gateAspect`; default: Full Frame) — The aperture of the gate. Full Frame: the gate around the whole picture (only the Overscan shows). Every other aspect is fitted inside the frame (letterbox or pillarbox); the image outside it is masked like a hard matte in the gate. Super 16 also uses the smaller gauge's tighter corners.
   - Options: Full Frame · 1.33 Academy · 1.66 European · 1.85 Flat · 2.39 Scope · 1.43 IMAX · Super 16 (1.66) · 1.78 (16:9)
-- **Gate** (`gateSource`; default: Camera Gate (Rebate Prints Black)) — Which gate makes the edge. Camera Gate: the negative outside the camera aperture stays unexposed (clear D-min), so it PRINTS BLACK - with grain, halation from the picture edge and the gate weave. Printer Gate: the print outside the printer aperture stays unexposed, so the border is the CLEAR print base (white on the screen; dark on a reversal original, which has no print).
+- **Gate** (`gateSource`; default: Camera Gate (Rebate Prints Black)) — Which gate makes the edge. Camera Gate: the negative outside the camera aperture stays unexposed (clear D-min), so it PRINTS BLACK. Printer Gate: the print outside the printer aperture stays unexposed, so the border is the CLEAR print base (white on the screen; dark on a reversal original, which has no print). Either way the border stays clean: grain, halation, bloom, dust, weave and projection blur only act on the picture; the frame line stays steady while the picture weaves.
   - Options: Camera Gate (Rebate Prints Black) · Printer Gate (Clear Print Border)
 - **Overscan** (`gateOverscan`; 0 … 0.15; default 0.03; keyframable) — How much of the area outside the gate is visible: the gate is inset by this share of the frame height on every side (0 = the gate edge sits exactly at the frame edge).
 - **Corner Radius** (`gateCorner`; 0 … 80; default 14; keyframable) — Radius of the gate's rounded corners in pixels at 1920 px width (filed aperture plates have rounded corners).
 - **Edge Softness** (`gateSoftness`; 0 … 20; default 2; keyframable) — Blur of the gate edge in pixels at 1920 px width: the aperture is slightly out of focus on the film.
-- **Gate Hair** (`gateHair`; default off) — A hair caught in the gate: a thin curved fibre reaching in from the gate edge, steady from frame to frame (it moves with the gate weave). Camera gate: prints black; printer gate: prints clear.
+- **Gate Hair** (`gateHair`; default off) — A hair caught in the gate: a thin curved fibre reaching in from the gate edge, steady from frame to frame. Camera gate: prints black; printer gate: prints clear.
 - **Hair Seed** (`gateHairSeed`; 1 … 9999; default 1; keyframable) — Picks the shape and position of the gate hair.
 - **Show Gate Mask (diagnostic)** (`gateShow`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Shows the gate's transmission: white = picture, black = gate (and hair).
 
@@ -649,7 +641,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - A module switched off (Enable box unticked): that module's controls.
   - Film Damage off: the Dust, Scratches and Hair switches and every damage control.
   - Process = Lab Scan: Print Stock and Print Bleach Bypass.
-  - Reversal stocks (RV 100 Slide): Process, Print Stock, printer lights, Print Density and Print
+  - Reversal stocks (Ektachrome, Kodachrome): Process, Print Stock, printer lights, Print Density and Print
     Bleach Bypass — a slide is a direct positive; time it with Exposure and balance before the node.
   - Black & white stocks: Color Density, Neutralize and the three printer colour lights (Print
     Density still works).
@@ -663,19 +655,27 @@ Resolve's keyframe editor. Read-only rows are status lines.
 
 ### Negative and reversal stocks
 
+Film Stock and Print Stock list real film only, each modelled from the manufacturer's data sheet
+(Stock Data says how). Projects or user presets saved with one of the older designed stocks (CN, C41,
+RV, BW, P1-P6) open on the nearest real stock.
+
 | Stock | Balance | Character |
 |---|---|---|
-| CN 50D Fine Daylight | daylight | fine grain, crisp, richly saturated, neutral-cool |
-| **CN 200T Studio Tungsten** (default) | tungsten | natural skin, dense mid-tones, gently warm highlights — the reference stock |
-| CN 250D Soft Daylight | daylight | low contrast, pastel colour, wide latitude |
-| CN 500T High Speed | tungsten | visible grain, cool teal shadows, warm highlights |
-| CN 800T No-Backing | tungsten | no anti-halation backing: strong red halation, coarse grain |
-| CN Vintage 85 | tungsten | 1980s character: golden highlights, green-teal shadows, denser fog |
-| C41 Portrait 400 | daylight | flattering, smooth skin, low contrast |
-| C41 Consumer 200 | daylight | punchy, warm, saturated, yellow-leaning highlights |
-| RV 100 Slide | daylight | reversal: brilliant colour, deep blacks, short latitude (no print stage) |
-| BW 400 Panchromatic | — | classic black & white, rich mid-tones, visible grain |
-| BW 100 Fine | — | fine-grain black & white, crisper, darker reds |
+| Kodak Vision3 50D 5203 | daylight | the finest grain, clean and saturated, long highlight latitude |
+| **Kodak Vision3 250D 5207** (default) | daylight | natural colour, soft open highlights |
+| Kodak Vision3 200T 5213 | tungsten | fine grain, rich mid-tones, clean shadows |
+| Kodak Vision3 500T 5219 | tungsten | the high-speed workhorse: low shadow grain, big latitude |
+| Kodak Vision2 500T 5218 | tungsten | 2000s high speed: a little more grain, warm punchy mids |
+| Kodak Vision2 Expression 500T 5229 | tungsten | low contrast, flat scan, lifted shadows |
+| Kodak Portra 400 | daylight | portrait negative: warm low-chroma skin, very wide latitude |
+| Kodak Ektachrome 100D 5294 | daylight | motion-picture reversal: clean, saturated, contrasty (no print stage) |
+| Kodak Ektachrome E100 | daylight | reversal: neutral greys, crisp saturated colour, short latitude (no print stage) |
+| Kodachrome 64 Style | daylight | style approximation (no public data): dense, warm reds, deep blue skies |
+| Kodak Double-X 5222 | — | classic black & white negative: open grain, gentle toe |
+| Fujifilm Eterna Vivid 160 8543 | tungsten | more saturation and contrast than Eterna |
+| Fujifilm Eterna 250D 8563 | daylight | soft contrast, restrained calm colour |
+| Fujifilm Eterna 500 8573 | tungsten | high speed with calm, low-saturation colour |
+| Fujifilm Reala 500D 8592 | daylight | high-speed daylight negative |
 
 "Tungsten" and "daylight" describe the light each stock is balanced for. With digital footage you
 balance in the camera or before the node anyway; the balance shows mainly as each stock's colour
@@ -685,11 +685,14 @@ character. Printer lights correct any remaining tint.
 
 | Print | Character |
 |---|---|
-| **P1 Standard Projection** (default) | deep neutral blacks, dense mid-tones, graceful highlight roll-off — the reference print |
-| P2 Low Contrast | open shadows, softer roll-off, gentler saturation |
-| P3 Rich Contrast | deeper blacks, punchier mid-tones, denser colour |
-| P4 Faded Archive | aged dyes (cyan fades first), lifted warm blacks, yellowed base |
-| P5 Silver Retention | retained silver: deep shadows, higher contrast, muted colour |
+| **Kodak Vision 2383** (default) | the standard release print: deep blacks, rich colour, warm highlights |
+| Kodak Vision Premier 2393 | higher D-max: denser blacks, more saturated colour than 2383 |
+| Fujifilm Eterna-CP 3521XD | high D-max: deeper blacks and richer contrast than 3513DI |
+| Fujifilm Eterna-CP 3513DI | made for digital intermediates: neutral, gentle highlights, clean colour |
+
+A faded or silver-retention print is the real print with **Print Black / Print White**, **Shadow
+Toning**, **Dye Saturation** or **Print Bleach Bypass** (the Archive 1978 and Found Footage 16 presets
+show a faded print).
 
 Instead of a print, **Process = Lab Scan** scans and inverts the negative: a flatter, more neutral
 rendering that keeps the negative's character without print contrast.

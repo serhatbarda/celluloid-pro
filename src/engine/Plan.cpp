@@ -28,8 +28,10 @@
 //             -> tx_hb_composite
 //   vignette  fused into tx_hb_composite when the glow runs, else tx_vignette(full); a mechanical vignette
 //             (Beyond Filmbox I) always runs stand-alone tx_vignette (with the cos^4 part)
-//   gate      Beyond Filmbox I: camera gate tx_gate(full) on the decoded image BEFORE the weave; printer gate
-//             tx_gate(damage field or nothing) -> the colour pass's in3 (an unexposed, clear print border)
+//   gate      Beyond Filmbox I: camera gate tx_gate(full) on the image right AFTER the weave; printer gate
+//             tx_gate(damage field or nothing) -> the colour pass's in3 (an unexposed, clear print border);
+//             clean border: tx_gate(1x1 const) [, tx_gate(1x1 border density)] -> colour pass (1x1 reference)
+//             -> tx_gate(finished frame, reference) after the film blur (no effect on top of the border)
 //   grain     per emulsion (coarse = fast, fine = slow; own grid spacing D >= 1 px):
 //             tx_blur4 h (white noise generated on the fly) -> tx_blur4 v [-> tx_up_v]; the colour pass
 //             samples both grids (GrainKernels.h). buildGrainPlan adds tx_grain_finish (diagnostic field).
@@ -245,6 +247,27 @@ int addPrinterGate(Builder& B, int damage, const tex::TextureParams& tp, int w, 
     setGateArgs(damage >= 0 ? B.pass(KID_tx_gate, o, {damage}) : B.pass(KID_tx_gate, o, {}), gd, 1, damage >= 0);
     return o;
 }
+// clean film gate border: the bare border (no light, plus the printer gate's border density) rendered by the same
+// colour pass as a 1 x 1 reference, laid over the finished frame outside the gate (tx_gate mode 4), so no grain,
+// glow, damage, weave or film blur sits on top of it. `printer` = the printer gate is on the colour pass's path.
+int addCleanGate(Builder& B, int src, int target, const tex::TextureParams& tp, KernelId colorK, bool printer,
+                 int w, int h, float ps) {
+    const tex::GateDesign gd = tex::designGate(tp, w, h, ps);
+    if (!gd.on) return src;
+    auto constant = [&](float r, float g, float b, float al) {
+        int o = B.buffer(1, 1);
+        PassDesc& p = B.pass(KID_tx_gate, o, {});
+        setGateArgs(p, gd, 3, false);
+        p.args.f[24] = r; p.args.f[25] = g; p.args.f[26] = b; p.args.f[27] = al;
+        return o;
+    };
+    const int black = constant(0.f, 0.f, 0.f, 1.f);
+    const int dens = printer ? constant(gd.f[6], 0.f, 0.f, 0.f) : -1;
+    const int ref = B.buffer(1, 1);
+    B.pass(colorK, ref, {black, -1, -1, dens});
+    setGateArgs(B.pass(KID_tx_gate, target, {src, ref}), gd, 4, true);
+    return target;
+}
 bool auraOn(const tex::TextureParams& tp) { return tp.auraEnabled && finitePos(tp.auraStrength); }
 
 // Image texture chain; returns the buffer holding the result (== img when nothing is on).
@@ -256,15 +279,6 @@ void setToneMap(float* f, const tex::ToneMap& tm) {
 int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, bool hdr, int w, int h, float ps) {
     int cur = img;
     const tex::ToneMap tm = tex::toneMap(!hdr);
-    // ---- Beyond Filmbox I: camera gate (the aperture holds back the scene light; the clear negative prints black)
-    if (cameraGateOn(tp)) {
-        const tex::GateDesign gd = tex::designGate(tp, w, h, ps);
-        if (gd.on) {
-            int o = B.buffer(w, h);
-            setGateArgs(B.pass(KID_tx_gate, o, {cur}), gd, 0, true);
-            cur = o;
-        }
-    }
     // ---- gate weave
     if (weaveOn(tp)) {
         tex::WeaveOffset wo = tex::weaveOffset(tp.time, tp.weaveAmount, tp.weaveSpeed, tp.weaveStyle);
@@ -277,6 +291,16 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
         p.args.f[4] = 0.5f * float(w);
         p.args.f[5] = 0.5f * float(h);
         cur = o;
+    }
+    // ---- Beyond Filmbox I: camera gate (the aperture holds back the scene light; the clear negative prints black).
+    // After the weave: the picture weaves under a steady frame line, and nothing outside the gate feeds the glow
+    if (cameraGateOn(tp)) {
+        const tex::GateDesign gd = tex::designGate(tp, w, h, ps);
+        if (gd.on) {
+            int o = B.buffer(w, h);
+            setGateArgs(B.pass(KID_tx_gate, o, {cur}), gd, 0, true);
+            cur = o;
+        }
     }
     const bool hal = halOn(tp), bloom = bloomOn(tp);
     // Texture-Only: acutance and glow work in the film-like pseudo scene (log exposure semantics
@@ -771,7 +795,12 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
     const bool beforeProjection = fs.mode != core::Mode::TextureOnly &&
                                   (fs.look.stage == int(core::Stage::NegativeLogScan) || fs.look.stage == int(core::Stage::NegativeToScene));
     const tex::FilmBlurDesign fb = (fusedDecode || beforeProjection) ? tex::FilmBlurDesign{} : tex::designFilmBlur(tp, w, h, ps);
-    int colorOut = (fs.watermark || fb.on || wipe) ? B.buffer(w, h) : int(BUF_DST);
+    // Beyond Filmbox I: the clean gate border goes over the finished frame (printer gate only on the print path)
+    const bool printPath = fs.mode == core::Mode::TextureOnly ||
+                           (fs.look.stage != int(core::Stage::NegativeLogScan) && fs.look.stage != int(core::Stage::NegativeToScene));
+    const bool cleanGate = fs.mode != core::Mode::ColorOnly && (cameraGateOn(tp) || (printerGateOn(tp) && printPath)) &&
+                           tex::designGate(tp, w, h, ps).on;
+    int colorOut = (fs.watermark || fb.on || wipe || cleanGate) ? B.buffer(w, h) : int(BUF_DST);
     PassDesc& cp = fusedDecode ? B.pass(colorK, colorOut, {img, -1, -1})
                                : B.pass(colorK, colorOut, {img, grain.coarse, grain.fine, damage});
     if (grain.coarse >= 0) {
@@ -781,8 +810,12 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
     cp.args.i[1] = fusedDecode ? 1 : 0;
     int finalOut = colorOut;
     if (fb.on) {
-        finalOut = (fs.watermark || wipe) ? B.buffer(w, h) : int(BUF_DST);
+        finalOut = (fs.watermark || wipe || cleanGate) ? B.buffer(w, h) : int(BUF_DST);
         addFilmBlur(B, colorOut, finalOut, fb, w, h);
+    }
+    if (cleanGate) {
+        const int go = (fs.watermark || wipe) ? B.buffer(w, h) : int(BUF_DST);
+        finalOut = addCleanGate(B, finalOut, go, tp, colorK, printerGateOn(tp), w, h, ps);
     }
     if (wipe) {   // the host source (before) left of the line, the result (after) right of it
         const int wo = fs.watermark ? B.buffer(w, h) : int(BUF_DST);

@@ -328,6 +328,7 @@ private:
     void applyPreset(int choiceIdx);
     void refreshPresetStatus(double t);
     void refreshEnabledness(double t);
+    void syncStockLists(double t, bool replaceDesigned = false);
     void refreshPrintLights(double t);   // Beyond Filmbox I: the lab printer-lights label
     void refreshLicenseStatus();
     void exportLut(double t);
@@ -388,6 +389,7 @@ ReafilmEffect::ReafilmEffect(OfxImageEffectHandle handle) : OFX::ImageEffect(han
     try {
         setStr(id::aboutVersion, versionString());
         refreshLicenseStatus();
+        syncStockLists(0.0, true);   // real film only: an old project's designed stock -> its nearest real stock
         refreshPresetStatus(0.0);
         refreshEnabledness(0.0);
     } catch (const std::exception& e) {
@@ -465,6 +467,24 @@ void ReafilmEffect::setEnabled(const std::string& pid, bool on) {
     else if (auto it3 = m_bool.find(pid); it3 != m_bool.end()) p = it3->second;
     else if (auto it4 = m_choice.find(pid); it4 != m_choice.end()) p = it4->second;
     if (p && p->getIsEnable() != on) p->setEnabled(on);
+    if (pid == id::negStock) setEnabled(id::filmStock, on);    // real film only: the visible lists follow
+    if (pid == id::printStock) setEnabled(id::printFilm, on);
+}
+
+// Real film only (Params.h): the visible Film Stock / Print Stock lists are views of the saved negStock /
+// printStock. A designed stock (old project or user preset) is replaced by its nearest real stock when the
+// instance is created or a user preset is loaded; otherwise (host scripting, tests) it is left alone and the
+// visible list just shows its nearest real stock.
+void ReafilmEffect::syncStockLists(double t, bool replaceDesigned) {
+    const auto sync = [&](const char* hidden, const char* shown, const std::vector<int>& real, int (*nearest)(int)) {
+        const int cur = choice(hidden, t);
+        const int k = nearest(cur);
+        if (real.empty()) return;
+        if (replaceDesigned && real[size_t(k)] != cur) setNum(hidden, real[size_t(k)]);
+        if (choice(shown, t) != k) setNum(shown, k);
+    };
+    sync(id::negStock, id::filmStock, realNegStocks(), &realNegFor);
+    sync(id::printStock, id::printFilm, realPrintStocks(), &realPrintFor);
 }
 
 // ------------------------------------------------------------------------- settings
@@ -1003,6 +1023,15 @@ void ReafilmEffect::changedParam(const OFX::InstanceChangedArgs& args, const std
             name == id::aboutManual || name == id::negProvenance || name == id::printProvenance || name == id::printLights)
             return;   // our own read-only labels
 
+        if (name == id::filmStock || name == id::printFilm) {   // real film only: a view of negStock / printStock
+            if (args.reason == OFX::eChangeUserEdit) {
+                const bool neg = name == id::filmStock;
+                const std::vector<int>& real = neg ? realNegStocks() : realPrintStocks();
+                const int k = choice(name, args.time);
+                if (k >= 0 && size_t(k) < real.size()) setNum(neg ? id::negStock : id::printStock, real[size_t(k)]);
+            }
+            return;
+        }
         if (name == id::lookPreset) {
             if (args.reason == OFX::eChangeUserEdit && !m_applyingPreset) applyPreset(choice(id::lookPreset, args.time));
             refreshPresetStatus(args.time);
@@ -1128,6 +1157,7 @@ void ReafilmEffect::loadUserPreset(double t) {
         throw;
     }
     m_applyingPreset = false;
+    syncStockLists(t, true);   // real film only: a designed stock in an old user preset -> its nearest real stock
     refreshPresetStatus(t);
     refreshEnabledness(t);
     std::string msg = "User preset \"" + (fileName.empty() ? name : fileName) + "\" loaded.";
@@ -1181,6 +1211,7 @@ void ReafilmEffect::refreshPrintLights(double t) {
 }
 
 void ReafilmEffect::refreshEnabledness(double t) {
+    syncStockLists(t);
     const core::Mode mode = effectiveMode(t);
     const core::NegativeStockInfo* st = stockInfo(choice(id::negStock, t));
     const bool reversal = st && st->reversal;

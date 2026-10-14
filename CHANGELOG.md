@@ -141,6 +141,18 @@ unchanged in a newer one.
 
 ### Changed
 
+- **Real film only** (owner request). Film Stock lists the 15 real negatives and Print Stock the four
+  real prints (Kodak 2383, Kodak Premier 2393, Fujifilm Eterna-CP 3521XD and 3513DI). The designed
+  stocks (CN, C41, RV, BW, P1-P6) are gone from the menus. A project or user preset that used one
+  opens on the nearest real stock, so its look changes. The parameter IDs are unchanged: the saved
+  negStock and printStock are now hidden, and the visible lists are views of them. **The default
+  print is now Kodak Vision 2383 instead of P6 Modern Print, so the default look changes**: P6 was
+  2383's dyes with our own tone curve. The presets now use real stocks; faded and silver-retention
+  prints are 2383 with the print controls. Studio Modern now uses Premier 2393 so it stays distinct
+  from Warm Print.
+- **Finer grain**: Grain Size now goes down to 0.25 (was 0.5).
+- **The film gate border stays clean**: grain, halation, bloom, dust, scratches, weave and projection
+  blur now act only on the picture. The frame line holds steady while the picture weaves under it.
 - **Grain looks different in existing projects** (owner request: the grain looked cheap, too even,
   colourless and too low-res at 6K). The default grain is now generated at the full output resolution
   and has fine detail at 4K and 6K, the finest structure one to two pixels across at 6K. Its dye

@@ -32,22 +32,27 @@ points = cooler, more = warmer/yellower). Printer points are relative to each st
 so the same numbers mean the same correction on every stock. Order of the menu is permanent (projects store the
 index): new looks will be appended.
 
+Since 1.3 (real film only) every preset uses a real data-sheet stock: the designed stocks were
+replaced by their nearest real stock, and the faded and silver-retention prints are Kodak 2383 with
+the print controls. The intent text below was written for the designed stocks; the looks keep that
+intent.
+
 | # | Preset | Negative | Print / process | Character |
 |---|---|---|---|---|
-| 1 | **Studio Classic** | CN 200T Studio Tungsten | P1 Standard Projection | The house look |
-| 2 | **Tungsten Night Drama** | CN 500T High Speed | P3 Rich Contrast | High-speed tungsten negative pushed half a stop on the rich-contrast print, timed cool |
-| 3 | **Soft Daylight Pastel** | CN 250D Soft Daylight | P2 Low Contrast | Soft daylight negative on the low-contrast print, printed light and warm |
-| 4 | **Archive 1978** | CN Vintage 85 | P4 Faded Archive | Vintage negative on a faded archive print |
-| 5 | **Silver Retention Thriller** | CN 200T Studio Tungsten | P5 Silver Retention | Pushed tungsten negative with partial bleach bypass on the silver-retention print |
-| 6 | **Neon Nocturne** | CN 800T No-Backing | P1 Standard Projection | Fast no-backing tungsten negative for city nights |
-| 7 | **Golden Hour Portrait** | C41 Portrait 400 | Lab Scan | Portrait colour negative through the lab scanner, timed warm |
-| 8 | **Crisp Commercial** | CN 50D Fine Daylight | P1 Standard Projection | Fine-grain daylight negative with extra colour density on the standard print |
-| 9 | **Summer Snapshot** | C41 Consumer 200 | Lab Scan | Consumer colour negative scanned like a lab print, timed warm |
-| 10 | **Slide Show Brilliance** | RV 100 Slide | reversal (direct) | Daylight reversal (slide) film projected directly |
-| 11 | **Monochrome Noir** | BW 400 Panchromatic | P3 Rich Contrast | Panchromatic black & white negative pushed one stop on the rich-contrast print |
-| 12 | **Home Movie Super 8** | RV 100 Slide | reversal (direct) | Reversal film in the Super 8 gauge |
-| 13 | **Worn Release Print** | CN 500T High Speed | P1 Standard Projection | A well-run 35 mm release print, timed warm, with light film damage (v1.1) |
-| 14 | **Found Footage 16** | CN 250D Soft Daylight | P4 Faded Archive | A battered, faded 16 mm reel with heavy film damage and drifting focus (v1.1) |
+| 1 | **Studio Classic** | Kodak Vision3 200T 5213 | Kodak Vision 2383 | The house look |
+| 2 | **Tungsten Night Drama** | Kodak Vision2 500T 5218 | Fujifilm Eterna-CP 3521XD | High-speed tungsten negative pushed half a stop on the rich-contrast print, timed cool |
+| 3 | **Soft Daylight Pastel** | Kodak Portra 400 | Fujifilm Eterna-CP 3513DI | Soft daylight negative on the low-contrast print, printed light and warm |
+| 4 | **Archive 1978** | Kodak Vision2 500T 5218 | Kodak Vision 2383 (faded) | Vintage negative on a faded archive print |
+| 5 | **Silver Retention Thriller** | Kodak Vision3 200T 5213 | Kodak Vision 2383 + bleach bypass | Pushed tungsten negative with partial bleach bypass on the silver-retention print |
+| 6 | **Neon Nocturne** | Kodak Vision2 500T 5218 | Kodak Vision 2383 | Fast no-backing tungsten negative for city nights |
+| 7 | **Golden Hour Portrait** | Kodak Portra 400 | Lab Scan | Portrait colour negative through the lab scanner, timed warm |
+| 8 | **Crisp Commercial** | Kodak Vision3 50D 5203 | Kodak Vision 2383 | Fine-grain daylight negative with extra colour density on the standard print |
+| 9 | **Summer Snapshot** | Fujifilm Reala 500D 8592 | Lab Scan | Consumer colour negative scanned like a lab print, timed warm |
+| 10 | **Slide Show Brilliance** | Kodak Ektachrome E100 | reversal (direct) | Daylight reversal (slide) film projected directly |
+| 11 | **Monochrome Noir** | Kodak Double-X 5222 | Kodak Vision Premier 2393 | Panchromatic black & white negative pushed one stop on the rich-contrast print |
+| 12 | **Home Movie Super 8** | Kodak Ektachrome 100D 5294 | reversal (direct) | Reversal film in the Super 8 gauge |
+| 13 | **Worn Release Print** | Fujifilm Eterna Vivid 160 8543 | Kodak Vision 2383 | A well-run 35 mm release print, timed warm, with light film damage (v1.1) |
+| 14 | **Found Footage 16** | Fujifilm Eterna 250D 8563 | Kodak Vision 2383 (faded) | A battered, faded 16 mm reel with heavy film damage and drifting focus (v1.1) |
 
 ## 1. Studio Classic
 
@@ -57,7 +62,7 @@ index): new looks will be appended.
 
 **When to use.** Any scene, especially interiors and dialogue scenes with skin as the priority. Use it to judge exposure and lighting, then build on it.
 
-**Key settings.** Negative CN 200T Studio Tungsten, Process Print, Print P1 Standard Projection, Halation 0.5, Bloom 0.15, Format Super 35, Grain Amount 0.9, Acutance 0.3.
+**Key settings.** Negative Kodak Vision3 200T 5213, Process Print, Print Kodak Vision 2383, Halation 0.5, Bloom 0.15, Format Super 35, Grain Amount 0.9, Acutance 0.3.
 
 ## 2. Tungsten Night Drama
 
@@ -67,7 +72,7 @@ index): new looks will be appended.
 
 **When to use.** Night interiors and exteriors lit by tungsten practicals, thrillers, moody dialogue. On daylight scenes it reads as day-for-night-ish cool.
 
-**Key settings.** Negative CN 500T High Speed, Push/Pull 0.5, Process Print, Print P3 Rich Contrast, Printer R 0.5, Printer B -1, Print Density 0.5, Halation 0.8, Hal. Radius 26, Bloom 0.25, Bloom Radius 50, Format Super 35, Grain Amount 1, Grain Softness 0.55, Acutance 0.3, Vignette 0.2.
+**Key settings.** Negative Kodak Vision2 500T 5218, Push/Pull 0.5, Process Print, Print Fujifilm Eterna-CP 3521XD, Printer R 0.5, Printer B -1, Print Density 0.5, Halation 0.8, Hal. Radius 26, Bloom 0.25, Bloom Radius 50, Format Super 35, Grain Amount 1, Grain Softness 0.55, Acutance 0.3, Vignette 0.2.
 
 ## 3. Soft Daylight Pastel
 
@@ -77,7 +82,7 @@ index): new looks will be appended.
 
 **When to use.** Fashion, lifestyle and romance, bright exteriors, window-lit interiors; footage with harsh contrast that needs taming.
 
-**Key settings.** Negative CN 250D Soft Daylight, Color Density 1, Process Print, Print P2 Low Contrast, Printer R -0.5, Printer G 0.5, Printer B 1, Print Density 0.5, Halation 0.35, Bloom 0.25, Bloom Radius 70, Format 35 mm Stills, Grain Amount 0.8, Grain Softness 0.7, Acutance 0.15.
+**Key settings.** Negative Kodak Portra 400, Color Density 1, Process Print, Print Fujifilm Eterna-CP 3513DI, Printer R -0.5, Printer G 0.5, Printer B 1, Print Density 0.5, Halation 0.35, Bloom 0.25, Bloom Radius 70, Format 35 mm Stills, Grain Amount 0.8, Grain Softness 0.7, Acutance 0.15.
 
 ## 4. Archive 1978
 
@@ -87,7 +92,7 @@ index): new looks will be appended.
 
 **When to use.** Flashbacks, period pieces, found-footage and memory sequences. Strong by design - lower Print Density or Grain for a subtler age.
 
-**Key settings.** Negative CN Vintage 85, Process Print, Print P4 Faded Archive, Printer R -1, Printer B 1.5, Print Density -1, Halation 0.7, Hal. Radius 28, Hal. Hue 0.2, Bloom 0.3, Bloom Radius 60, Format 16 mm, Grain Amount 0.8, Grain Softness 0.75, Acutance 0.1, Gate Weave 0.4, Weave Speed 0.8, Vignette 0.3.
+**Key settings.** Negative Kodak Vision2 500T 5218, Process Print, Print Kodak Vision 2383 (faded: Print Black, Print White, Shadow Toning, Dye Saturation), Printer R -1, Printer B 1.5, Print Density -1, Halation 0.7, Hal. Radius 28, Hal. Hue 0.2, Bloom 0.3, Bloom Radius 60, Format 16 mm, Grain Amount 0.8, Grain Softness 0.75, Acutance 0.1, Gate Weave 0.4, Weave Speed 0.8, Vignette 0.3.
 
 ## 5. Silver Retention Thriller
 
@@ -97,7 +102,7 @@ index): new looks will be appended.
 
 **When to use.** Action, war and crime, gritty urban exteriors, high-contrast lighting. Keep faces lit - shadows below about -4 stops go to black (P5's deep D-max).
 
-**Key settings.** Negative CN 200T Studio Tungsten, Push/Pull 0.5, Color Density 0.85, Neg Bleach 0.15, Process Print, Print P5 Silver Retention, Printer R 0.5, Printer B -0.5, Print Density 0.5, Halation 0.35, Bloom 0.1, Format Super 35, Grain Amount 1.15, Grain Softness 0.4, Acutance 0.6, Acut. Radius 1.6, Vignette 0.15.
+**Key settings.** Negative Kodak Vision3 200T 5213, Push/Pull 0.5, Color Density 0.85, Neg Bleach 0.15, Process Print, Print Kodak Vision 2383, Print Bleach Bypass 0.6, Printer R 0.5, Printer B -0.5, Print Density 0.5, Halation 0.35, Bloom 0.1, Format Super 35, Grain Amount 1.15, Grain Softness 0.4, Acutance 0.6, Acut. Radius 1.6, Vignette 0.15.
 
 ## 6. Neon Nocturne
 
@@ -107,7 +112,7 @@ index): new looks will be appended.
 
 **When to use.** Night scenes only: city streets, bars, neon and LED signage, car interiors at night. On day scenes it prints dense and glows; use Studio Classic instead.
 
-**Key settings.** Negative CN 800T No-Backing, Process Print, Print P1 Standard Projection, Printer B -0.5, Print Density -0.5, Halation 0.6, Hal. Radius 24, Hal. Hue -0.2, Bloom 0.3, Bloom Radius 45, Format Super 35, Grain Amount 0.85, Grain Softness 0.55, Acutance 0.25.
+**Key settings.** Negative Kodak Vision2 500T 5218, Process Print, Print Kodak Vision 2383, Printer B -0.5, Print Density -0.5, Halation 0.6, Hal. Radius 24, Hal. Hue -0.2, Bloom 0.3, Bloom Radius 45, Format Super 35, Grain Amount 0.85, Grain Softness 0.55, Acutance 0.25.
 
 ## 7. Golden Hour Portrait
 
@@ -117,7 +122,7 @@ index): new looks will be appended.
 
 **When to use.** Portraits, interviews, weddings and warm-light exteriors; anything shot near sunset. Works well on slightly over-exposed footage.
 
-**Key settings.** Negative C41 Portrait 400, Process Lab Scan, Printer R -0.5, Printer B 1, Halation 0.45, Hal. Hue 0.3, Bloom 0.3, Bloom Radius 60, Format 35 mm Stills, Grain Amount 0.9, Grain Softness 0.6, Acutance 0.2.
+**Key settings.** Negative Kodak Portra 400, Process Lab Scan, Printer R -0.5, Printer B 1, Halation 0.45, Hal. Hue 0.3, Bloom 0.3, Bloom Radius 60, Format 35 mm Stills, Grain Amount 0.9, Grain Softness 0.6, Acutance 0.2.
 
 ## 8. Crisp Commercial
 
@@ -127,7 +132,7 @@ index): new looks will be appended.
 
 **When to use.** Commercials, product and food, sports and bright daytime work where colour and sharpness should pop without looking digital.
 
-**Key settings.** Negative CN 50D Fine Daylight, Color Density 1.1, Process Print, Print P1 Standard Projection, Halation 0.25, Bloom 0.1, Format Super 35, Grain Amount 0.6, Grain Softness 0.4, Acutance 0.45, Acut. Radius 1.5.
+**Key settings.** Negative Kodak Vision3 50D 5203, Color Density 1.1, Process Print, Print Kodak Vision 2383, Halation 0.25, Bloom 0.1, Format Super 35, Grain Amount 0.6, Grain Softness 0.4, Acutance 0.45, Acut. Radius 1.5.
 
 ## 9. Summer Snapshot
 
@@ -137,7 +142,7 @@ index): new looks will be appended.
 
 **When to use.** Travel and lifestyle content, music videos, nostalgic personal stories, beach and street scenes in sun.
 
-**Key settings.** Negative C41 Consumer 200, Process Lab Scan, Printer R -0.5, Printer B 0.5, Halation 0.45, Bloom 0.25, Format 35 mm Stills, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.3, Vignette 0.25.
+**Key settings.** Negative Fujifilm Reala 500D 8592, Process Lab Scan, Printer R -0.5, Printer B 0.5, Halation 0.45, Bloom 0.25, Format 35 mm Stills, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.3, Vignette 0.25.
 
 ## 10. Slide Show Brilliance
 
@@ -147,7 +152,7 @@ index): new looks will be appended.
 
 **When to use.** Saturated travel, nature and architecture in good light. Expose carefully - highlights and shadows clip sooner than on negative film.
 
-**Key settings.** Negative RV 100 Slide, Halation 0.3, Bloom 0.15, Format 35 mm Stills, Grain Amount 1.2, Grain Softness 0.45, Acutance 0.4, Vignette 0.3.
+**Key settings.** Negative Kodak Ektachrome E100, Halation 0.3, Bloom 0.15, Format 35 mm Stills, Grain Amount 1.2, Grain Softness 0.45, Acutance 0.4, Vignette 0.3.
 
 ## 11. Monochrome Noir
 
@@ -157,7 +162,7 @@ index): new looks will be appended.
 
 **When to use.** Noir and drama, portraits with hard light, night streets. Light for separation: colour contrast becomes tonal contrast.
 
-**Key settings.** Negative BW 400 Panchromatic, Push/Pull 1, Process Print, Print P3 Rich Contrast, Halation 0.45, Bloom 0.3, Bloom Radius 55, Format Super 35, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.45, Vignette 0.35.
+**Key settings.** Negative Kodak Double-X 5222, Push/Pull 1, Process Print, Print Kodak Vision Premier 2393, Halation 0.45, Bloom 0.3, Bloom Radius 55, Format Super 35, Grain Amount 1.1, Grain Softness 0.5, Acutance 0.45, Vignette 0.35.
 
 ## 12. Home Movie Super 8
 
@@ -167,7 +172,7 @@ index): new looks will be appended.
 
 **When to use.** Home-movie inserts, memories, music videos, titles. Combine with a 4:3 crop and frame-rate reduction in Resolve for the full effect.
 
-**Key settings.** Negative RV 100 Slide, Push/Pull 1.5, Color Density 1.9, Halation 0.8, Hal. Radius 30, Hal. Hue 0.3, Bloom 0.45, Bloom Radius 70, Format Super 8, Grain Amount 1.6, Grain Softness 0.6, Acutance -0.15, Gate Weave 1.1, Weave Speed 1.4, Vignette 0.45.
+**Key settings.** Negative Kodak Ektachrome 100D 5294, Push/Pull 1, Color Density 1.6, Halation 0.8, Hal. Radius 30, Hal. Hue 0.3, Bloom 0.45, Bloom Radius 70, Format Super 8, Grain Amount 1.6, Grain Softness 0.6, Acutance -0.15, Gate Weave 1.1, Weave Speed 1.4, Vignette 0.45.
 
 ## 13. Worn Release Print
 
@@ -177,7 +182,7 @@ index): new looks will be appended.
 
 **When to use.** Period pieces, flashbacks, "screening room" moments, trailers and title sequences. Give each shot its own Damage Seed so the dirt never repeats across a cut.
 
-**Key settings.** Negative CN 500T High Speed, Print P1 Standard Projection, Printer R +1 / G +0.5 / B -0.5, Print Density 0.5, Halation 0.6, Bloom 0.2, Format Super 35, Grain Amount 1, Acutance 0.25, Gate Weave 0.6, Vignette 0.2; Film Damage on: Dust 0.7 (White Dust Mix 0.3), Scratches 0.5 (Persistence 0.75, Emulsion 0.35, White Scratch Mix 0.2), Hair 0.35; Film Blur on: Radius 2.5, Frequency 0.12, Duration 30, Breathing 0.15, Chromatic 0.3.
+**Key settings.** Negative Fujifilm Eterna Vivid 160 8543, Print Kodak Vision 2383, Printer R +1 / G +0.5 / B -0.5, Print Density 0.5, Halation 0.6, Bloom 0.2, Format Super 35, Grain Amount 1, Acutance 0.25, Gate Weave 0.6, Vignette 0.2; Film Damage on: Dust 0.7 (White Dust Mix 0.3), Scratches 0.5 (Persistence 0.75, Emulsion 0.35, White Scratch Mix 0.2), Hair 0.35; Film Blur on: Radius 2.5, Frequency 0.12, Duration 30, Breathing 0.15, Chromatic 0.3.
 
 ## 14. Found Footage 16
 
@@ -187,11 +192,12 @@ index): new looks will be appended.
 
 **When to use.** Found-footage and documentary-archive inserts, music videos, memories, horror. Lower Dust and Scratch Amount for a cleaner copy; set Film Blur Frequency to 0 if the soft moments distract.
 
-**Key settings.** Negative CN 250D Soft Daylight, Print P4 Faded Archive, Printer R -1.5 / G +1, Print Density -1.5, Halation 0.8, Hal. Radius 30, Hal. Hue 0.25, Bloom 0.35, Bloom Radius 60, Format 16 mm, Grain Amount 1, Grain Softness 0.7, Acutance 0, Gate Weave 1 at Speed 1.2, Vignette 0.4; Film Damage on: Dust 1.4 (Size 1.2, White Dust Mix 0.4), Scratches 1.2 (Persistence 0.4, Emulsion 0.5, White Scratch Mix 0.3), Hair 0.9; Film Blur on: Radius 4, Frequency 0.3, Duration 36, Breathing 0.35, Chromatic 0.5.
+**Key settings.** Negative Fujifilm Eterna 250D 8563, Print Kodak Vision 2383 (faded: Print Black, Print White, Shadow Toning, Dye Saturation), Printer R -1.5 / G +1, Print Density -1.5, Halation 0.8, Hal. Radius 30, Hal. Hue 0.25, Bloom 0.35, Bloom Radius 60, Format 16 mm, Grain Amount 1, Grain Softness 0.7, Acutance 0, Gate Weave 1 at Speed 1.2, Vignette 0.4; Film Damage on: Dust 1.4 (Size 1.2, White Dust Mix 0.4), Scratches 1.2 (Persistence 0.4, Emulsion 0.5, White Scratch Mix 0.3), Hair 0.9; Film Blur on: Radius 4, Frequency 0.3, Duration 36, Breathing 0.35, Chromatic 0.5.
 
 ## 15. Studio Modern
 
-The v1.2 default look as a preset. Kodak Vision3 250D 5207 on P6 Modern Print: dense lower mids, true
+Kodak Vision3 250D 5207 on Fujifilm Eterna-CP 3521XD with Dye Saturation 0.75 (v1.2: the default look
+on P6 Modern Print; real film only since 1.3): dense lower mids, true
 blacks, a soft ARRI-like highlight roll-off, calm cyan-blue skies and warm, low-chroma skin. Fine Super 35
 grain (0.7), light halation (0.4) and bloom (0.12). Use it as the starting point for modern digital
 footage; with Fujifilm footage the camera emulation (not part of the preset) adds the ALEXA colour.
