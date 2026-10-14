@@ -12,14 +12,71 @@
 namespace cel { namespace ofxp {
 
 // ------------------------------------------------------------------------------------------
-// The table. APPEND ONLY (the choice index is stored in projects): this order is final as of
-// v1.0; new presets go at the end, existing ones are never reordered, renamed or removed.
+// The table. New presets go at the end, existing ones are never renamed or removed. The one exception
+// (owner request, 1.3): Signature 250D / 2383 was inserted first, so a project saved before 1.3 shows the
+// next preset's name in the menu; its saved values (and so its render) are unchanged.
 // Designed by the look designer on real-world-like test scenes; each preset is documented in
 // docs/LOOKS.md (intent, when to use, key settings) and shown in docs/validation/presets.png.
 // Parameters not listed are reset to their defaults when the preset is applied.
 // ------------------------------------------------------------------------------------------
+namespace {
+// 1.3: the film edge of the Signature preset (digital sharpening removed, no integration blur, a fine
+// acutance edge, a soft Aura around the halation) is shared by every preset that does not set its own.
+std::vector<LookPreset> withTexture(std::vector<LookPreset> table) {
+    const std::pair<const char*, const char*> edge[] = {
+        {"integrate", "0"}, {"sharpenRemoval", "1.5"}, {"acutanceRadius", "0.5"},
+        {"auraEnable", "true"}, {"auraRadius", "50"}, {"auraStrength", "0.15"}};
+    for (LookPreset& p : table)
+        for (const auto& e : edge) {
+            bool has = false;
+            for (const PresetValue& v : p.values) has = has || v.param == e.first;
+            if (!has) p.values.push_back({e.first, e.second});
+        }
+    return table;
+}
+} // namespace
+
 const std::vector<LookPreset>& lookPresets() {
-    static const std::vector<LookPreset> table = {
+    static const std::vector<LookPreset> table = withTexture({
+        {   // 1.3: the owner's own setup (X-H2S F-Log2 C), first in the menu
+            "Signature 250D / 2383",
+            "VISION3 250D on the Kodak 2383 release print with ALEXA colour and a gentle film roll-off: "
+            "warm colour head, steel-blue shadow toning, print crossover. Fine, crisp 65 mm grain on a film edge with the "
+            "digital sharpening removed, a tight halation with a soft Aura and a Glimmerglass bloom - texture and depth.",
+            {
+                {"grainFormat", "65 mm"},
+                {"alexaColourEnable", "true"},
+                {"alexaColour", "0.5"},
+                {"filmContrast", "1.047"},
+                {"rolloffStart", "1.5"},
+                {"rolloffSoftness", "1"},
+                {"dyeSatEnable", "false"},
+                {"negStock", "Kodak Vision3 250D 5207"},
+                {"process", "Print"},
+                {"printStock", "Kodak Vision 2383"},
+                {"printCrossover", "0.4"},
+                {"printRender", "Release Print (IP / IN)"},
+                {"headCyan", "2.5"},
+                {"headYellow", "-3"},
+                {"toneShadowAmount", "0.5"},
+                {"halationAmount", "0.76"},
+                {"halationRadius", "2"},
+                {"auraEnable", "true"},
+                {"auraRadius", "50"},
+                {"auraStrength", "0.15"},
+                {"bloomRadius", "20"},
+                {"bloomFilter", "Glimmerglass"},
+                {"bloomFilterGrade", "0.125"},
+                {"grainEnable", "true"},
+                {"grainSize", "0.5"},
+                {"grainSoftness", "0"},
+                {"integrate", "0"},
+                {"sharpenRemoval", "1.5"},
+                {"acutanceRadius", "0.5"},
+                {"weaveAmount", "0.25"},
+                {"vignette", "0.15"},
+            },
+        },
         {
             "Studio Classic",
             "The house look: VISION3 200T on the Kodak 2383 release print - natural skin, dense mid-tones, fine Super 35 grain.",
@@ -628,7 +685,7 @@ const std::vector<LookPreset>& lookPresets() {
                 {"gateCorner", "18"},
             },
         },
-    };
+    });
     return table;
 }
 

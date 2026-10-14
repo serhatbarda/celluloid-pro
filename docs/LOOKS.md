@@ -39,6 +39,7 @@ intent.
 
 | # | Preset | Negative | Print / process | Character |
 |---|---|---|---|---|
+| 0 | **Signature 250D / 2383** | Kodak Vision3 250D 5207 | Kodak Vision 2383 (release print) | The owner's own setup, first in the menu (1.3) |
 | 1 | **Studio Classic** | Kodak Vision3 200T 5213 | Kodak Vision 2383 | The house look |
 | 2 | **Tungsten Night Drama** | Kodak Vision2 500T 5218 | Fujifilm Eterna-CP 3521XD | High-speed tungsten negative pushed half a stop on the rich-contrast print, timed cool |
 | 3 | **Soft Daylight Pastel** | Kodak Portra 400 | Fujifilm Eterna-CP 3513DI | Soft daylight negative on the low-contrast print, printed light and warm |
@@ -53,6 +54,24 @@ intent.
 | 12 | **Home Movie Super 8** | Kodak Ektachrome 100D 5294 | reversal (direct) | Reversal film in the Super 8 gauge |
 | 13 | **Worn Release Print** | Fujifilm Eterna Vivid 160 8543 | Kodak Vision 2383 | A well-run 35 mm release print, timed warm, with light film damage (v1.1) |
 | 14 | **Found Footage 16** | Fujifilm Eterna 250D 8563 | Kodak Vision 2383 (faded) | A battered, faded 16 mm reel with heavy film damage and drifting focus (v1.1) |
+
+## 0. Signature 250D / 2383
+
+**Intent.** The owner's own X-H2S setup: texture, feel and depth. VISION3 250D on the 2383 release print
+(IP / IN), ALEXA Colour 0.5, Filmic Contrast 1.047, a long soft roll-off, a warm colour head and steel-blue
+shadow toning, with Print Crossover 0.4.
+
+**Film edge (shared since 1.3).** Integrate 0 and Digital Sharpening Removal 1.5 take the digital edge off
+the footage, Acutance Radius 0.5 puts a fine film edge back, and a soft Aura (50 / 0.15) adds a wide glow
+around a tight halation. Every other preset gets this edge unless it sets its own.
+
+**Key settings.** Gauge 65 mm, ALEXA Colour on 0.5, Filmic Contrast 1.047, Roll-off Start 1.5 / Softness 1,
+Dye Saturation off, Negative Kodak Vision3 250D 5207, Print Kodak Vision 2383, Print Crossover 0.4,
+Rendering Release Print (IP / IN), Head Cyan 2.5, Head Yellow -3, Shadow Toning 0.5, Halation 0.76 at Radius
+2, Aura 50 / 0.15, Bloom Radius 20, Glimmerglass at grade 1/8, Grain Size 0.5, Grain Softness 0, Integrate
+0, Digital Sharpening Removal 1.5, Acutance Radius 0.5, Gate Weave 0.25, Vignette 0.15. Exposure, Scene
+White Balance and Highlight Latitude are per shot and not part of any preset (the owner uses Exposure -0.5,
+5800 K and Highlight Latitude on).
 
 ## 1. Studio Classic
 

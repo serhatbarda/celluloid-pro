@@ -150,6 +150,10 @@ unchanged in a newer one.
   2383's dyes with our own tone curve. The presets now use real stocks; faded and silver-retention
   prints are 2383 with the print controls. Studio Modern now uses Premier 2393 so it stays distinct
   from Warm Print.
+- **Signature 250D / 2383 preset**, first in the Look Preset menu: the owner's own setup. Because it
+  is inserted first, a project saved earlier shows the next preset's name in the menu; its saved values
+  and its render are unchanged. Every other preset now shares its film edge (Integrate 0, Digital
+  Sharpening Removal 1.5, Acutance Radius 0.5, a soft Aura) unless it sets its own.
 - **Finer grain**: Grain Size now goes down to 0.25 (was 0.5).
 - **The film gate border stays clean**: grain, halation, bloom, dust, scratches, weave and projection
   blur now act only on the picture. The frame line holds steady while the picture weaves under it.

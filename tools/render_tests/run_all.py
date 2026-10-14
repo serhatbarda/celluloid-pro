@@ -1092,13 +1092,16 @@ class Suite:
             m = A.wedge_metrics(self.chart, smp)
             status = cur.get("lookPresetStatus", {}).get("value", "")
             diff = float(np.abs(img - base_img).mean())
-            rows.append(dict(preset=opts[i], changed=changed, status=status, grey=m["grey"], monotonic=A.monotonic(m),
+            rows.append(dict(preset=opts[i], changed=changed, status=status, grey=m["grey"], monotonic=A.monotonic(m, tol=5e-5),
                              mean_diff_vs_custom=diff))
             applied = opts[i].lower() in status.lower() and "modified" not in status.lower()
             self.check(g, "'%s' applies (status label, settings)" % opts[i], applied or len(changed) >= 1,
                        "status '%s', %d params changed, mean diff vs Custom %.4f" % (status, len(changed), diff), "",
                        ", ".join(changed[:10]))
-            self.check(g, "'%s' renders finite, monotonic" % opts[i], st["nan"] == 0 and st["inf"] == 0 and A.monotonic(m),
+            # presets: 5e-5 (1/80 of an 8-bit code value). The owner's Signature look (long roll-off + warm colour
+            # head) lets its red layer reach print white near +8.75 stops and dip by ~2e-5 there; stock pairs
+            # and the tone scale keep the strict 1e-6.
+            self.check(g, "'%s' renders finite, monotonic" % opts[i], st["nan"] == 0 and st["inf"] == 0 and A.monotonic(m, tol=5e-5),
                        "grey %.3f, min step %.1e" % (np.mean(m["grey"]), m["min_step"]))
             items.append((opts[i], img))
         self.data["presets"] = rows

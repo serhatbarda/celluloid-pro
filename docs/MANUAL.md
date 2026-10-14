@@ -258,6 +258,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
 *Look presets and processing mode.*
 
 - **Look Preset** (`lookPreset`; default: Custom) — Curated starting points. Choosing a look sets the stock pair, development, print, halation, bloom, grain and lens settings in one go (input/output colour space, exposure and HDR settings are kept). Any later tweak keeps your changes; the status line below then shows "(modified)". Choose "Custom" to leave all settings as they are.
+  - *Signature 250D / 2383* — VISION3 250D on the Kodak 2383 release print with ALEXA colour and a gentle film roll-off: warm colour head, steel-blue shadow toning, print crossover. Fine, crisp 65 mm grain on a film edge with the digital sharpening removed, a tight halation with a soft Aura and a Glimmerglass bloom - texture and depth.
   - *Studio Classic* — The house look: VISION3 200T on the Kodak 2383 release print - natural skin, dense mid-tones, fine Super 35 grain.
   - *Tungsten Night Drama* — VISION2 500T pushed half a stop on the high-contrast Eterna-CP 3521XD print, timed cool: deep blacks, warm practicals, moody night interiors.
   - *Soft Daylight Pastel* — Portra 400 on the gentle Eterna-CP 3513DI print, printed light and warm: airy pastel colour, open shadows, gentle bloom.
@@ -699,7 +700,10 @@ rendering that keeps the negative's character without print contrast.
 
 ### Look presets
 
-Eighteen curated looks are in the **Look Preset** menu: Studio Classic, Tungsten Night Drama, Soft
+The **Look Preset** menu starts with **Signature 250D / 2383** (the owner's own setup: 250D on a
+2383 release print, fine 65 mm grain, tight halation with Aura, Glimmerglass bloom, digital sharpening
+removed). Every other preset now shares its film edge (Integrate 0, Digital Sharpening Removal 1.5,
+Acutance Radius 0.5, Aura 50 / 0.15) unless it sets its own. Then come Studio Classic, Tungsten Night Drama, Soft
 Daylight Pastel, Archive 1978, Silver Retention Thriller, Neon Nocturne, Golden Hour Portrait, Crisp
 Commercial, Summer Snapshot, Slide Show Brilliance, Monochrome Noir, Home Movie Super 8, the two
 film-damage looks Worn Release Print and Found Footage 16, Studio Modern, Soft Cinema, Warm Print and
