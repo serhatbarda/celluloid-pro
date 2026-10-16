@@ -4,6 +4,20 @@ All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [Unreleased]
+
+### Changed
+
+- **Look presets rebuilt: one preset per real camera stock (15)**, each on its own negative + print pairing
+  and using the full set of controls (colour head, print ends and toning, film gate, weave styles,
+  mechanical vignette, breathing, damage, bloom filters, grain format). Signature 250D / 2383 is unchanged.
+  Crisp Commercial and Soft Cinema keep their recipes; Studio Modern (now 200T), Warm Print (now Vision2
+  500T), Theatrical 2383 Warm (now Expression 500T) and Sunlit 35mm (soft scan) (now Eterna Vivid 160 on a
+  telecine scan, refined) keep their character on a new stock. New: Scope Night 500T / 2393, Portra 400
+  Editorial, Super 8 Ektachrome Diary, E100 Slide Projector, Kodachrome Travelogue, Double-X Silver Print,
+  Eterna 500 Skip Bleach, Reala Green Day. The other presets were removed. Projects store the preset menu
+  index, so an older project may show another preset's name; its saved values and render are unchanged.
+
 ## [1.3.0] — 2026-10-14
 
 ### Added

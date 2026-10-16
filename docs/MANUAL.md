@@ -597,7 +597,16 @@ Fujifilm Eterna-CP 3513DI: neutral and gentle, made for digital intermediates.
 - **LUT Size** (`lutSize`; default: 33) — Lattice size of the exported 3D LUT. 33 is the usual choice; 65 is the most accurate (larger file); 17 for devices with small LUT memory.
   - Options: 17 · 33 · 65
 - **Folder** (`lutPath`; folder; default empty) — Folder the LUT is written to (created if needed). Leave empty for the default folder `<Documents>/Reafilm` LUTs of the user who exports. File name: `Reafilm_<input>_<negative>_<print>_<output>.cube`. Add this folder to Resolve's LUT list (Project Settings > Color Management > Open LUT Folder) to use the LUTs elsewhere.
-- **Export LUT** (`lutExport`; button) — Writes the current colour settings (Color Only: input space, exposure, stocks, development, print, output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, cameras or other applications. The LUT expects the selected camera log as input (Linear Rec.2020: the file carries a log2 shaper).
+- **Export LUT** (`lutExport`; button) — Licensed version only. Writes the current colour settings (Color Only: input space, exposure, stocks, development, print, output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, cameras or other applications. The LUT expects the selected camera log as input (Linear Rec.2020: the file carries a log2 shaper).
+
+### License
+
+*Activation.*
+
+- **License Status** (`licenseStatus`; read-only) — Current license state. The trial includes every feature except LUT export; renders carry a small watermark until a license key is activated.
+- **License Key** (`licenseKey`; text field) — Paste the license key you received by e-mail (starts with CELL1-), then press Activate. The key is stored for your user account, not in the project; the field is cleared after activation.
+- **Activate** (`licenseActivate`; button) — Verifies the pasted key and activates Reafilm Pro on this computer.
+- **Deactivate** (`licenseRemove`; button) — Removes the license from this computer (for example before moving it to another machine). Renders return to trial mode.
 
 ### About
 
@@ -692,8 +701,8 @@ character. Printer lights correct any remaining tint.
 | Fujifilm Eterna-CP 3513DI | made for digital intermediates: neutral, gentle highlights, clean colour |
 
 A faded or silver-retention print is the real print with **Print Black / Print White**, **Shadow
-Toning**, **Dye Saturation** or **Print Bleach Bypass** (the Archive 1978 and Found Footage 16 presets
-show a faded print).
+Toning**, **Dye Saturation** or **Print Bleach Bypass** (Print Black / Print White pull a print towards a
+faded archive look).
 
 Instead of a print, **Process = Lab Scan** scans and inverts the negative: a flatter, more neutral
 rendering that keeps the negative's character without print contrast.
@@ -703,11 +712,12 @@ rendering that keeps the negative's character without print contrast.
 The **Look Preset** menu starts with **Signature 250D / 2383** (the owner's own setup: 250D on a
 2383 release print, fine 65 mm grain, tight halation with Aura, Glimmerglass bloom, digital sharpening
 removed). Every other preset now shares its film edge (Integrate 0, Digital Sharpening Removal 1.5,
-Acutance Radius 0.5, Aura 50 / 0.15) unless it sets its own. Then come Studio Classic, Tungsten Night Drama, Soft
-Daylight Pastel, Archive 1978, Silver Retention Thriller, Neon Nocturne, Golden Hour Portrait, Crisp
-Commercial, Summer Snapshot, Slide Show Brilliance, Monochrome Noir, Home Movie Super 8, the two
-film-damage looks Worn Release Print and Found Footage 16, Studio Modern, Soft Cinema, Warm Print and
-Sunlit 35mm (soft scan) (each is described in the controls reference above).
+Acutance Radius 0.5, Aura 50 / 0.15) unless it sets its own. Since 1.4 there is one preset per real
+camera stock, each on its own negative + print pairing: Crisp Commercial (50D), Studio Modern (200T), Soft
+Cinema (Eterna 250D), Warm Print (Vision2 500T), Sunlit 35mm (soft scan) (Eterna Vivid 160), Theatrical 2383
+Warm (Expression 500T), Scope Night 500T / 2393 (500T), Portra 400 Editorial, Super 8 Ektachrome Diary
+(100D), E100 Slide Projector, Kodachrome Travelogue, Double-X Silver Print, Eterna 500 Skip Bleach and Reala
+Green Day (each is described in the controls reference above).
 
 A preset is a complete recipe: it sets every look parameter (stocks, development, print, printer
 lights, halation, bloom, grain, lens and gate, film damage and film blur), and parameters it does
@@ -734,8 +744,8 @@ Values are starting points; trust your monitor.
 
 ### Night exterior (streets, neon, practicals)
 
-1. Preset **Neon Nocturne** (CN 800T No-Backing on P1) for strong halation, or **Tungsten Night
-   Drama** (CN 500T pushed half a stop on P3) for deeper blacks.
+1. Preset **Scope Night 500T / 2393** (500T pushed half a stop on Premier 2393) for strong halation
+   and deep blacks, or **Warm Print** (Vision2 500T on 2383) for a warmer night.
 2. Expose for the faces and the practicals, not for the black sky: night footage often needs
    **Exposure** +0.3 to +0.7 so the shadows sit on the toe of the curve instead of below it.
 3. Halation: the default physical halation (Threshold 0) gives every lit window and neon tube a thin
@@ -749,8 +759,8 @@ Values are starting points; trust your monitor.
 
 ### Skin-centric interview
 
-1. Preset **Studio Classic** (CN 200T on P1) for neutral, dense skin, or **Golden Hour Portrait**
-   (C41 Portrait 400, Lab Scan) for softer, warmer skin.
+1. Preset **Studio Modern** (200T on Eterna-CP 3521XD) for calm, dense skin, or **Portra 400
+   Editorial** (Lab Scan) for softer, warmer skin.
 2. Balance white before the node; then fine-tune skin with the printer lights in half points
    (**Printer Red** −0.5 warms, **Printer Green** +0.5 removes a green cast).
 3. Keep **Color Density** between 0.9 and 1.0: higher values separate colours but deepen skin
@@ -763,8 +773,8 @@ Values are starting points; trust your monitor.
 
 ### Music video
 
-1. Start from **Silver Retention Thriller** (hard, metallic) or **Crisp Commercial** (clean,
-   saturated). For colour-saturated stage light try **Slide Show Brilliance** (reversal: expose
+1. Start from **Eterna 500 Skip Bleach** (hard, metallic) or **Crisp Commercial** (clean,
+   saturated). For colour-saturated stage light try **E100 Slide Projector** (reversal: expose
    carefully, latitude is short, and there is no print stage to time).
 2. Push for attitude: **Push / Pull** +1 to +2 raises contrast and grain together; **Print Bleach
    Bypass** 0.3–0.6 adds the gritty release-print look.
@@ -777,13 +787,13 @@ Values are starting points; trust your monitor.
 
 ### Archival look
 
-1. Preset **Archive 1978** (CN Vintage 85 on P4 Faded Archive) for faded colour film, or **Home
-   Movie Super 8** for amateur reversal footage, or **Monochrome Noir** for black & white.
+1. Preset **Kodachrome Travelogue** for a 16 mm travel reel, or **Super 8 Ektachrome Diary** for
+   amateur reversal footage, or **Double-X Silver Print** for black & white.
 2. **Gauge** 16 mm or Super 8 (Look group), **Grain Softness** 0.7–0.8, **Acutance** 0–0.1 (old lenses
    and prints are soft).
 3. **Gate Weave** 0.4–0.8 at **Weave Speed** 0.8, **Vignette** 0.3–0.5.
-4. On Archive 1978, fade further with **Printer Red** −1 (warmer) and **Print Density** −1 for
-   denser, older-looking prints; P4's lifted blacks already provide the faded base. The Super 8
+4. On a print look, fade further with **Printer Red** −1 (warmer), **Print Density** −1 and a
+   lifted **Print Black** for an older-looking print. The Super 8
    preset uses a reversal stock, which has no printer lights: warm it with the balance before the
    node and set brightness with **Exposure**.
 5. For black & white, **BW 400 Panchromatic** renders colour like a real panchromatic emulsion: use
@@ -813,8 +823,8 @@ instead of sitting on top like an overlay:
 
 Recipe:
 
-1. Start from **Worn Release Print** (a well-run 35 mm print) or **Found Footage 16** (a battered
-   16 mm reel), or tick **Enable Film Damage** on any look.
+1. Start from **Double-X Silver Print** (light dust and scratches on a black & white print), or tick
+   **Enable Film Damage** on any look.
 2. Judge damage at 100 % zoom and in playback: single specks are one frame long and read as
    "film" only in motion.
 3. Keep damage subtle for drama (Dust Amount 0.3–0.6, Scratch Amount 0.2–0.5, Hair 0.2) and
@@ -1253,17 +1263,10 @@ The gate is a texture, so it never goes into an exported LUT.
 - **Mechanical Vignette** (Amount, Size, Softness): the dark edge where the lens hood or matte box cuts
   the image circle. It is on top of the Vignette's cos^4 fall-off and follows the Vignette switch.
 
-**New looks** (Look Preset, appended):
-
-| Look | What it gives you |
-|---|---|
-| Theatrical 2383 Warm | 250D through the release chain onto 2383, head timed warm, golden highlight toning |
-| Soft Telecine Scan | telecine render, lifted printed blacks, white Pro-Mist, telecine float |
-| 500T Night Exterior | 500T pushed half a stop on 2393, deep blacks, teal shadow toning, strong halation |
-| Scope Bleach Bypass | 2.39 camera gate, partial bleach bypass, steely contrast, cool shadows |
-| 16mm Documentary | Super 16 gate, Eterna 250D, 16 mm grain, camera weave, mechanical vignette |
-| Faded Magenta Print | an aged print: lifted blacks, magenta-red toning, lower saturation |
-| Sunlit 35mm Full Gate | the Sunlit 35mm soft scan timed warmer (warm head, lifted blacks), framed full gate |
+The Lab & Gate looks of 1.2 were folded into the 1.4 preset table (one preset per real camera stock, see
+*Look presets* above): Theatrical 2383 Warm and Sunlit 35mm (soft scan) use the colour head, telecine float
+and mechanical vignette; Scope Night 500T / 2393, Eterna 500 Skip Bleach and the Super 8 and Kodachrome
+looks use the film gate.
 
 ---
 
