@@ -855,7 +855,7 @@ void Pipeline::prepare(const LookParams& pin) {
     const size_t nTN = toneOn ? size_t(kToneN) : 0, nDN = dsatOn ? size_t(3) * kDsatN : 0;
     const size_t oTN = oNT + nNT, oDN = oTN + nTN;
     // v1.3 ALEXA Rendering (ColorState.h AL block): only when the stage or ALEXA Colour uses it
-    const bool alexa = p.stage == int(Stage::AlexaRec709) || p.alexaColour > 0.f;
+    const bool alexa = p.stage == int(Stage::AlexaRec709) || p.alexaColour > 0.f || p.alexaBlock;
     const size_t nAL = alexa ? size_t(CEL_AL_SIZE) : 0;
     const size_t oAL = oDN + nDN;
     const size_t total = oAL + nAL;

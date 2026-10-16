@@ -1029,6 +1029,15 @@ CEL_DEVICE void cel_k_color(CEL_KERNEL_PARAMS) {
     CelF3 sc = cel_f3(p.x, p.y, p.z);
     /* i[1] = 1: in0 is the encoded host source (Color Only plan: decode fused into this pass,
      * bit-identical to a separate decode pass) */
+    if (a->i[1] == 2) {   /* 1.4 wipe "before": the camera source as is, through the ALEXA Rec.709 rendering (no film) */
+        int sp = celc_i(state, CEL_CS_INPUT);
+        CelF3 l = cel_f3(celc_sanitize(celc_decode_transfer(sp, celc_sanitize(sc.x))), celc_sanitize(celc_decode_transfer(sp, celc_sanitize(sc.y))),
+                         celc_sanitize(celc_decode_transfer(sp, celc_sanitize(sc.z))));
+        l = celc_mat3(state, CEL_CS_MIN, l);
+        CelF3 b = celc_alexa_stage(state, l, cel_f3(0.0f, 0.0f, 0.0f), 0, cel_f4(0.0f, 0.0f, 0.0f, 0.0f));
+        cel_store(out, a->outStride, x, y, cel_f4(cel_finite_or(b.x, 0.0f), cel_finite_or(b.y, 0.0f), cel_finite_or(b.z, 0.0f), alpha));
+        return;
+    }
     if (a->i[1] != 0) sc = celc_decode_px(state, sc);
     if (v2) {   /* grain v2: dye clouds at the layer exposures of this pixel (stops re 18 % grey) */
         hasNoise = 0;

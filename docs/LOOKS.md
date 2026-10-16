@@ -142,7 +142,7 @@ White Balance and Highlight Latitude are per shot and not part of any preset (th
 **Intent.** 
             
 
-**Key settings.** `negStock` Kodak Portra 400, `process` Lab Scan, `zoneShadows` 0.3, `filmContrast` 0.92, `rolloffSoftness` 0.5, `dyeSaturation` 0.9, `dyeRichness` 0.35, `halationAmount` 0.35, `bloomFilter` Pro-Mist (white), `bloomFilterGrade` 0.25, `bloomAmount` 0.2, `grainEnable` true, `grainFormat` 35 mm Stills, `grainAmount` 0.8, `grainColour` 0.8, `acutanceAmount` 0.3.
+**Key settings.** `negStock` Kodak Portra 400, `process` Lab Scan, `filmContrast` 0.9, `rolloffSoftness` 0.5, `dyeSaturation` 0.9, `dyeRichness` 0.35, `halationAmount` 0.35, `bloomFilter` Pro-Mist (white), `bloomFilterGrade` 0.25, `bloomAmount` 0.2, `grainEnable` true, `grainFormat` 35 mm Stills, `grainAmount` 0.8, `grainColour` 0.8, `acutanceAmount` 0.3.
 
 ## 9. Super 8 Ektachrome Diary
 

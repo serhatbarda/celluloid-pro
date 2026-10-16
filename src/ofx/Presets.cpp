@@ -251,8 +251,7 @@ const std::vector<LookPreset>& lookPresets() {
             {
                 {"negStock", "Kodak Portra 400"},
                 {"process", "Lab Scan"},
-                {"zoneShadows", "0.3"},
-                {"filmContrast", "0.92"},
+                {"filmContrast", "0.9"},
                 {"rolloffSoftness", "0.5"},
                 {"dyeSaturation", "0.9"},
                 {"dyeRichness", "0.35"},

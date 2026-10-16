@@ -119,6 +119,7 @@ struct LookParams {
     float dyeSatBalance = 0.f;   // -1 (shadows) .. +1 (highlights): where the saturation change acts most
     // ---- v1.3 ALEXA Rendering (appended, SPEC 13): defaults = off, bit-identical
     float alexaColour = 0.f;     // 0 .. 1: ALEXA Colour strength (scene-linear, before the negative; 0 = off)
+    bool  alexaBlock = false;    // 1.4: build the ALEXA block anyway (the Before / After Wipe shows the source through it)
     // ---- v1.3 Highlight Latitude (appended, SPEC 13): off by default, bit-identical. Scene-linear in the camera's
     // own gamut right after the log decode (before Sensor Match, Exposure, the negative and the ALEXA rendering);
     // Fujifilm F-Log2 C / F-Log2 input only

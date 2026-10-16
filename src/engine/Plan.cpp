@@ -817,9 +817,16 @@ Plan buildPlan(int w, int h, const FrameSettings& fs, const core::Pipeline& pipe
         const int go = (fs.watermark || wipe) ? B.buffer(w, h) : int(BUF_DST);
         finalOut = addCleanGate(B, finalOut, go, tp, colorK, printerGateOn(tp), w, h, ps);
     }
-    if (wipe) {   // the host source (before) left of the line, the result (after) right of it
+    if (wipe) {   // the source (before) left of the line, the result (after) right of it
+        // 1.4: "before" is the camera source through the ALEXA Rec.709 rendering in the output space, not the log
+        // source (Texture Only works on a display-referred source, which is already a viewable before)
+        int before = int(BUF_SRC);
+        if (fs.mode != core::Mode::TextureOnly && fs.look.stage != int(core::Stage::PrintOnly)) {
+            before = B.buffer(w, h);
+            B.pass(KID_color, before, {int(BUF_SRC), -1, -1}).args.i[1] = 2;
+        }
         const int wo = fs.watermark ? B.buffer(w, h) : int(BUF_DST);
-        PassDesc& dp = B.pass(KID_tx_diag, wo, {finalOut, BUF_SRC});
+        PassDesc& dp = B.pass(KID_tx_diag, wo, {finalOut, before});
         dp.args.i[0] = 4;
         dp.args.f[2] = std::min(1.f, tp.diagWipe);
         finalOut = wo;

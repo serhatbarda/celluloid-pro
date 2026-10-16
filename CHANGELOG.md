@@ -8,6 +8,9 @@ unchanged in a newer one.
 
 ### Changed
 
+- **Before / After Wipe**: the "before" side is now a plain Rec.709 view of the camera (the neutral ALEXA
+  rendering, in the output space) instead of the flat log input, so the comparison is meaningful. Texture Only
+  and Print Only still show the input as it is.
 - **Look presets rebuilt: one preset per real camera stock (15)**, each on its own negative + print pairing
   and using the full set of controls (colour head, print ends and toning, film gate, weave styles,
   mechanical vignette, breathing, damage, bloom filters, grain format). Signature 250D / 2383 is unchanged.

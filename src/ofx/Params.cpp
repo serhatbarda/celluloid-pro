@@ -1058,7 +1058,8 @@ std::vector<ParamDef> build() {
               "around middle grey: everything halation, bloom, grain, sharpness, weave and damage change.",
               false);
     b.boolean(id::diagWipe, "Before / After Wipe (diagnostic)", false,
-              "DIAGNOSTIC VIEW - switch off before rendering. Splits the viewer: the untouched input on the left, the result on the right, with a white "
+              "DIAGNOSTIC VIEW - switch off before rendering. Splits the viewer: the input on the left, shown as a plain Rec.709 view "
+              "(the camera through the neutral ALEXA rendering, in the output space - not the flat log), the result on the right, with a white "
               "line at Wipe Position. While a Show view is on, that view fills the whole viewer instead.",
               false);
     b.dbl(id::diagWipePosition, "Wipe Position", 0.5, 0.0, 1.0, 0.01, 2,

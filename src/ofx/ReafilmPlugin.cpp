@@ -198,7 +198,7 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.zoneSpecular == b.zoneSpecular && a.zoneSpecularRange == b.zoneSpecularRange && a.zoneFalloff == b.zoneFalloff &&
            a.filmContrast == b.filmContrast && a.contrastPivot == b.contrastPivot && a.rolloffStart == b.rolloffStart &&
            a.rolloffSoftness == b.rolloffSoftness && a.dyeSaturation == b.dyeSaturation && a.dyeRichness == b.dyeRichness &&
-           a.dyeSatBalance == b.dyeSatBalance && a.alexaColour == b.alexaColour &&
+           a.dyeSatBalance == b.dyeSatBalance && a.alexaColour == b.alexaColour && a.alexaBlock == b.alexaBlock &&
            a.latitudeOn == b.latitudeOn && a.latitudeStops == b.latitudeStops && a.latitudeSoftness == b.latitudeSoftness &&
            a.latitudeReconstruct == b.latitudeReconstruct && a.latitudeDesaturate == b.latitudeDesaturate &&
            a.latitudeClip == b.latitudeClip &&
@@ -552,6 +552,7 @@ core::LookParams ReafilmEffect::lookAt(double t) const {
     }
     // v1.3 ALEXA Colour (switched off = 0; core ignores it in the ALEXA Rec.709 stage)
     if (flag(id::alexaColourEnable, t)) lp.alexaColour = float(num(id::alexaColour, t));
+    lp.alexaBlock = flag(id::diagWipe, t);   // 1.4: the wipe's "before" side uses the ALEXA Rec.709 rendering
     // v1.3 Highlight Latitude (switched off = off; core ignores it for non-F-Log2 input and Print Only)
     if (flag(id::latitudeEnable, t)) {
         lp.latitudeOn = true;
