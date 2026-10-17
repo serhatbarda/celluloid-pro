@@ -183,8 +183,9 @@ const std::vector<std::string>& printProvenance() {
 bool sameLook(const core::LookParams& a, const core::LookParams& b) {
     return a.input == b.input && a.output == b.output && a.exposure == b.exposure && a.negStock == b.negStock &&
            a.pushPull == b.pushPull && a.interlayer == b.interlayer && a.negBleach == b.negBleach &&
-           a.neutralize == b.neutralize && a.process == b.process && a.printStock == b.printStock &&
-           a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
+           a.neutralize == b.neutralize && a.crossProcess == b.crossProcess && a.pushRated == b.pushRated &&
+           a.process == b.process &&
+           a.printStock == b.printStock && a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
            a.cameraEmulation == b.cameraEmulation && a.emulationStrength == b.emulationStrength &&
            a.printCrossover == b.printCrossover &&
@@ -511,7 +512,9 @@ core::LookParams ReafilmEffect::lookAt(double t) const {
         lp.interlayer = float(num(id::interlayer, t));
         lp.negBleach = float(num(id::negBleach, t));
         lp.neutralize = float(num(id::neutralize, t));
-    }   // else: LookParams defaults = standard development (0 / 1 / 0 / 0)
+        lp.pushRated = flag(id::pushUnder, t);   // rated speed: a push was shot under, a pull over
+    }
+    lp.crossProcess = flag(id::crossProcess, t);   // else: LookParams defaults = standard development (0 / 1 / 0 / 0)
     lp.process = core::Process(clampIdx(choice(id::process, t), int(core::Process::Count)));
     lp.printStock = clampIdx(choice(id::printStock, t), int(core::printStockNames().size()));
     if (flag(id::printEnable, t)) {
@@ -1224,7 +1227,8 @@ void ReafilmEffect::refreshEnabledness(double t) {
     syncStockLists(t);
     const core::Mode mode = effectiveMode(t);
     const core::NegativeStockInfo* st = stockInfo(choice(id::negStock, t));
-    const bool reversal = st && st->reversal;
+    const bool slide = st && st->reversal;
+    const bool reversal = slide && !flag(id::crossProcess, t);   // cross-processed: printed as a negative
     const bool mono = st && st->monochrome;
     const bool scan = core::Process(choice(id::process, t)) == core::Process::NegativeScan;
     const bool colour = mode != core::Mode::TextureOnly;
@@ -1255,6 +1259,8 @@ void ReafilmEffect::refreshEnabledness(double t) {
     setEnabled(id::interlayer, colour && devOn && !mono);
     setEnabled(id::negBleach, colour && devOn);
     setEnabled(id::neutralize, colour && devOn && !mono);
+    setEnabled(id::pushUnder, colour && devOn);
+    setEnabled(id::crossProcess, colour && slide);
     setEnabled(id::process, colour && !reversal);
     setEnabled(id::printStock, colour && !reversal && !scan);
     setEnabled(id::printEnable, colour && !reversal);
@@ -1355,7 +1361,7 @@ void ReafilmEffect::refreshEnabledness(double t) {
         setEnabled(id::alexaColour, colour && !alexaStage && sc != StageChoice::PrintOnly && acOn);
         if (alexaStage) {
             for (const char* p : {id::negStock, id::developmentEnable, id::pushPull, id::interlayer, id::negBleach,
-                                  id::neutralize, id::process, id::printStock, id::printEnable, id::printerR, id::printerG,
+                                  id::neutralize, id::pushUnder, id::crossProcess, id::process, id::printStock, id::printEnable, id::printerR, id::printerG,
                                   id::printerB, id::printExposure, id::printBleach, id::printCrossover, id::printLabEnable,
                                   id::projectionWhite, id::printAim, id::printContrast, id::printRender, id::rolloffEnable,
                                   id::rolloffStart, id::rolloffSoftness, id::dyeSatEnable, id::dyeSaturation, id::dyeRichness,
@@ -1557,7 +1563,7 @@ void ReafilmEffect::exportLut(double t) {
     const std::vector<std::string> ins = core::inputSpaceNames();
     const std::string negName = st ? st->name : "Negative";
     std::string printName;
-    if (st && st->reversal) printName = "Reversal";
+    if (st && st->reversal && !lp.crossProcess) printName = "Reversal";
     else if (lp.process == core::Process::NegativeScan) printName = "Lab Scan";
     else printName = size_t(lp.printStock) < prints.size() ? prints[size_t(lp.printStock)] : "Print";
     const std::string outName = size_t(lp.output) < outs.size() ? outs[size_t(lp.output)] : "Output";

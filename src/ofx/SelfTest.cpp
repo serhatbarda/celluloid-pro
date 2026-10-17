@@ -204,6 +204,8 @@ int main() {
     check(hasBool("grainEnable", true), "grainEnable default true");
     check(hasBool("grainAnimated", true), "grainAnimated default true");
     check(hasBool("stillPhoto", false), "stillPhoto default false (moving footage)");
+    check(hasBool("pushUnder", false), "pushUnder default false (Push / Pull = development only)");
+    check(hasBool("crossProcess", false), "crossProcess default false (normal processing)");
 
     // ---- module switches (v1.1, SPEC §7): one Bool per module, placed directly before the controls it
     // switches, default ON for every module that existed in v1.0 (projects saved before the switch
@@ -216,7 +218,7 @@ int main() {
     };
     const std::vector<Switch> switches = {
         {"exposureEnable", "groupInput", true, false, {"exposure"}},
-        {"developmentEnable", "groupNegative", true, true, {"pushPull", "interlayer", "negBleach", "neutralize"}},
+        {"developmentEnable", "groupNegative", true, true, {"pushPull", "pushUnder", "interlayer", "negBleach", "neutralize"}},
         {"printEnable", "groupPrint", true, true, {"printerR", "printerG", "printerB", "printExposure", "printBleach"}},
         {"halationEnable", "groupHalation", true, true, {"halationAmount", "halationRadius", "halationThreshold", "halationHue",
                                                          "halationSaturation", "halationBackground", "auraEnable"}},

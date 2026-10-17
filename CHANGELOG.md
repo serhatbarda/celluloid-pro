@@ -4,6 +4,20 @@ All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.8.0] — 2026-10-17
+
+### Added
+
+- **Shot Under / Over** (Negative, off by default): Push / Pull as a photographer does it. The film was rated
+  faster or slower in the camera, so a +2 push also means the scene was exposed 2 stops under; the lab then
+  times the print (or sets the scan) for that thin negative. Mid-tones come back to normal, the shadows
+  thicken and the highlights harden; a pull shot over gives a soft, dense negative.
+- **Cross Process** (Negative, off by default, slide stocks only): slide film developed in negative chemistry
+  (E-6 in C-41) and then printed or scanned like a negative. High contrast, saturated colour and the
+  uneven casts of an unmasked negative (on a print: warm-pink highlights over green-cyan shadows; the
+  Printer Lights rebalance it). Lab Scan gives a milder version.
+- Bleach bypass was already there: Neg Bleach Bypass (Negative) and Print Bleach Bypass (Print).
+
 ## [1.7.0] — 2026-10-17
 
 ### Added

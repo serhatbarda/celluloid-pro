@@ -153,6 +153,10 @@ struct LookParams {
     // Print Toning: dye toning of the print's shadows / highlights (hue in degrees of the image colour, 0 = red)
     float toneShadowHue = 220.f, toneShadowAmount = 0.f;   // amount 0 .. 1 (1 = 0.10 density)
     float toneHighlightHue = 50.f, toneHighlightAmount = 0.f;
+    // v1.8 darkroom: cross-processing (a reversal stock developed as a negative, then printed or scanned)
+    bool  crossProcess = false;
+    // v1.8 Shot Under / Over: the scene was exposed -pushPull stops (rated speed) and the lab timed the print for it
+    bool  pushRated = false;
 };
 
 // v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 5c.1

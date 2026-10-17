@@ -113,8 +113,8 @@ static bool sameTimer(const LookParams& a, const LookParams& b) {
 
 static bool sameFilm(const LookParams& a, const LookParams& b) {
     return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
-           a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.process == b.process &&
-           a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover &&
+           a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.crossProcess == b.crossProcess &&
+           a.pushRated == b.pushRated && a.process == b.process && a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover &&
            a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
            a.printContrast == b.printContrast &&   // v1.3 print lab
            a.rolloffStart == b.rolloffStart && a.rolloffSoftness == b.rolloffSoftness &&   // v1.3: the print curve
@@ -134,8 +134,8 @@ static bool sameTone(const LookParams& a, const LookParams& b) {
 static bool sameParams(const LookParams& a, const LookParams& b) {
     return a.input == b.input && a.output == b.output && a.exposure == b.exposure && a.negStock == b.negStock &&
            a.pushPull == b.pushPull && a.interlayer == b.interlayer && a.negBleach == b.negBleach &&
-           a.neutralize == b.neutralize && a.process == b.process && a.printStock == b.printStock &&
-           a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
+           a.neutralize == b.neutralize && a.crossProcess == b.crossProcess && a.pushRated == b.pushRated &&
+           a.process == b.process && a.printStock == b.printStock && a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
            a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount && a.cameraEmulation == b.cameraEmulation &&
            a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover && a.stage == b.stage &&
@@ -155,6 +155,9 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
 
 static float clampf(float v, float lo, float hi) { return std::isfinite(v) ? std::min(std::max(v, lo), hi) : lo; }
 
+// a reversal stock is a direct positive unless it is cross-processed (developed as a negative, v1.8)
+static bool reversalChain(const LookParams& p) { return st::negative(p.negStock).kind == st::kReversal && !p.crossProcess; }
+
 static LookParams sanitize(LookParams p) {
     if (int(p.input) < 0 || int(p.input) >= int(InputSpace::Count)) p.input = InputSpace::FLog2C;
     if (int(p.output) < 0 || int(p.output) >= int(OutputSpace::Count)) p.output = OutputSpace::Rec709_G24;
@@ -163,6 +166,7 @@ static LookParams sanitize(LookParams p) {
     p.printStock = std::min(std::max(p.printStock, 0), st::numPrints() - 1);
     p.exposure = std::isfinite(p.exposure) ? clampf(p.exposure, -8.f, 8.f) : 0.f;
     p.pushPull = std::isfinite(p.pushPull) ? clampf(p.pushPull, -2.f, 3.f) : 0.f;
+    p.pushRated = p.pushRated && p.pushPull != 0.f;
     p.interlayer = std::isfinite(p.interlayer) ? clampf(p.interlayer, 0.f, 2.f) : 1.f;
     p.negBleach = clampf(p.negBleach, 0.f, 1.f);
     p.neutralize = clampf(p.neutralize, 0.f, 1.f);
@@ -181,7 +185,8 @@ static LookParams sanitize(LookParams p) {
     // path's tables (printing density is defined by the print stock), so Process is normalised to Print
     if (p.stage < 0 || p.stage >= int(Stage::Count)) p.stage = 0;
     if (p.sceneEncoding < 0 || p.sceneEncoding >= int(SceneEncoding::Count)) p.sceneEncoding = 0;
-    if (st::negative(p.negStock).kind == st::kReversal && p.stage != int(Stage::AlexaRec709)) p.stage = 0;
+    p.crossProcess = p.crossProcess && st::negative(p.negStock).kind == st::kReversal;
+    if (reversalChain(p) && p.stage != int(Stage::AlexaRec709)) p.stage = 0;
     if (p.stage != 0) p.process = Process::NegativeToPrint;
     // v1.3 ALEXA Rendering: ALEXA Colour is part of the film chain (the ALEXA Rec.709 stage renders it itself)
     p.alexaColour = p.stage == int(Stage::AlexaRec709) ? 0.f : clampf(p.alexaColour, 0.f, 1.f);
@@ -227,7 +232,7 @@ static LookParams sanitize(LookParams p) {
         p.rolloffStart = num(p.rolloffStart, 0.5f, 8.f, d.rolloffStart);
         p.rolloffSoftness = num(p.rolloffSoftness, -1.f, 1.f, 0.f);
         // the print curve is reshaped on the print path only (reversal originals and the lab scan keep theirs)
-        if (p.rolloffSoftness == 0.f || st::negative(p.negStock).kind == st::kReversal || p.process == Process::NegativeScan) {
+        if (p.rolloffSoftness == 0.f || reversalChain(p) || p.process == Process::NegativeScan) {
             p.rolloffSoftness = 0.f;
             p.rolloffStart = d.rolloffStart;
         }
@@ -255,7 +260,7 @@ static LookParams sanitize(LookParams p) {
         const LookParams d;
         auto num = [](float v, float lo, float hi, float def) { return std::isfinite(v) ? clampf(v, lo, hi) : def; };
         auto hue = [](float v, float def) { return std::isfinite(v) ? float(std::fmod(std::fmod(double(v), 360.0) + 360.0, 360.0)) : def; };
-        const bool printing = st::negative(p.negStock).kind != st::kReversal && p.process == Process::NegativeToPrint;
+        const bool printing = !reversalChain(p) && p.process == Process::NegativeToPrint;
         p.headCyan = num(p.headCyan, -60.f, 60.f, 0.f);
         p.headMagenta = num(p.headMagenta, -60.f, 60.f, 0.f);
         p.headYellow = num(p.headYellow, -60.f, 60.f, 0.f);
@@ -810,9 +815,12 @@ void Pipeline::prepare(const LookParams& pin) {
     const st::NegDef& neg = st::negative(ni);
     const st::PrintDef& prt = st::print(pi);
     const bool mono = neg.kind == st::kBW;
-    const bool rev = neg.kind == st::kReversal;
+    const bool rev = reversalChain(p);
     const int kind = rev ? 2 : (p.process == Process::NegativeScan ? 1 : 0);
     m_negIndex = ni;
+    // Shot Under / Over: the lab times the print (or sets the scan) for the grey the camera recorded (2^-push of 18 %)
+    const float greyIn = 0.18f * float(std::exp2(p.pushRated ? -double(p.pushPull) : 0.0));
+    const double xGrey = kLog10Grey + std::log10(double(greyIn) / 0.18);
 
     // ---- cached bakes
     auto exp = exposureLut(ni);
@@ -889,7 +897,7 @@ void Pipeline::prepare(const LookParams& pin) {
     s[CEL_CS_KIND] = float(kind);
     s[CEL_CS_MONO] = mono ? 1.f : 0.f;
     s[CEL_CS_HDR] = p.output == OutputSpace::Rec2100_PQ ? 1.f : (p.output == OutputSpace::Rec2100_HLG ? 2.f : 0.f);
-    s[CEL_CS_GAIN] = float(std::exp2(double(p.exposure)));
+    s[CEL_CS_GAIN] = float(std::exp2(double(p.exposure) - (p.pushRated ? double(p.pushPull) : 0.0)));
     if (p.sceneWbOn)   // v1.3 P1 Scene White Balance (scene light, before everything after the input matrix)
         putMat(s, CEL_CS_MIN, sceneWbMatrix(p) * spec::rgbToRgb(inputGamut(p.input), spec::Gamut::Rec2020));
     else
@@ -921,7 +929,16 @@ void Pipeline::prepare(const LookParams& pin) {
 
     // ---- negative / reversal curves (push, neutralize): cheap, rebuilt every prepare
     st::CurveDef cs[3];
-    for (int i = 0; i < 3; ++i) cs[i] = pushCurve(mono ? neg.curves[0] : neg.curves[i], p.pushPull, rev);
+    for (int i = 0; i < 3; ++i) {
+        st::CurveDef c = mono ? neg.curves[0] : neg.curves[i];
+        if (p.crossProcess) {   // cross-processed: the slide's layer developed as a negative (mirrored, toe 1.2
+            // log H under grey, layer speed differences kept) at 0.4 x its contrast (about 1.5 x a camera negative)
+            const double xm = (neg.curves[0].x0 + neg.curves[1].x0 + neg.curves[2].x0) / 3.0;   // slides are colour
+            c.x0 = kLog10Grey - 1.2 - (c.x0 - xm);
+            c.gamma *= 0.4;
+        }
+        cs[i] = pushCurve(c, p.pushPull, rev);
+    }
     {
         std::vector<double> d(nNC);
         for (int i = 0; i < 3; ++i)
@@ -1002,8 +1019,8 @@ void Pipeline::prepare(const LookParams& pin) {
             double f = t - i;
             return double(D[size_t(i) * 3 + 1]) + (double(D[size_t(i + 1) * 3 + 1]) - D[size_t(i) * 3 + 1]) * f;
         };
-        const double gGrey = fwdG(kLog10Grey);
-        const double gam = (fwdG(kLog10Grey + 0.15) - fwdG(kLog10Grey - 0.15)) / 0.3;
+        const double gGrey = fwdG(xGrey);
+        const double gam = (fwdG(xGrey + 0.15) - fwdG(xGrey - 0.15)) / 0.3;
         const size_t oSC = oPJ;   // scan has no projection block: the inversion LUT takes its place
         // part of the negative's own crossover is kept: each channel blends the neutral-referenced
         // inversion with its own per-channel inversion (own grey density / gamma); stock contrast
@@ -1015,8 +1032,8 @@ void Pipeline::prepare(const LookParams& pin) {
             return double(D[size_t(i) * 3 + j]) + (double(D[size_t(i + 1) * 3 + j]) - D[size_t(i) * 3 + j]) * f;
         };
         for (int j = 0; j < 3; ++j) {
-            const double jGrey = fwdJ(j, kLog10Grey);
-            const double jGam = (fwdJ(j, kLog10Grey + 0.15) - fwdJ(j, kLog10Grey - 0.15)) / 0.3;
+            const double jGrey = fwdJ(j, xGrey);
+            const double jGam = (fwdJ(j, xGrey + 0.15) - fwdJ(j, xGrey - 0.15)) / 0.3;
             const double d0 = D[size_t(j)], d1 = D[size_t(K - 1) * 3 + j];
             s[CEL_CS_SD0 + j] = float(d0);
             s[CEL_CS_SD1 + j] = float(d1);
@@ -1068,7 +1085,7 @@ void Pipeline::prepare(const LookParams& pin) {
         auto setOff = [&](const double o[3]) { for (int j = 0; j < 3; ++j) s[CEL_CS_OFF + j] = float(o[j]); };
         setOff(off);
         if (kind == 0) {   // per-layer bisection on the print curve as the starting point
-            CelcNeg ng = celc_negative(s, cel_f3(0.18f, 0.18f, 0.18f), cel_f3(0, 0, 0), 0);
+            CelcNeg ng = celc_negative(s, cel_f3(greyIn, greyIn, greyIn), cel_f3(0, 0, 0), 0);
             CelF3 h = celc_lut3(s, int(oPL), dye->lut.n, float(dye->lut.maxv), ng.d);
             for (int j = 0; j < 3; ++j) {
                 double lo = kPrtU0, hi = kPrtU1;
@@ -1084,7 +1101,7 @@ void Pipeline::prepare(const LookParams& pin) {
                 double lo = -4.0, hi = 4.0;
                 for (int it = 0; it < 60; ++it) {
                     double mid = 0.5 * (lo + hi);
-                    float D = celc_lut1(s, int(oNC), kNCurve, j, float(kNegX0), float(kNegX1), float(kLog10Grey + mid));
+                    float D = celc_lut1(s, int(oNC), kNCurve, j, float(kNegX0), float(kNegX1), float(xGrey + mid));
                     if (double(D) - s[CEL_CS_DMIN + j] > dt) lo = mid; else hi = mid;
                 }
                 off[j] = 0.5 * (lo + hi);
@@ -1092,7 +1109,7 @@ void Pipeline::prepare(const LookParams& pin) {
         }
         auto f = [&](const double o[3], double out[3]) {
             setOff(o);
-            CelF3 X = Grey::film(S, 0.18f);
+            CelF3 X = Grey::film(S, greyIn);
             out[0] = std::log10(std::max(double(X.x), 1e-12));
             out[1] = std::log10(std::max(double(X.y), 1e-12));
             out[2] = std::log10(std::max(double(X.z), 1e-12));
@@ -1133,9 +1150,9 @@ void Pipeline::prepare(const LookParams& pin) {
 
     // ---- HDR calibration on the balanced state: mid grey -> 15 nits, unroll to peak
     {
-        CelF3 Xg = Grey::film(S, 0.18f);
+        CelF3 Xg = Grey::film(S, greyIn);
         // the unroll reaches the display peak at +10 stops over grey (reference/model.py calibrate_hdr)
-        CelF3 Xw = Grey::film(S, 0.18f * 1024.f);
+        CelF3 Xw = Grey::film(S, greyIn * 1024.f);
         double Lref = kHdrGreyNits / std::max(double(Xg.y), 1e-6);
         double peak = p.output == OutputSpace::Rec2100_PQ ? double(p.hdrPeakNits) : 1000.0;
         double t10 = (10.0 * std::log10(2.0) - CEL_HDR_E0) / CEL_HDR_ER;
@@ -1162,7 +1179,7 @@ void Pipeline::prepare(const LookParams& pin) {
             const double e3[3] = {1.0 / std::sqrt(3.0), 1.0 / std::sqrt(3.0), 1.0 / std::sqrt(3.0)};
             const double lum[3] = {0.26270021, 0.67799807, 0.05930172};
             const int N = kHoldN;
-            CelF3 g0 = Grey::film(S, 0.18f);
+            CelF3 g0 = Grey::film(S, greyIn);
             const float gx = celc_labf(g0.x / g0.y / CEL_D65_X), gy = celc_labf(1.f), gz = celc_labf(g0.z / g0.y / CEL_D65_Z);
             parallelRows(N, [&](int r0, int r1) {
                 for (int jv = r0; jv < r1; ++jv)
@@ -1191,7 +1208,7 @@ void Pipeline::prepare(const LookParams& pin) {
             if (C.hold.size() > kHoldCacheEntries) C.hold.pop_back();
         }
         std::memcpy(&S[oHA], C.hold.front().anchor.data(), nHA * sizeof(float));
-        CelF3 g = Grey::film(S, 0.18f);
+        CelF3 g = Grey::film(S, greyIn);
         s[CEL_CS_HOLD_N0] = g.x / g.y; s[CEL_CS_HOLD_N0 + 1] = 1.f; s[CEL_CS_HOLD_N0 + 2] = g.z / g.y;
         s[CEL_CS_HOLD_A_OFF] = float(oHA);
         s[CEL_CS_HOLD_A_N] = float(kHoldN);
@@ -1212,13 +1229,13 @@ void Pipeline::prepare(const LookParams& pin) {
         const double cmy[3] = {p.headCyan, p.headMagenta, p.headYellow};
         double hd[3];
         colourHeadLogH(ni, pi, cmy, hd);
-        const double y0 = std::log10(std::max(double(Grey::film(S, 0.18f).y), 1e-12));
+        const double y0 = std::log10(std::max(double(Grey::film(S, greyIn).y), 1e-12));
         float base[3];
         for (int j = 0; j < 3; ++j) { base[j] = s[CEL_CS_OFF + j]; s[CEL_CS_OFF + j] = float(base[j] + hd[j]); }
         if (p.headPreserve > 0.f) {
             auto lY = [&](double c) {
                 for (int j = 0; j < 3; ++j) s[CEL_CS_OFF + j] = float(base[j] + hd[j] + c);
-                return std::log10(std::max(double(Grey::film(S, 0.18f).y), 1e-12));
+                return std::log10(std::max(double(Grey::film(S, greyIn).y), 1e-12));
             };
             double c = 0.0, f0 = lY(0.0) - y0;
             for (int it = 0; it < 12 && std::fabs(f0) > 1e-6; ++it) {   // secant-Newton on the common light change
@@ -1238,7 +1255,7 @@ void Pipeline::prepare(const LookParams& pin) {
     //      the reference log exposure (reference/model.py bake_hold_neutral)
     s[CEL_CS_BLACK_N] = 0.f;
     if (hold) {
-        const float xr0 = celc_film_xyz(s, cel_f3(0.18f, 0.18f, 0.18f), cel_f3(0, 0, 0), 0).xref;
+        const float xr0 = celc_film_xyz(s, cel_f3(greyIn, greyIn, greyIn), cel_f3(0, 0, 0), 0).xref;
         std::vector<CelF3> nx(static_cast<size_t>(kHoldNX));
         for (int k = 0; k < kHoldNX; ++k) {
             double x = CEL_HOLD_X0 + (CEL_HOLD_X1 - CEL_HOLD_X0) * k / (kHoldNX - 1);

@@ -449,8 +449,8 @@ std::vector<ParamDef> build() {
             .persistent = false;
     }
     b.boolean(id::developmentEnable, "Enable Development", true,
-              "Switches the development controls below (Push / Pull, Color Density, Neg Bleach Bypass, Neutralize) "
-              "on or off without losing their values. Off = the stock's standard development: no push or pull, "
+              "Switches the development controls below (Push / Pull, Shot Under / Over, Color Density, Neg Bleach "
+              "Bypass, Neutralize) on or off without losing their values. Off = the stock's standard development: no push or pull, "
               "nominal colour density, normal bleach, the stock's own curves. The film stock itself always stays "
               "active - it is the look.",
               true);
@@ -459,6 +459,12 @@ std::vector<ParamDef> build() {
           "coarser (about x1.25 per stop); pull (-) gives a softer, lower-contrast, finer-grained negative. "
           "Unlike Exposure this changes the curve shape, not the position on it.",
           true);
+    b.boolean(id::pushUnder, "Shot Under / Over", false,
+              "Push / Pull as a photographer does it: the film was rated faster (push) or slower (pull) in the "
+              "camera, so a push of +2 also means the scene was exposed 2 stops under, and a pull of -1 that it was "
+              "exposed 1 stop over. Pushing then gives thin, grainy shadows and hard highlights; pulling a dense, "
+              "soft negative. Off = Push / Pull changes the development only and the exposure stays where it is.",
+              true);
     b.dbl(id::interlayer, "Color Density", 1.0, 0.0, 2.0, 0.01, 2,
           "Interlayer (DIR) effect: how strongly the dye layers inhibit each other. 1 = the stock's nominal "
           "colour density; higher values give denser, more separated colours, 0 a flatter, purer-channel "
@@ -473,6 +479,12 @@ std::vector<ParamDef> build() {
           "Removes the stock's per-layer curve differences (the subtle colour crossover between shadows and "
           "highlights). 0 = the stock's natural character, 1 = perfectly neutral greys from black to white.",
           true);
+    b.boolean(id::crossProcess, "Cross Process", false,
+              "Slide (reversal) film developed in negative chemistry (E-6 film in C-41), then printed or scanned "
+              "like a negative - the cross-processed look: very high contrast, saturated colour and strong, "
+              "uneven colour casts from the missing orange mask. Use Process and Print Stock as for a negative; "
+              "the Printer Lights correct the cast. Slide stocks only.",
+              true);
     b.label(id::negProvenance, "Stock Data", negs.empty() ? std::string() : negs[size_t(std::max(negDefault, 0))].provenance,
             "Where the selected film stock's data comes from (v1.3): a manufacturer data sheet (fitted, not measured "
             "from film), partly borrowed from a named proxy stock, a Reafilm design, or a style approximation.")

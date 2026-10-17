@@ -86,6 +86,8 @@ constexpr const char* mode = "mode";
 constexpr const char* inputSpace = "inputSpace";
 constexpr const char* exposure = "exposure";
 constexpr const char* stillPhoto = "stillPhoto";               // v1.5 [Input] still photo mode
+constexpr const char* pushUnder = "pushUnder";                 // v1.8 [Negative] push / pull includes the exposure
+constexpr const char* crossProcess = "crossProcess";           // v1.8 [Negative] slide film developed as a negative
 // [Negative]
 constexpr const char* negStock = "negStock";
 constexpr const char* pushPull = "pushPull";

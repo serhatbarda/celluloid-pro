@@ -1412,6 +1412,55 @@ static void testAlexa() {
     }
 }
 
+// ----------------------------------------------------------------------- v1.8 darkroom
+static void testDarkroom() {
+    std::printf("[darkroom: shot under / over, cross process]\n");
+    for (Process pr : {Process::NegativeToPrint, Process::NegativeScan}) {
+        Pipeline P0, P;
+        LookParams lp = lpFor(1, 5, pr, OutputSpace::Rec709_G24);
+        P0.prepare(lp);
+        for (float push : {2.f, -1.f}) {
+            LookParams lr = lp;
+            lr.pushPull = push;
+            lr.pushRated = true;
+            P.prepare(lr);
+            // the lab times the print / scan for the recorded grey: rated grey lands where normal grey does
+            const float g = 0.18f * std::exp2(-push);
+            Float3 a = P.sceneToOutput({g, g, g}, {0, 0, 0}), b = outGrey(P0, 0.18f);
+            CHECK(std::fabs(a.g - b.g) < 0.01f, "proc %d push %g rated: grey %g vs %g", int(pr), push, a.g, b.g);
+            CHECK(std::fabs(a.r - a.g) < 0.01f && std::fabs(a.b - a.g) < 0.01f, "proc %d push %g rated grey neutral (%g %g %g)",
+                  int(pr), push, a.r, a.g, a.b);
+        }
+    }
+    {   // cross process: no effect on a negative stock; a slide becomes a negative (printed, balanced, finite)
+        Pipeline A, B;
+        LookParams lp = lpFor(1, 5, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+        A.prepare(lp);
+        lp.crossProcess = true;
+        B.prepare(lp);
+        Float3 a = outGrey(A, 0.5f), b = outGrey(B, 0.5f);
+        CHECK(a.r == b.r && a.g == b.g && a.b == b.b, "cross process ignored on a negative stock");
+        Pipeline S, X;
+        LookParams ls = lpFor(17, 5, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+        S.prepare(ls);
+        ls.crossProcess = true;
+        X.prepare(ls);
+        Float3 sg = outGrey(S, 2.f), xg = outGrey(X, 2.f), x18 = outGrey(X, 0.18f);
+        CHECK(std::fabs(sg.g - xg.g) > 0.01f || std::fabs(sg.r - xg.r) > 0.01f, "cross-processed slide differs from the slide");
+        CHECK(std::fabs(x18.r - x18.g) < 0.01f && std::fabs(x18.b - x18.g) < 0.01f, "cross grey balanced (%g %g %g)", x18.r, x18.g, x18.b);
+        float prev = -1.f;
+        bool mono = true, fin = true;
+        for (int k = 0; k <= 60; ++k) {
+            float v = 0.18f * std::exp2(-8.f + 0.25f * k);
+            Float3 o = outGrey(X, v);
+            fin = fin && finite3(o);
+            mono = mono && o.g >= prev - 1e-4f;
+            prev = o.g;
+        }
+        CHECK(fin && mono, "cross ramp finite and monotonic");
+    }
+}
+
 int main(int argc, char** argv) {
     std::string golden = CEL_REFERENCE_DIR "/golden/core_golden.txt";
     std::string tmp = "/tmp";
@@ -1439,6 +1488,7 @@ int main(int argc, char** argv) {
     testTone(quick);
     testAlexa();
     testP1Extras();
+    testDarkroom();
     testGolden(golden);
     testCube(tmp);
     testCubeAccuracy(tmp);
