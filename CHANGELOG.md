@@ -6,6 +6,13 @@ unchanged in a newer one.
 
 ## [Unreleased]
 
+### Changed
+
+- New plug-in icon: a film frame with a low sun, its red halation and the frame edge drawn in the three dye
+  layers of colour film (reads clearly at the small sizes Resolve shows).
+- Preset contact sheets (`docs/validation/presets.png`, `contact_presets.png`) show the rebuilt presets;
+  web links point to the renamed repository `serhatbarda/reafilm-pro`.
+
 ## [1.4.0] — 2026-10-17
 
 ### Changed

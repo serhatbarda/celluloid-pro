@@ -710,9 +710,9 @@ stays correct after undo and after reopening a project.
 
 Further reading in the source repository:
 
-- [STOCKS.md](https://github.com/serhatbarda/celluloid-pro/blob/main/docs/STOCKS.md) — the colour
+- [STOCKS.md](https://github.com/serhatbarda/reafilm-pro/blob/main/docs/STOCKS.md) — the colour
   model and every stock's design data.
-- [LOOKS.md](https://github.com/serhatbarda/celluloid-pro/blob/main/docs/LOOKS.md) — each preset's
+- [LOOKS.md](https://github.com/serhatbarda/reafilm-pro/blob/main/docs/LOOKS.md) — each preset's
   settings and intent, with a contact sheet.
 
 ---

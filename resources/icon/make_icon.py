@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate the Reafilm Pro plugin icon (128x128 RGBA PNG) from scratch.
 
-Original artwork, computed procedurally: a strip of motion-picture film (sprocket holes along
-both edges) with a seven-blade lens iris in the frame, the aperture glowing with a warm
-halation-like light. Pure Python standard library (zlib + struct), no third-party packages, so
+Original artwork, computed procedurally: a short strip of motion-picture film with one frame
+showing a low sun with its red halation over teal shadows; the frame edge is drawn in the cyan,
+magenta and yellow dye layers of colour film. Pure Python standard library (zlib + struct), no third-party packages, so
 it runs anywhere. The generated PNG is committed in resources/; re-run this script only when the
 artwork changes:
 
@@ -48,91 +48,77 @@ def polygon_sd(px, py, n, radius, rot):
     return r * math.cos(a) - apothem
 
 
-# palette (linear-ish sRGB values 0..1)
-BG_TOP = (0.105, 0.098, 0.094)
-BG_BOT = (0.040, 0.037, 0.036)
-FILM = (0.165, 0.112, 0.070)          # amber film base
-FILM_EDGE = (0.230, 0.150, 0.085)
-HOLE = (0.025, 0.022, 0.021)
-FRAME_LINE = (0.330, 0.215, 0.120)
-BARREL = (0.070, 0.068, 0.067)
-BARREL_RIM = (0.560, 0.530, 0.500)
-BLADE_A = (0.135, 0.130, 0.128)
-BLADE_B = (0.185, 0.178, 0.172)
-GLOW_CORE = (1.000, 0.905, 0.700)
-GLOW_MID = (1.000, 0.560, 0.200)
-GLOW_EDGE = (0.800, 0.250, 0.070)
+# palette (sRGB values 0..1)
+BG_TOP = (0.090, 0.086, 0.092)
+BG_BOT = (0.030, 0.029, 0.034)
+STRIP = (0.060, 0.057, 0.060)          # film strip, a shade lighter than the plate
+HOLE = (0.012, 0.011, 0.013)
+SKY_TOP = (0.040, 0.105, 0.130)        # deep teal shadows at the top of the frame
+SKY_MID = (0.560, 0.230, 0.120)
+SUN_CORE = (1.000, 0.960, 0.840)
+SUN_MID = (1.000, 0.700, 0.300)
+HALATION = (0.900, 0.160, 0.060)       # the red ring film draws around bright light
+DYE_C = (0.000, 0.680, 0.800)          # the three dye layers of colour film
+DYE_M = (0.880, 0.120, 0.520)
+DYE_Y = (1.000, 0.800, 0.060)
+
+
+def frame_sd(u, v, dx=0.0, dy=0.0):
+    return rounded_rect_sd(u, v, 0.5 + dx, 0.5 + dy, 0.335, 0.235, 0.040)
 
 
 def shade(u, v):
-    """Colour + alpha of the icon at normalised coordinates u, v in [0, 1] (v down)."""
-    # rounded-square plate
-    d_plate = rounded_rect_sd(u, v, 0.5, 0.5, 0.48, 0.48, 0.11)
+    """Colour + alpha of the icon at normalised coordinates u, v in [0, 1] (v down).
+
+    A short strip of film with one picture frame: a low sun with its red halation over teal
+    shadows, and the frame edge printed three times, slightly offset, in the cyan, magenta and
+    yellow dye layers of colour film.
+    """
+    d_plate = rounded_rect_sd(u, v, 0.5, 0.5, 0.48, 0.48, 0.12)
     if d_plate > 0.0:
         return (0.0, 0.0, 0.0, 0.0)
     col = mix3(BG_TOP, BG_BOT, v)
 
-    # film strip across the plate (slight diagonal for energy)
-    tilt = -0.10
-    sv = (v - 0.5) * math.cos(tilt) - (u - 0.5) * math.sin(tilt)
-    su = (u - 0.5) * math.cos(tilt) + (v - 0.5) * math.sin(tilt)
-    half = 0.30
-    if abs(sv) < half:
-        edge = smooth(half - 0.012, half, abs(sv))
-        col = mix3(mix3(FILM, FILM_EDGE, abs(sv) / half), BG_BOT, edge)
-        # sprocket holes along both edges
-        pitch = 0.105
-        k = round(su / pitch)
+    # horizontal film strip with sprocket holes above and below the frame
+    if abs(v - 0.5) < 0.375:
+        col = mix3(STRIP, col, smooth(0.365, 0.375, abs(v - 0.5)))
+        pitch = 0.112
+        k = round((u - 0.5 - pitch / 2) / pitch)
         for side in (-1.0, 1.0):
-            hd = rounded_rect_sd(su, sv, k * pitch, side * (half - 0.055), 0.026, 0.020, 0.008)
-            if hd < 0.0:
+            if rounded_rect_sd(u, v, 0.5 + pitch / 2 + k * pitch, 0.5 + side * 0.31, 0.026, 0.022, 0.008) < 0.0:
                 col = HOLE
-        # frame lines between image areas
-        fl = abs(abs(sv) - (half - 0.105))
-        if fl < 0.006:
-            col = mix3(col, FRAME_LINE, 0.8)
 
-    # lens iris
-    cx, cy = 0.5, 0.5
-    x, y = u - cx, v - cy
-    r = math.hypot(x, y)
-    R_OUT, R_RIM, R_BLADE = 0.235, 0.215, 0.205
-    if r < R_OUT:
-        col = BARREL
-        if r > R_RIM:
-            t = (r - R_RIM) / (R_OUT - R_RIM)
-            col = mix3(BARREL_RIM, BARREL, abs(t - 0.4) * 1.6)
-        if r < R_BLADE:
-            n = 7
-            # curved blade boundaries: angle twisted with radius
-            ang = math.atan2(y, x) + 1.9 * (r / R_BLADE) ** 1.4
-            seg = 2.0 * math.pi / n
-            idx = int(math.floor(ang / seg)) % n
-            frac = (ang / seg) - math.floor(ang / seg)
-            base = BLADE_A if idx % 2 == 0 else BLADE_B
-            # soft highlight on each blade's leading edge
-            hl = smooth(0.82, 1.0, frac) * 0.35
-            col = mix3(base, (0.42, 0.40, 0.38), hl)
-            # crisp dark seam where one blade overlaps the next
-            col = mix3(col, (0.03, 0.03, 0.03), (1.0 - smooth(0.0, 0.05, frac)) * 0.85)
-            # aperture opening (heptagon) with warm glow
-            d_ap = polygon_sd(x, y, n, 0.092, 0.3)
-            if d_ap < 0.0:
-                g = min(1.0, r / 0.085)
-                core = mix3(GLOW_CORE, GLOW_MID, smooth(0.0, 0.75, g))
-                col = mix3(core, GLOW_EDGE, smooth(0.55, 1.0, g))
-            else:
-                # halation: warm light spilling onto the blades just outside the opening
-                spill = math.exp(-d_ap / 0.030) * 0.55
-                col = mix3(col, GLOW_EDGE, spill)
-    # subtle glow over the film around the barrel
-    elif r < 0.36:
-        spill = math.exp(-(r - R_OUT) / 0.05) * 0.18
-        col = mix3(col, GLOW_MID, spill)
+    # dye-layer fringes: the frame edge in C, M and Y, offset like misregistered layers
+    for dye, dx, dy in ((DYE_C, -0.013, -0.010), (DYE_M, 0.013, 0.010), (DYE_Y, 0.0, 0.0)):
+        d = frame_sd(u, v, dx, dy)
+        if abs(d) < 0.008:
+            col = mix3(col, dye, 0.95 * (1.0 - smooth(0.004, 0.008, abs(d))))
 
-    # plate edge highlight
-    rim = smooth(-0.012, 0.0, d_plate)
-    col = mix3(col, (0.30, 0.29, 0.28), rim * 0.6)
+    d_frame = frame_sd(u, v)
+    if d_frame < -0.008:
+        # picture: teal shadows at the top warming towards the horizon
+        t = smooth(0.27, 0.66, v)
+        pic = mix3(SKY_TOP, SKY_MID, t)
+        # dark ground below the horizon
+        if v > 0.60:
+            pic = mix3(pic, (0.020, 0.018, 0.022), smooth(0.60, 0.62, v))
+        # low sun on the horizon with its halation ring
+        sx, sy = u - 0.5, (v - 0.585) * 1.0
+        r = math.hypot(sx, sy)
+        if v < 0.61:
+            glow = math.exp(-max(0.0, r - 0.075) / 0.14) * 0.8
+            pic = mix3(pic, SUN_MID, glow * 0.6)
+            ring = math.exp(-((r - 0.092) / 0.016) ** 2)
+            pic = mix3(pic, HALATION, ring * 0.6)
+            disc = 1.0 - smooth(0.070, 0.078, r)
+            pic = mix3(pic, mix3(SUN_CORE, SUN_MID, smooth(0.0, 0.078, r)), disc)
+        # horizon line catching the light
+        hl = math.exp(-((v - 0.61) / 0.004) ** 2) * math.exp(-abs(u - 0.5) / 0.12)
+        pic = mix3(pic, HALATION, hl * 0.7)
+        col = mix3(pic, col, smooth(-0.012, -0.008, d_frame))
+
+    rim = smooth(-0.010, 0.0, d_plate)
+    col = mix3(col, (0.26, 0.25, 0.26), rim * 0.5)
     return (col[0], col[1], col[2], 1.0)
 
 
