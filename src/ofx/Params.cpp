@@ -879,7 +879,8 @@ std::vector<ParamDef> build() {
     b.boolean(id::gateEnable, "Enable Film Gate", false,
               "Shows the edge of the film gate (the frame line). Off = the full picture, as before.", true);
     b.choice(id::gateAspect, "Gate Aspect", {"Full Frame", "1.33 Academy", "1.66 European", "1.85 Flat", "2.39 Scope",
-                                             "1.43 IMAX", "Super 16 (1.66)", "1.78 (16:9)"}, 0,
+                                             "1.43 IMAX", "Super 16 (1.66)", "1.78 (16:9)",
+                                             "1.50 (35 mm Stills)", "1.00 (6x6)", "1.25 (6x7)"}, 0,
              "The aperture of the gate. Full Frame: the gate around the whole picture (only the Overscan shows). Every other "
              "aspect is fitted inside the frame (letterbox or pillarbox); the image outside it is masked like a hard matte "
              "in the gate. Super 16 also uses the smaller gauge's tighter corners.",
@@ -890,7 +891,7 @@ std::vector<ParamDef> build() {
              "the print outside the printer aperture stays unexposed, so the border is the CLEAR print base (white on the "
              "screen; dark on a reversal original, which has no print).\nEither way the border stays clean: grain, halation, bloom, dust, weave and projection blur only act on the picture; the frame line stays steady while the picture weaves.",
              true);
-    b.dbl(id::gateOverscan, "Overscan", 0.03, 0.0, 0.15, 0.001, 3,
+    b.dbl(id::gateOverscan, "Overscan", 0.03, 0.0, 0.25, 0.001, 3,
           "How much of the area outside the gate is visible: the gate is inset by this share of the frame height on every "
           "side (0 = the gate edge sits exactly at the frame edge).",
           true);
@@ -905,6 +906,15 @@ std::vector<ParamDef> build() {
               " Camera gate: prints black; printer gate: prints clear.",
               true);
     b.integer(id::gateHairSeed, "Hair Seed", 1, 1, 9999, "Picks the shape and position of the gate hair.", true);
+    b.choice(id::filmEdge, "Film Edge", {"Off", "35 mm Still Negative", "35 mm Motion Picture", "120 Medium Format"}, 0,
+             "Draws the film strip around the gate, like a scan that shows the whole negative: perforations (bright, "
+             "where the scanner's light passes straight through) and the edge print (frame numbers and a bar code) in "
+             "the dark rebate.\n35 mm Still Negative: perforations above and below the frame (use Gate Aspect 1.50).\n"
+             "35 mm Motion Picture: perforations left and right.\n120 Medium Format: no perforations, frame numbers "
+             "only (Gate Aspect 1.00 or 1.25).\nSized from the real film, so raise Overscan (about 0.15 - 0.2) until "
+             "the edge is in the picture. Off = the plain black border.",
+             false);
+    b.integer(id::frameNumber, "Frame Number", 12, 0, 99, "The frame number printed on the film edge.", false);
     b.boolean(id::gateShow, "Show Gate Mask (diagnostic)", false,
               "DIAGNOSTIC VIEW - switch off before rendering. Shows the gate's transmission: white = picture, black = gate "
               "(and hair).",

@@ -4,10 +4,15 @@ All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
-## [Unreleased]
+## [1.6.0] — 2026-10-17
 
 ### Added
 
+- **Film Edge** (Film Gate group): draws the film strip around the gate, like a scan of the whole negative -
+  bright perforations and the edge print (frame number, half-frame arrow, bar code) in the rebate.
+  35 mm Still Negative, 35 mm Motion Picture or 120 Medium Format, sized from the real film; the colours come
+  from the same colour pass as the frame, so they follow the look and the output. New Gate Aspects 1.50
+  (35 mm Stills), 1.00 (6x6) and 1.25 (6x7); Overscan now goes to 0.25 so the whole edge fits.
 - `docs/QUICKSTART.md`: one-page quick start - node placement, input / look / output, monitoring LUTs,
   Blackmagic Pocket 6K BRAW setup and stills (RAW, JPEG). The Camera Log hint names the BRAW settings.
 

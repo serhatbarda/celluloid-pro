@@ -596,15 +596,15 @@ WeaveOffset weaveOffset(double time, float amount, float speed, int style) {
 
 // ---- film gate (Lab & Gate) -------------------------------------------------------------------
 // OFX choice order (append only): Full Frame (the frame's own aspect), 1.33 Academy, 1.66, 1.85, 2.39, 1.43 IMAX,
-// Super 16 (1.66), 1.78
-const float kGateAspects[kGateAspectCount] = {0.f, 1.3333f, 1.66f, 1.85f, 2.39f, 1.43f, 1.66f, 1.7778f};
+// Super 16 (1.66), 1.78, v1.6: 1.50 (35 mm stills), 1.00 (6x6), 1.25 (6x7)
+const float kGateAspects[kGateAspectCount] = {0.f, 1.3333f, 1.66f, 1.85f, 2.39f, 1.43f, 1.66f, 1.7778f, 1.5f, 1.f, 1.25f};
 
 GateDesign designGate(const TextureParams& tp, int w, int h, float ps) {
     GateDesign g;
     if (!tp.gateEnabled || w < 1 || h < 1) return g;
     auto fin = [](float v, float lo, float hi, float def) { return std::isfinite(v) ? std::min(hi, std::max(lo, v)) : def; };
     const int ai = std::min(std::max(tp.gateAspect, 0), kGateAspectCount - 1);
-    const double m = double(fin(tp.gateOverscan, 0.f, 0.15f, 0.03f)) * h;
+    const double m = double(fin(tp.gateOverscan, 0.f, 0.25f, 0.03f)) * h;
     const double aw = std::max(1.0, w - 2.0 * m), ah = std::max(1.0, h - 2.0 * m);
     double hw = 0.5 * aw, hh = 0.5 * ah;
     if (ai > 0) {
@@ -639,6 +639,25 @@ GateDesign designGate(const TextureParams& tp, int w, int h, float ps) {
             f[9 + 2 * k] = float(ey + ny * along + ty * side2);
         }
         f[7] = float(std::max(0.35, 0.9 * ps));
+    }
+    // v1.6 Film Edge: the strip's real dimensions (mm), scaled by the gate's size across the strip.
+    // 135 / 35 mm: KS perforations 1.981 x 2.794 mm, pitch 4.75 mm; 120: no perforations, 2.75 mm rebate.
+    const int edge = std::min(std::max(tp.filmEdge, 0), int(FilmEdge::Count) - 1);
+    if (edge != int(FilmEdge::Off)) {
+        struct Strip { double frameMm, pitch, holeCentre, textCentre, textH, filmEdge; };
+        const Strip st = edge == int(FilmEdge::Still35)  ? Strip{24.0, 4.75, 2.08, 4.45, 1.1, 5.5}
+                       : edge == int(FilmEdge::Motion35) ? Strip{24.89, 4.75, 1.64, 4.10, 1.0, 5.04}
+                                                         : Strip{56.0, 0.0, 0.0, 1.50, 1.2, 2.75};
+        const double across = edge == int(FilmEdge::Motion35) ? 2.0 * hw : 2.0 * std::min(hw, hh);
+        f[18] = float(across / st.frameMm);
+        f[19] = float(st.pitch);
+        f[20] = 1.981f; f[21] = 2.794f; f[22] = 0.5f;
+        f[23] = float(st.holeCentre);
+        f[28] = float(st.textCentre); f[29] = float(st.textH);
+        f[30] = float(-0.5 * st.pitch);   // a perforation centred on the frame
+        f[31] = float(st.filmEdge);
+        g.edge = edge;
+        g.frameNumber = std::min(std::max(tp.frameNumber, 0), 99);
     }
     g.on = true;
     return g;

@@ -202,6 +202,13 @@ std::vector<Case> makeCases(bool all) {
     for (int a = 0; a < tex::kGateAspectCount; ++a)
         add("camera gate aspect " + std::to_string(a) + " + hair", [a](Case& c) { fullTexture(c.fs); c.fs.tex.gateEnabled = true;
             c.fs.tex.gateAspect = a; c.fs.tex.gateHair = a % 2 == 1; c.fs.tex.gateHairSeed = 17 * a + 1; });
+    // v1.6 Film Edge: every style, on its matching aspect, wide overscan so the strip is in the frame
+    for (int e = 1; e < int(tex::FilmEdge::Count); ++e)
+        add("film edge " + std::to_string(e), [e](Case& c) { fullTexture(c.fs); c.fs.tex.gateEnabled = true;
+            c.fs.tex.gateAspect = e == 1 ? 8 : (e == 2 ? 1 : 9); c.fs.tex.gateOverscan = 0.2f;
+            c.fs.tex.filmEdge = e; c.fs.tex.frameNumber = 7 + 11 * e; });
+    add("film edge, texture only", [](Case& c) { c.fs.tex.gateEnabled = true; c.fs.tex.gateAspect = 8;
+        c.fs.tex.gateOverscan = 0.2f; c.fs.tex.filmEdge = 1; c.fs.mode = core::Mode::TextureOnly; c.scene = Scene::Display; });
     add("printer gate 1.85 + damage, soft 8", [](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h, false);
         c.fs.tex.gateEnabled = true; c.fs.tex.gateSource = int(tex::GateSource::Printer); c.fs.tex.gateAspect = 3;
         c.fs.tex.gateSoftness = 8.f; c.fs.tex.gateHair = true; });

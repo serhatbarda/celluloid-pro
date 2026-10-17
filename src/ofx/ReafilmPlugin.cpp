@@ -652,6 +652,8 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     tp.gateSoftness = float(num(id::gateSoftness, t));
     tp.gateHair = flag(id::gateHair, t);
     tp.gateHairSeed = int(std::lround(num(id::gateHairSeed, t)));
+    tp.filmEdge = std::min(std::max(choice(id::filmEdge, t), 0), int(tex::FilmEdge::Count) - 1);   // v1.6
+    tp.frameNumber = int(std::lround(num(id::frameNumber, t)));
     tp.grainEnabled = flag(id::grainEnable, t) && fs.look.grainAmount > 0.f;
     tp.grainFormat = tex::GrainFormat(std::min(std::max(choice(id::grainFormat, t), 0), int(tex::GrainFormat::Count) - 1));
     tp.grainSize = float(num(id::grainSize, t)) * grainScale;
@@ -1399,9 +1401,10 @@ void ReafilmEffect::refreshEnabledness(double t) {
         const bool gateOn = texture && flag(id::gateEnable, t);
         setEnabled(id::gateEnable, texture);
         for (const char* p : {id::gateAspect, id::gateSource, id::gateOverscan, id::gateCorner, id::gateSoftness, id::gateHair,
-                              id::gateShow})
+                              id::gateShow, id::filmEdge})
             setEnabled(p, gateOn);
         setEnabled(id::gateHairSeed, gateOn && flag(id::gateHair, t));
+        setEnabled(id::frameNumber, gateOn && choice(id::filmEdge, t) != 0);   // v1.6
     }
     for (const char* p : {id::grainAmount, id::grainSize, id::grainSoftness, id::grainAnimated, id::grainSeed,
                           id::grainShadows, id::grainMids, id::grainHighlights})

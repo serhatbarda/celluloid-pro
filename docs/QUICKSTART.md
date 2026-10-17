@@ -82,4 +82,7 @@ Notes:
   **Linear Rec.2020**; for BRAW follow §6. Turn on **Still Photo**.
 - **JPEG / PNG**: Camera Log **sRGB (photos / JPEG)** and **Still Photo**. The plug-in expands the clipped
   JPEG highlights so they still roll off like film.
+- **Film Edge** (Film Gate group) frames the photo like a scanned negative: turn on the Film Gate, pick
+  Gate Aspect **1.50 (35 mm Stills)** (or 1.00 / 1.25 for 120), Film Edge **35 mm Still Negative**
+  (or 120 Medium Format) and raise Overscan to about 0.2.
 - Export at full resolution from the Deliver page (*TIFF* or *DPX* for a 16-bit file).

@@ -257,12 +257,14 @@ WeaveOffset weaveOffset(double time, float amount, float speed);
 WeaveOffset weaveOffset(double time, float amount, float speed, int style);
 
 // ---- film gate (Lab & Gate; kernel tx_gate in TextureKernels.h) ----------------------------
-constexpr int kGateAspectCount = 8;
+constexpr int kGateAspectCount = 11;   // v1.6: + 1.50 (35 mm stills), 1.00 (6x6), 1.25 (6x7)
 extern const float kGateAspects[kGateAspectCount];   // 0 = Full Frame (the frame's own aspect)
 constexpr float kGateRebateDensity = 4.f;             // printer gate: density of the unexposed print border (neg ND)
 struct GateDesign {
     bool on = false;
-    float f[24] = {};   // tx_gate f[] block (see TextureKernels.h)
+    float f[32] = {};   // tx_gate f[] block (see TextureKernels.h; f[24..27] = mode 3 constant, set per pass)
+    int edge = 0;       // v1.6 Film Edge style (tx_gate i[2]), 0 = none
+    int frameNumber = 0;
 };
 GateDesign designGate(const TextureParams& tp, int w, int h, float ps);
 

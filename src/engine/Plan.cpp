@@ -234,9 +234,11 @@ bool mechVigOn(const tex::TextureParams& tp) { return finitePos(tp.vignetteMech)
 bool cameraGateOn(const tex::TextureParams& tp) { return tp.gateEnabled && tp.gateSource != int(tex::GateSource::Printer); }
 bool printerGateOn(const tex::TextureParams& tp) { return tp.gateEnabled && tp.gateSource == int(tex::GateSource::Printer); }
 void setGateArgs(PassDesc& p, const tex::GateDesign& gd, int mode, bool hasIn) {
-    for (int k = 0; k < 24; ++k) p.args.f[k] = gd.f[k];
+    for (int k = 0; k < 32; ++k) p.args.f[k] = gd.f[k];
     p.args.i[0] = mode;
     p.args.i[1] = hasIn ? 1 : 0;
+    p.args.i[2] = mode == 4 ? gd.edge : 0;   // v1.6 Film Edge (clean border only)
+    p.args.i[3] = gd.frameNumber;
 }
 // printer gate: the damage field (or a new one) with the unexposed print border's density added
 int addPrinterGate(Builder& B, int damage, const tex::TextureParams& tp, int w, int h, float ps) {
@@ -265,7 +267,24 @@ int addCleanGate(Builder& B, int src, int target, const tex::TextureParams& tp, 
     const int dens = printer ? constant(gd.f[6], 0.f, 0.f, 0.f) : -1;
     const int ref = B.buffer(1, 1);
     B.pass(colorK, ref, {black, -1, -1, dens});
-    setGateArgs(B.pass(KID_tx_gate, target, {src, ref}), gd, 4, true);
+    if (gd.edge == 0) {
+        setGateArgs(B.pass(KID_tx_gate, target, {src, ref}), gd, 4, true);
+        return target;
+    }
+    // v1.6 Film Edge: perforations pass the scanner's light unfiltered (the brightest white of the rendering);
+    // the edge print is a warm exposure on the rebate. Rendered by the same colour pass so they follow the look and
+    // the output (HDR included); Texture Only has no film, so they are display values there.
+    int hole, text;
+    if (colorK == KID_color) {
+        hole = B.buffer(1, 1);
+        B.pass(colorK, hole, {constant(64.f, 64.f, 64.f, 1.f), -1, -1, -1});
+        text = B.buffer(1, 1);
+        B.pass(colorK, text, {constant(2.4f, 1.3f, 0.45f, 1.f), -1, -1, -1});
+    } else {
+        hole = constant(0.92f, 0.92f, 0.92f, 1.f);
+        text = constant(0.86f, 0.58f, 0.26f, 1.f);
+    }
+    setGateArgs(B.pass(KID_tx_gate, target, {src, ref, hole, text}), gd, 4, true);
     return target;
 }
 bool auraOn(const tex::TextureParams& tp) { return tp.auraEnabled && finitePos(tp.auraStrength); }

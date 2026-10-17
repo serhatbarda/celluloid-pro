@@ -132,7 +132,12 @@ struct TextureParams {
     float vignetteMech       = 0.f;   // 0 .. 1 mechanical vignette (0 = off)
     float vignetteMechSize   = 1.f;   // 0.5 .. 1.5 x half diagonal
     float vignetteMechSoft   = 0.35f; // 0.05 .. 1
+    // ---- v1.6 Film Edge (appended): perforations and edge print in the rebate outside the gate
+    int   filmEdge           = 0;     // FilmEdge
+    int   frameNumber        = 12;    // printed on the edge, 0 .. 99
 };
+// v1.6 Film Edge: the film strip around the gate (OFX choice order, append only)
+enum class FilmEdge : int { Off = 0, Still35, Motion35, Medium120, Count };
 
 // Lab & Gate: which gate makes the frame line (OFX choice order, append only)
 enum class GateSource : int { Camera = 0, Printer, Count };

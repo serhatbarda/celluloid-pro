@@ -510,14 +510,17 @@ Fujifilm Eterna-CP 3513DI: neutral and gentle, made for digital intermediates.
 
 - **Enable Film Gate** (`gateEnable`; default off) — Shows the edge of the film gate (the frame line). Off = the full picture, as before.
 - **Gate Aspect** (`gateAspect`; default: Full Frame) — The aperture of the gate. Full Frame: the gate around the whole picture (only the Overscan shows). Every other aspect is fitted inside the frame (letterbox or pillarbox); the image outside it is masked like a hard matte in the gate. Super 16 also uses the smaller gauge's tighter corners.
-  - Options: Full Frame · 1.33 Academy · 1.66 European · 1.85 Flat · 2.39 Scope · 1.43 IMAX · Super 16 (1.66) · 1.78 (16:9)
+  - Options: Full Frame · 1.33 Academy · 1.66 European · 1.85 Flat · 2.39 Scope · 1.43 IMAX · Super 16 (1.66) · 1.78 (16:9) · 1.50 (35 mm Stills) · 1.00 (6x6) · 1.25 (6x7)
 - **Gate** (`gateSource`; default: Camera Gate (Rebate Prints Black)) — Which gate makes the edge. Camera Gate: the negative outside the camera aperture stays unexposed (clear D-min), so it PRINTS BLACK. Printer Gate: the print outside the printer aperture stays unexposed, so the border is the CLEAR print base (white on the screen; dark on a reversal original, which has no print). Either way the border stays clean: grain, halation, bloom, dust, weave and projection blur only act on the picture; the frame line stays steady while the picture weaves.
   - Options: Camera Gate (Rebate Prints Black) · Printer Gate (Clear Print Border)
-- **Overscan** (`gateOverscan`; 0 … 0.15; default 0.03; keyframable) — How much of the area outside the gate is visible: the gate is inset by this share of the frame height on every side (0 = the gate edge sits exactly at the frame edge).
+- **Overscan** (`gateOverscan`; 0 … 0.25; default 0.03; keyframable) — How much of the area outside the gate is visible: the gate is inset by this share of the frame height on every side (0 = the gate edge sits exactly at the frame edge).
 - **Corner Radius** (`gateCorner`; 0 … 80; default 14; keyframable) — Radius of the gate's rounded corners in pixels at 1920 px width (filed aperture plates have rounded corners).
 - **Edge Softness** (`gateSoftness`; 0 … 20; default 2; keyframable) — Blur of the gate edge in pixels at 1920 px width: the aperture is slightly out of focus on the film.
 - **Gate Hair** (`gateHair`; default off) — A hair caught in the gate: a thin curved fibre reaching in from the gate edge, steady from frame to frame. Camera gate: prints black; printer gate: prints clear.
 - **Hair Seed** (`gateHairSeed`; 1 … 9999; default 1; keyframable) — Picks the shape and position of the gate hair.
+- **Film Edge** (`filmEdge`; default: Off) — Draws the film strip around the gate, like a scan that shows the whole negative: perforations (bright, where the scanner's light passes straight through) and the edge print (frame numbers and a bar code) in the dark rebate. 35 mm Still Negative: perforations above and below the frame (use Gate Aspect 1.50). 35 mm Motion Picture: perforations left and right. 120 Medium Format: no perforations, frame numbers only (Gate Aspect 1.00 or 1.25). Sized from the real film, so raise Overscan (about 0.15 - 0.2) until the edge is in the picture. Off = the plain black border.
+  - Options: Off · 35 mm Still Negative · 35 mm Motion Picture · 120 Medium Format
+- **Frame Number** (`frameNumber`; 0 … 99; default 12; keyframable) — The frame number printed on the film edge.
 - **Show Gate Mask (diagnostic)** (`gateShow`; default off) — DIAGNOSTIC VIEW - switch off before rendering. Shows the gate's transmission: white = picture, black = gate (and hair).
 
 ### Film Damage

@@ -741,6 +741,68 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_gate_mask(int x, int y, CEL_CONSTANT con
     return m;
 }
 
+/* Film Edge (v1.6): 3 x 5 pixel glyphs, bit 14 = top row left ... bit 0 = bottom row right.
+ * 0..9 digits, 10 = 'A', 11 = the frame arrow; anything else blank. */
+CEL_DEVICE CEL_TXH_INLINE int cel_txh_glyph(int c) {
+    switch (c) {
+        case 0: return 0x7b6f; case 1: return 0x2c97; case 2: return 0x73e7; case 3: return 0x73cf;
+        case 4: return 0x5bc9; case 5: return 0x79cf; case 6: return 0x79ef; case 7: return 0x7249;
+        case 8: return 0x7bef; case 9: return 0x7bcf; case 10: return 0x2bed; case 11: return 0x4df4;
+        default: return 0;
+    }
+}
+/* the edge print of frame n: "nn   >nnA" (the half-frame number after the arrow, as on 135 film) */
+CEL_DEVICE CEL_TXH_INLINE int cel_txh_edge_char(int k, int n) {
+    int t = n >= 10 ? (n / 10) % 10 : -1, o = n % 10;
+    switch (k) {
+        case 0: case 6: return t;
+        case 1: case 7: return o;
+        case 5: return 11;
+        case 8: return 10;
+        default: return -1;
+    }
+}
+/* Film Edge coverage at a point of the rebate: ua = position along the strip (mm, 0 = gate centre), va = distance
+ * outward from the gate edge (mm), side 0 = the text edge, 1 = the barcode edge. Returns (hole, mark) coverage.
+ *   f[18] = px per mm   f[19] = perforation pitch (mm; 0 = no perforations)   f[20], f[21] = perforation size
+ *   along / across (mm)   f[22] = perforation corner radius (mm)   f[23] = perforation centre (mm outward)
+ *   f[28] = edge print centre (mm outward)   f[29] = edge print height (mm)   f[30] = perforation phase (mm)
+ *   f[31] = film edge (mm outward; nothing beyond it)   i[3] = frame number */
+CEL_DEVICE CEL_TXH_INLINE CelF4 cel_txh_film_edge(float ua, float va, int side, CEL_CONSTANT const CelPassArgs* a) {
+    float hole = 0.0f, mark = 0.0f;
+    const float pm = a->f[18];
+    if (va < 0.0f || va > a->f[31]) return cel_f4(0.0f, 0.0f, 0.0f, 0.0f);
+    if (a->f[19] > 0.0f) {
+        float p = a->f[19], lu = ua - a->f[30];
+        lu = lu - p * cel_txh_floor(lu / p) - 0.5f * p;
+        float r = a->f[22];
+        float qx = cel_fabs(lu) - 0.5f * a->f[20] + r, qy = cel_fabs(va - a->f[23]) - 0.5f * a->f[21] + r;
+        float ox = cel_txh_max(qx, 0.0f), oy = cel_txh_max(qy, 0.0f);
+        float d = cel_sqrt(ox * ox + oy * oy) + cel_txh_min(cel_txh_max(qx, qy), 0.0f) - r;
+        hole = cel_txh_clampf(0.5f - d * pm, 0.0f, 1.0f);
+    }
+    const float th = a->f[29], cell = th / 5.0f;
+    float gy = (va - (a->f[28] - 0.5f * th)) / cell;
+    if (gy >= 0.0f && gy < 5.0f && cell > 0.0f) {
+        if (side == 0) {   // frame numbers, starting 9 mm before the gate centre
+            float gx = (ua + 9.0f) / cell;
+            if (gx >= 0.0f && gx < 36.0f) {
+                int col = (int)cel_txh_floor(gx), k = col / 4, c = col - 4 * k, row = (int)cel_txh_floor(gy);
+                int gl = cel_txh_glyph(cel_txh_edge_char(k, a->i[3]));
+                if (c < 3 && ((gl >> (14 - 3 * row - c)) & 1)) mark = 1.0f;
+            }
+        } else {           // a bar code: 0.25 mm modules over 12 mm, its pattern keyed to the frame number
+            float gx = (ua + 6.0f) / 0.25f;
+            if (gx >= 0.0f && gx < 48.0f) {
+                int u = (int)cel_txh_floor(gx);
+                cel_uint h = cel_hash_u32((cel_uint)(u + 64 * a->i[3]) * 0x9e3779b9U + 0x7f4a7c15U);
+                if (u < 2 || u >= 46 || (h & 1U)) mark = 1.0f;
+            }
+        }
+    }
+    return cel_f4(hole, mark, 0.0f, 0.0f);
+}
+
 /* tx_gate (Lab & Gate): the film gate (frame line) as a density event.
  *   f[0], f[1] = gate centre (px)   f[2], f[3] = half width / height (px)   f[4] = corner radius (px, <= half size)
  *   f[5] = edge half width (px, > 0)   f[6] = rebate density (mode 1)   f[7] = hair half width (px; 0 = no hair)
@@ -753,7 +815,10 @@ CEL_DEVICE CEL_TXH_INLINE float cel_txh_gate_mask(int x, int y, CEL_CONSTANT con
  *          3: constant: out = (f[24], f[25], f[26], f[27]) (the 1 x 1 inputs of the clean border reference)
  *          4: clean border: in0 = the finished frame, in1 = 1 x 1 border reference (the bare border rendered by
  *             the same colour pass); out = in0 where the mask is 1 (bit-exact), else mix(in1, in0, mask), alpha
- *             of in0: no effect (grain, glow, damage, weave, film blur) is left on top of the border
+ *             of in0: no effect (grain, glow, damage, weave, film blur) is left on top of the border.
+ *             v1.6 Film Edge, i[2] = 1 stills / 2 motion picture / 3 medium format (0 = none): perforations
+ *             (colour in2, 1 x 1) and edge print (colour in3, 1 x 1) drawn into the border, f[18..31] and i[3]
+ *             as documented at cel_txh_film_edge
  *   i[1] = 1: in0 present (modes 1 and 2) */
 CEL_DEVICE void cel_k_tx_gate(CEL_KERNEL_PARAMS) {
     CEL_TX_ABI_USE();
@@ -767,6 +832,28 @@ CEL_DEVICE void cel_k_tx_gate(CEL_KERNEL_PARAMS) {
         CelF4 p = cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y);
         if (!(m >= 1.0f)) {
             CelF4 b = cel_load(in1, a->inStride[1], a->inW[1], a->inH[1], 0, 0);
+            if (a->i[2] > 0) {   // Film Edge: perforations and edge print in the rebate outside the gate
+                float px = (float)x + 0.5f, py = (float)y + 0.5f, pm = a->f[18];
+                float ua = 0.0f, va = -1.0f;
+                int side = 0;
+                if (a->i[2] == 2) {   // motion picture: perforations left and right, the strip runs vertically
+                    ua = (a->f[1] - py) / pm;   /* top to bottom on screen */
+                    if (px < a->f[0] - a->f[2]) { va = (a->f[0] - a->f[2] - px) / pm; side = 0; }
+                    else if (px > a->f[0] + a->f[2]) { va = (px - a->f[0] - a->f[2]) / pm; side = 1; }
+                } else {              // stills: perforations (or none, 120) top and bottom (rows run bottom-up:
+                                      // the edge print is on the lower edge, upright)
+                    ua = (px - a->f[0]) / pm;
+                    if (py < a->f[1] - a->f[3]) { va = (a->f[1] - a->f[3] - py) / pm; side = 0; }
+                    else if (py > a->f[1] + a->f[3]) { va = (py - a->f[1] - a->f[3]) / pm; side = 1; }
+                }
+                if (va >= 0.0f) {
+                    CelF4 e = cel_txh_film_edge(ua, va, side, a);
+                    CelF4 hr = cel_load(in2, a->inStride[2], a->inW[2], a->inH[2], 0, 0);
+                    CelF4 tr = cel_load(in3, a->inStride[3], a->inW[3], a->inH[3], 0, 0);
+                    b = cel_f4(b.x + e.x * (hr.x - b.x), b.y + e.x * (hr.y - b.y), b.z + e.x * (hr.z - b.z), b.w);
+                    b = cel_f4(b.x + e.y * (tr.x - b.x), b.y + e.y * (tr.y - b.y), b.z + e.y * (tr.z - b.z), b.w);
+                }
+            }
             p = cel_f4(b.x + m * (p.x - b.x), b.y + m * (p.y - b.y), b.z + m * (p.z - b.z), p.w);
         }
         cel_store(out, a->outStride, x, y, p);
