@@ -157,6 +157,13 @@ jobs:
           system_profiler SPDisplaysDataType 2>/dev/null | sed -n '1,20p' || true
           ctest --test-dir build -C ${BUILD_TYPE} -V --timeout 1200 -L gpu-device
 
+      # Render speed on the runner's Apple-silicon GPU (HD, UHD, 6K); informational, never fails the build.
+      - name: Speed check (Metal)
+        continue-on-error: true
+        run: |
+          exe=$(find build -name test_gpu_parity -type f -perm -u+x | head -1)
+          [ -n "$exe" ] && "$exe" --bench || true
+
       - name: Import signing certificates
         if: env.MACOS_CERT_P12 != ''
         run: |

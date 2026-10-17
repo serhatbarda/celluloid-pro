@@ -516,12 +516,74 @@ void perPassReport(const engine::Plan& plan0, Env& env, engine::Backend& be, con
     }
 }
 
+// --bench: render speed at real frame sizes (no parity, no debug checks). Each device renders a few
+// warm-up frames, then the median of 9 frames is reported; the time covers the plan on the GPU
+// (images already on the device, as in Resolve), not the upload or download.
+int runBench(std::vector<std::unique_ptr<Env>>& envs, std::vector<std::unique_ptr<engine::Backend>>& gpus) {
+    struct BenchCase { const char* name; int w, h; void (*edit)(engine::FrameSettings&, int, int); };
+    const BenchCase cases[] = {
+        {"UHD  color only", 3840, 2160, [](engine::FrameSettings& fs, int, int) { fs.mode = core::Mode::ColorOnly; }},
+        {"UHD  full look, all texture", 3840, 2160, [](engine::FrameSettings& fs, int, int) { fullTexture(fs); }},
+        {"UHD  full + damage + film blur", 3840, 2160, [](engine::FrameSettings& fs, int w, int h) {
+             fullTexture(fs); filmDamage(fs, w, h); }},
+        {"UHD  full + gate + film edge", 3840, 2160, [](engine::FrameSettings& fs, int, int) {
+             fullTexture(fs); fs.tex.gateEnabled = true; fs.tex.gateAspect = 8; fs.tex.filmEdge = int(tex::FilmEdge::Still35);
+             fs.tex.gateOverscan = 0.2f; }},
+        {"6K   full look, all texture", 6144, 3456, [](engine::FrameSettings& fs, int, int) { fullTexture(fs); }},
+        {"HD   full look, all texture", 1920, 1080, [](engine::FrameSettings& fs, int, int) { fullTexture(fs); }},
+    };
+    core::Pipeline pipe;
+    std::printf("%-32s %10s", "case", "cpu ms");
+    for (auto& e : envs) std::printf(" %10s %7s", e->name(), "fps");
+    std::printf("\n");
+    for (const BenchCase& bc : cases) {
+        engine::FrameSettings fs = baseSettings(bc.w);
+        bc.edit(fs, bc.w, bc.h);
+        pipe.prepare(fs.look);
+        const int stride = bc.w * 4;
+        HostImg src = makeScene(bc.w, bc.h, stride, 7u), out(bc.w, bc.h, stride);
+        std::string err;
+        const engine::Plan plan = engine::buildPlan(bc.w, bc.h, fs, pipe);
+        auto t0 = std::chrono::steady_clock::now();
+        engine::cpuBackend().execute(plan, pipe.state(), pipe.stateVersion(), src.host(), out.host(), engine::GpuContext(), &err);
+        const double cpuMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        std::printf("%-32s %10.1f", bc.name, cpuMs);
+        for (size_t g = 0; g < envs.size(); ++g) {
+            Env& env = *envs[g];
+            void* ds = env.upload(src);
+            void* dd = env.allocLike(out);
+            engine::HostImage hs = src.host(), hd = out.host();
+            hs.data = ds; hd.data = dd;
+            std::vector<double> ms;
+            bool ok = true;
+            for (int f = 0; f < 12 && ok; ++f) {
+                engine::FrameSettings ff = fs;
+                ff.tex.time = float(f);   // a new grain / damage frame each time, like playback
+                const engine::Plan pf = engine::buildPlan(bc.w, bc.h, ff, pipe);
+                auto t1 = std::chrono::steady_clock::now();
+                ok = gpus[g]->execute(pf, pipe.state(), pipe.stateVersion(), hs, hd, env.context(), &err);
+                env.finish();
+                if (f >= 3) ms.push_back(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count());
+            }
+            env.release(ds);
+            env.release(dd);
+            if (!ok) { std::printf(" %10s %7s", "failed", "-"); continue; }
+            std::sort(ms.begin(), ms.end());
+            const double med = ms[ms.size() / 2];
+            std::printf(" %10.1f %7.1f", med, 1000.0 / med);
+        }
+        std::printf("\n");
+    }
+    return envs.empty() ? 77 : 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     const bool all = std::getenv("CEL_PARITY_ALL") != nullptr;
     // --model: no GPU device; only CPU vs reference and the worst-case GPU math model
     const bool modelOnly = argc > 1 && std::string(argv[1]) == "--model";
+    const bool bench = argc > 1 && std::string(argv[1]) == "--bench";
     const double tol = 2e-4;
     std::printf("Reafilm Pro GPU parity (production kernels), tolerance %.1g on encoded output\n", tol);
     std::vector<std::unique_ptr<Env>> envs;
@@ -545,9 +607,10 @@ int main(int argc, char** argv) {
                                                           : cel::gpu::createOpenCLBackend(ks));
         // pooled internal buffers start every frame as NaN: a kernel reading memory that no pass
         // wrote (uninitialised memory) cannot hide behind a previous frame's data
-        cel::gpu::setDebugPoison(gpus.back().get(), true);
+        cel::gpu::setDebugPoison(gpus.back().get(), !bench);
         std::printf("device: [%s] %s\n", e->name(), e->device().c_str());
     }
+    if (bench) return runBench(envs, gpus);
     core::Pipeline pipe;
     std::vector<int> kernelUse(size_t(engine::KID_COUNT), 0);
     double worstGpu = 0.0, worstModel = 0.0;
