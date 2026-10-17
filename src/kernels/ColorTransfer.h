@@ -31,6 +31,14 @@
 #define CEL_IN_BMDGEN5 9
 #define CEL_IN_ACESCCT 10
 #define CEL_IN_LINEAR 11
+#define CEL_IN_REC709 12
+#define CEL_IN_SRGB 13
+
+/* v1.5 display-referred inputs: the inverse camera curve gives scene linear up to code 1.0 = 1.0,
+ * which would leave the film no highlights to roll off. Above CEL_DR_KNEE the clipped video
+ * shoulder is undone with s = k + y / (1 - y/L): C1 at the knee, code 1.0 -> ~4.2 (+4.5 stops). */
+#define CEL_DR_KNEE 0.6f
+#define CEL_DR_L 0.45f
 
 #define CEL_OUT_709_G24 0
 #define CEL_OUT_709_SRGB 1
@@ -51,7 +59,28 @@
  * extra rounding of the product is <= 5e-7 relative over the |x| <= 4 range the model uses. */
 CEL_DEVICE float celc_pow10(float x) { return cel_exp2(x * 3.32192809488736234787f); }
 
+CEL_DEVICE float celc_dr_expand(float x) {
+    if (x <= CEL_DR_KNEE) return x;
+    float y = cel_fmin(x - CEL_DR_KNEE, 0.995f * CEL_DR_L);
+    return CEL_DR_KNEE + y / (1.0f - y / CEL_DR_L);
+}
+CEL_DEVICE float celc_dr_compress(float s) {
+    if (s <= CEL_DR_KNEE) return s;
+    float u = s - CEL_DR_KNEE;
+    return CEL_DR_KNEE + u / (1.0f + u / CEL_DR_L);
+}
+
 CEL_DEVICE float celc_decode_transfer(int space, float v) {
+    if (space == CEL_IN_REC709) {
+        float a = cel_fabs(v);
+        float x = a < 0.081f ? a / 4.5f : cel_pow((a + 0.099f) / 1.099f, 1.0f / 0.45f);
+        return v < 0.0f ? -x : celc_dr_expand(x);
+    }
+    if (space == CEL_IN_SRGB) {
+        float a = cel_fabs(v);
+        float x = a <= 0.04045f ? a / 12.92f : cel_pow((a + 0.055f) / 1.055f, 2.4f);
+        return v < 0.0f ? -x : celc_dr_expand(x);
+    }
     if (space == CEL_IN_FLOG2C || space == CEL_IN_FLOG2) {
         /* a=5.555556 b=0.064829 c=0.245281 d=0.384316 e=8.799461 f=0.092864 cut2=0.100686685370811 */
         return v >= 0.100686685370811f ? (celc_pow10((v - 0.384316f) / 0.245281f) - 0.064829f) / 5.555556f
@@ -106,6 +135,13 @@ CEL_DEVICE float celc_decode_transfer(int space, float v) {
 
 /* Inverse of celc_decode_transfer (used by tests / tools; not needed by the kernels). */
 CEL_DEVICE float celc_encode_transfer(int space, float x) {
+    if (space == CEL_IN_REC709 || space == CEL_IN_SRGB) {
+        float a = cel_fabs(x);
+        if (x >= 0.0f) a = celc_dr_compress(a);
+        float r = space == CEL_IN_REC709 ? (a < 0.018f ? 4.5f * a : 1.099f * cel_pow(a, 0.45f) - 0.099f)
+                                         : (a <= 0.0031308f ? 12.92f * a : 1.055f * cel_pow(a, 1.0f / 2.4f) - 0.055f);
+        return x < 0.0f ? -r : r;
+    }
     if (space == CEL_IN_FLOG2C || space == CEL_IN_FLOG2)
         return x >= 0.000889f ? 0.245281f * cel_log10(5.555556f * x + 0.064829f) + 0.384316f : 8.799461f * x + 0.092864f;
     if (space == CEL_IN_FLOG)

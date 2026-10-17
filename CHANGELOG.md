@@ -6,6 +6,18 @@ unchanged in a newer one.
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-10-17
+
+### Added
+
+- **Rec.709 video and sRGB inputs** (Camera Log menu, appended) for footage without a log profile -
+  camcorders, phones, JPEG stills. The display curve is undone, and the clipped video shoulder above
+  60 % linear is expanded back to about +4.5 stops, so bright skies and lamps still roll into the
+  film's shoulder instead of hard-clipping. Gamut: Rec.709.
+- **Still Photo** switch (Input, off by default) for grading single photographs (RAW debayered by Resolve,
+  or JPEG via the sRGB input): the texture is frozen to one frame and gate weave, Film Blur and Film
+  Breath are left out.
+
 ### Changed
 
 - New plug-in icon: a film frame with a low sun, its red halation and the frame edge drawn in the three dye

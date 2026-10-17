@@ -25,6 +25,8 @@ enum class InputSpace : int {
     BMDFilmGen5,         // Blackmagic Film Gen 5 / BMD Wide Gamut Gen 5
     ACEScct,             // ACEScct / AP1
     LinearRec2020,       // scene-linear Rec.2020 (testing / pipelines)
+    Rec709Video,         // v1.5: display-referred Rec.709 video (camcorder / phone), highlights expanded
+    SRGB,                // v1.5: display-referred sRGB (photos / JPEG), highlights expanded
     Count
 };
 

@@ -717,10 +717,16 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
         tp.damageEnabled = false;
         tp.blurEnabled = false;
     }
+    const bool still = flag(id::stillPhoto, t);   // v1.5: one photograph, nothing that varies over time
+    if (still) {
+        tp.time = 0.0;   // grain, dust and hair frozen to one frame (the seeds still pick which one)
+        tp.weaveAmount = 0.f;
+        tp.blurEnabled = false;
+    }
     // v1.3 Film Breath: per-frame exposure / development / printer-light variation, a deterministic
     // sequence in (seed, frame) computed here once per frame and applied to the colour look. Not in Color
     // Only (a LUT cannot vary per frame) nor in Texture Only (no colour pipeline).
-    if (fs.mode != core::Mode::ColorOnly && fs.mode != core::Mode::TextureOnly && flag(id::breathEnable, t)) {
+    if (!still && fs.mode != core::Mode::ColorOnly && fs.mode != core::Mode::TextureOnly && flag(id::breathEnable, t)) {
         tex::FilmBreathParams bp;
         bp.enabled = true;
         bp.profile = tex::BreathProfile(std::min(std::max(choice(id::breathProfile, t), 0), int(tex::BreathProfile::Count) - 1));
@@ -752,7 +758,8 @@ void ReafilmEffect::getClipPreferences(OFX::ClipPreferencesSetter& prefs) {
     const bool damage = flag(id::damageEnable, 0.0) && flag(id::damageAnimated, 0.0);
     const bool blur = flag(id::filmBlurEnable, 0.0);
     const bool breath = flag(id::breathEnable, 0.0) && effectiveMode(0.0) != core::Mode::TextureOnly;   // v1.3
-    prefs.setOutputFrameVarying(texture && (animatedGrain || weave || damage || blur || breath));
+    const bool still = flag(id::stillPhoto, 0.0);   // v1.5
+    prefs.setOutputFrameVarying(texture && !still && (animatedGrain || weave || damage || blur || breath));
 }
 
 void ReafilmEffect::render(const OFX::RenderArguments& args) {

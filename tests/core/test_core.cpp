@@ -47,16 +47,21 @@ static bool finite3(Float3 v) { return std::isfinite(v.r) && std::isfinite(v.g) 
 // against colour-science 0.4.7 (reference/design notes).
 static void testTransfers() {
     std::printf("[transfers]\n");
-    const double greyCode[12] = {0.391007, 0.391007, 0.459318, 0.336043, 0.391007, 0.278396,
-                                 0.410557, 0.423311, 0.343389, 0.383562, 0.413588, 0.18};
+    const double greyCode[14] = {0.391007, 0.391007, 0.459318, 0.336043, 0.391007, 0.278396,
+                                 0.410557, 0.423311, 0.343389, 0.383562, 0.413588, 0.18,
+                                 0.409008, 0.461356};
+    static_assert(sizeof(greyCode) / sizeof(greyCode[0]) == size_t(InputSpace::Count), "one grey code per input");
     double worst = 0;
-    for (int sp = 0; sp < 12; ++sp) {
+    for (int sp = 0; sp < int(InputSpace::Count); ++sp) {
+        // display-referred inputs (v1.5) top out at ~4.2 scene linear (code 1.0); the expanded
+        // shoulder amplifies float rounding by up to ~1/(1 - y/L), so they stop at 2^3.5 x 18%
+        const bool display = sp == CEL_IN_REC709 || sp == CEL_IN_SRGB;
         float g = celc_encode_transfer(sp, 0.18f);
         CHECK(std::fabs(g - greyCode[sp]) < 2e-6, "space %d: 18%% grey code %.6f expected %.6f", sp, g, greyCode[sp]);
         float d = celc_decode_transfer(sp, float(greyCode[sp]));
         CHECK(std::fabs(d - 0.18) / 0.18 < 0.005, "space %d: grey decode %.6f", sp, d);
         // round trip over the whole useful range (scene 2^-14 .. 2^8 x 18%, plus linear segments)
-        for (int k = -140; k <= 80; ++k) {
+        for (int k = -140; k <= (display ? 35 : 80); ++k) {
             float x = 0.18f * std::pow(2.0f, k / 10.0f);
             float y = celc_decode_transfer(sp, celc_encode_transfer(sp, x));
             // float32 kernels: relative 1e-5 down to -7 stops (x >= 0.0014); below that the code value's

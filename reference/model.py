@@ -54,11 +54,25 @@ HOLD_K = 1.3                        # hold weight 1 - exp(-HOLD_K stops^2) away 
 BLACK_ON = 1e-4                     # v1.3 monotone black: applied only when the neutral ramp drops by more than this (relative)
 
 INPUTS = ['FLog2C', 'FLog2', 'FLog', 'DaVinciIntermediate', 'ArriLogC3', 'ArriLogC4',
-          'SLog3SGamut3Cine', 'VLog', 'CanonLog3', 'BMDFilmGen5', 'ACEScct', 'LinearRec2020']
+          'SLog3SGamut3Cine', 'VLog', 'CanonLog3', 'BMDFilmGen5', 'ACEScct', 'LinearRec2020',
+          'Rec709Video', 'SRGB']
 INPUT_GAMUT = {'FLog2C': 'fgamutc', 'FLog2': 'fgamut', 'FLog': 'fgamut', 'DaVinciIntermediate': 'dwg',
                'ArriLogC3': 'awg3', 'ArriLogC4': 'awg4', 'SLog3SGamut3Cine': 'sgamut3cine',
                'VLog': 'vgamut', 'CanonLog3': 'cinemagamut', 'BMDFilmGen5': 'bmdwg5',
-               'ACEScct': 'ap1', 'LinearRec2020': 'rec2020'}
+               'ACEScct': 'ap1', 'LinearRec2020': 'rec2020', 'Rec709Video': 'rec709', 'SRGB': 'rec709'}
+
+# v1.5 display-referred inputs: the clipped video shoulder above DR_KNEE is undone (mirrors ColorTransfer.h)
+DR_KNEE, DR_L = 0.6, 0.45
+
+
+def dr_expand(x):
+    y = np.minimum(x - DR_KNEE, 0.995 * DR_L)
+    return np.where(x <= DR_KNEE, x, DR_KNEE + y / (1.0 - y / DR_L))
+
+
+def dr_compress(s):
+    u = np.maximum(s - DR_KNEE, 0.0)
+    return np.where(s <= DR_KNEE, s, DR_KNEE + u / (1.0 + u / DR_L))
 OUTPUTS = ['Rec709_G24', 'Rec709_sRGB', 'P3D65_G26', 'P3DCI_G26', 'Rec2100_PQ', 'Rec2100_HLG']
 OUTPUT_GAMUT = {'Rec709_G24': 'rec709', 'Rec709_sRGB': 'rec709', 'P3D65_G26': 'p3', 'P3DCI_G26': 'dcip3',
                 'Rec2100_PQ': 'rec2020', 'Rec2100_HLG': 'rec2020'}
@@ -118,6 +132,13 @@ def decode_transfer(name, v):
         return np.where(v <= k['YB'], (v - k['B']) / k['A'], np.where(v < hi, 2.0 ** (v * 17.52 - 9.72), 65504.0))
     if name == 'LinearRec2020':
         return v
+    if name in ('Rec709Video', 'SRGB'):
+        a = np.abs(v)
+        if name == 'Rec709Video':
+            x = np.where(a < 0.081, a / 4.5, ((a + 0.099) / 1.099) ** (1.0 / 0.45))
+        else:
+            x = np.where(a <= 0.04045, a / 12.92, ((a + 0.055) / 1.055) ** 2.4)
+        return np.where(v < 0.0, -x, dr_expand(x))
     raise ValueError(name)
 
 
@@ -154,6 +175,13 @@ def encode_transfer(name, x):
         return np.where(x <= k['XB'], k['A'] * x + k['B'], (np.log2(np.maximum(x, 1e-30)) + 9.72) / 17.52)
     if name == 'LinearRec2020':
         return x
+    if name in ('Rec709Video', 'SRGB'):
+        a = np.where(x >= 0.0, dr_compress(np.abs(x)), np.abs(x))
+        if name == 'Rec709Video':
+            r = np.where(a < 0.018, 4.5 * a, 1.099 * a ** 0.45 - 0.099)
+        else:
+            r = np.where(a <= 0.0031308, 12.92 * a, 1.055 * a ** (1.0 / 2.4) - 0.055)
+        return np.where(x < 0.0, -r, r)
     raise ValueError(name)
 
 

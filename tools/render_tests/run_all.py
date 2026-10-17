@@ -1145,7 +1145,11 @@ class Suite:
              self.line("anim_weave", "natural", dict(off, weaveAmount=2.0), frames="0:5"),
              self.line("anim_weave_fast", "natural", dict(off, weaveAmount=2.0, weaveSpeed=4.0), frames="0:5"),
              self.line("anim_again", "natural", dict(off, grainEnable=True, grainAnimated=True), time_=2),
-             self.line("anim_default", "natural", {"mode": full}, frames="0:2")]
+             self.line("anim_default", "natural", {"mode": full}, frames="0:2"),
+             # v1.5 Still Photo: everything that moves switched on, the frames must still be identical
+             self.line("anim_still", "natural", {"mode": full, "stillPhoto": True, "weaveAmount": 2.0,
+                                                  "damageEnable": True, "damageAnimated": True, "filmBlurEnable": True,
+                                                  "breathEnable": True}, frames="0:2")]
         self.batch("animation", L)
         f = [self.load("anim_grain", "natural", t) for t in range(4)]
         d = min(float(np.abs(f[i] - f[i + 1]).mean()) for i in range(3))
@@ -1173,6 +1177,10 @@ class Suite:
         dd = [self.load("anim_default", "natural", t) for t in range(3)]
         self.check(g, "default settings animate (grain on)", float(np.abs(dd[0] - dd[1]).mean()) > 1e-4,
                    "mean diff %.5f" % float(np.abs(dd[0] - dd[1]).mean()))
+        st = [self.load("anim_still", "natural", t) for t in range(3)]
+        d = max(float(np.abs(st[0] - st[i]).max()) for i in range(1, 3))
+        self.check(g, "Still Photo: identical frames with weave, damage, blur and breath on", d <= 1e-6,
+                   "max diff %.2e" % d, "<= 1e-6")
 
     # ------------------------------------------------------------------ render scale
     def g_scale(self):

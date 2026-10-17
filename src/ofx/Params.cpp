@@ -228,8 +228,16 @@ std::vector<ParamDef> build() {
              "The log encoding and gamut of the incoming footage. Set this to match your camera (default: Fujifilm "
              "F-Log2 C / F-Gamut C). In a colour-managed Resolve project, use a timeline/working space that keeps "
              "the camera log intact for this node, or convert to the matching log space before this node. "
-             "Wrong settings show up as overly flat or harsh, colour-shifted images.",
+             "Wrong settings show up as overly flat or harsh, colour-shifted images. For footage without a log "
+             "profile (camcorders, phones, JPEG stills) pick Rec.709 video or sRGB: the clipped highlights are "
+             "expanded back to about +4.5 stops so the film still has a shoulder to roll into.",
              false);
+    b.boolean(id::stillPhoto, "Still Photo", false,
+              "For a single photograph (RAW debayered by Resolve, or a JPEG with the sRGB input) instead of "
+              "moving footage. The texture is frozen to one frame - grain, dust and the gate stay as they are - "
+              "and everything that only makes sense over time is left out: gate weave, Film Blur and Film "
+              "Breath. Off = normal moving-picture behaviour.",
+              false);
     b.boolean(id::exposureEnable, "Enable Exposure", true,
               "Switches the Exposure trim below on or off without losing its value. Off = the footage reaches the "
               "film exactly as it was recorded (0 stops).",

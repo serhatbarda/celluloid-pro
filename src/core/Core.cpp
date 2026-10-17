@@ -32,7 +32,7 @@ std::vector<std::string> inputSpaceNames() {
             "DaVinci Intermediate / DaVinci Wide Gamut", "ARRI LogC3 (EI 800) / ARRI Wide Gamut 3",
             "ARRI LogC4 / ARRI Wide Gamut 4", "Sony S-Log3 / S-Gamut3.Cine", "Panasonic V-Log / V-Gamut",
             "Canon Log 3 / Cinema Gamut", "Blackmagic Film Gen 5 / BMD Wide Gamut Gen 5", "ACEScct / AP1",
-            "Linear Rec.2020"};
+            "Linear Rec.2020", "Rec.709 video (camcorder / phone)", "sRGB (photos / JPEG)"};
 }
 std::vector<std::string> outputSpaceNames() {
     return {"Rec.709 (Gamma 2.4)", "Rec.709 (sRGB)", "P3-D65 (Gamma 2.6)", "DCI-P3 (Gamma 2.6, D65 sim)",
@@ -344,6 +344,7 @@ static spec::Gamut inputGamut(InputSpace s) {
     case InputSpace::CanonLog3: return spec::Gamut::CinemaGamut;
     case InputSpace::BMDFilmGen5: return spec::Gamut::BMDWG5;
     case InputSpace::ACEScct: return spec::Gamut::AP1;
+    case InputSpace::Rec709Video: case InputSpace::SRGB: return spec::Gamut::Rec709;
     default: return spec::Gamut::Rec2020;
     }
 }

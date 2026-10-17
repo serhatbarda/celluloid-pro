@@ -203,6 +203,7 @@ int main() {
     check(defLabel("lutSize") == "33", "lutSize default must be 33");
     check(hasBool("grainEnable", true), "grainEnable default true");
     check(hasBool("grainAnimated", true), "grainAnimated default true");
+    check(hasBool("stillPhoto", false), "stillPhoto default false (moving footage)");
 
     // ---- module switches (v1.1, SPEC §7): one Bool per module, placed directly before the controls it
     // switches, default ON for every module that existed in v1.0 (projects saved before the switch
@@ -361,7 +362,7 @@ int main() {
         check(resolvePreset(i).size() == lookCount, "preset " + lookPresets()[i].name + " does not resolve all look params");
     // look params never include colour-space / exposure / license / LUT parameters
     for (const char* p : {"inputSpace", "outputSpace", "exposure", "exposureEnable", "mode", "hdrPeakNits", "hdrUnroll",
-                          "hdrUnrollEnable", "grainSeed", "damageSeed", "filmBlurSeed", "lutSize"})
+                          "hdrUnrollEnable", "stillPhoto", "grainSeed", "damageSeed", "filmBlurSeed", "lutSize"})
         check(findParam(p) && !findParam(p)->look, std::string(p) + " must not be a look (preset) parameter");
 
     // ---- platform helpers ----
