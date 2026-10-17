@@ -114,7 +114,8 @@ static bool sameTimer(const LookParams& a, const LookParams& b) {
 static bool sameFilm(const LookParams& a, const LookParams& b) {
     return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
            a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.crossProcess == b.crossProcess &&
-           a.pushRated == b.pushRated && a.process == b.process && a.printStock == b.printStock && a.printBleach == b.printBleach && a.printCrossover == b.printCrossover &&
+           a.pushRated == b.pushRated && a.filmAge == b.filmAge && a.process == b.process && a.printStock == b.printStock &&
+           a.printBleach == b.printBleach && a.printCrossover == b.printCrossover &&
            a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
            a.printContrast == b.printContrast &&   // v1.3 print lab
            a.rolloffStart == b.rolloffStart && a.rolloffSoftness == b.rolloffSoftness &&   // v1.3: the print curve
@@ -135,7 +136,7 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
     return a.input == b.input && a.output == b.output && a.exposure == b.exposure && a.negStock == b.negStock &&
            a.pushPull == b.pushPull && a.interlayer == b.interlayer && a.negBleach == b.negBleach &&
            a.neutralize == b.neutralize && a.crossProcess == b.crossProcess && a.pushRated == b.pushRated &&
-           a.process == b.process && a.printStock == b.printStock && a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
+           a.filmAge == b.filmAge && a.process == b.process && a.printStock == b.printStock && a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
            a.hdrUnroll == b.hdrUnroll && a.grainAmount == b.grainAmount && a.cameraEmulation == b.cameraEmulation &&
            a.emulationStrength == b.emulationStrength && a.printCrossover == b.printCrossover && a.stage == b.stage &&
@@ -167,6 +168,7 @@ static LookParams sanitize(LookParams p) {
     p.exposure = std::isfinite(p.exposure) ? clampf(p.exposure, -8.f, 8.f) : 0.f;
     p.pushPull = std::isfinite(p.pushPull) ? clampf(p.pushPull, -2.f, 3.f) : 0.f;
     p.pushRated = p.pushRated && p.pushPull != 0.f;
+    p.filmAge = clampf(p.filmAge, 0.f, 1.f);
     p.interlayer = std::isfinite(p.interlayer) ? clampf(p.interlayer, 0.f, 2.f) : 1.f;
     p.negBleach = clampf(p.negBleach, 0.f, 1.f);
     p.neutralize = clampf(p.neutralize, 0.f, 1.f);
@@ -937,16 +939,24 @@ void Pipeline::prepare(const LookParams& pin) {
             c.x0 = kLog10Grey - 1.2 - (c.x0 - xm);
             c.gamma *= 0.4;
         }
+        if (p.filmAge > 0.f) c.gamma *= 1.0 - 0.15 * double(p.filmAge);   // expired: a little contrast lost
         cs[i] = pushCurve(c, p.pushPull, rev);
     }
     {
+        // expired: age fog acts as a uniform latent exposure (a flash) under the image, strongest in the fast
+        // blue layer - at 1, 3.0 / 2.5 / 1.7 stops (R / G / B) under grey; it lifts the shadows into a coloured
+        // haze (a slide's blacks fade) that the print timing cannot remove
+        double flash[3] = {0, 0, 0};
+        if (p.filmAge > 0.f)
+            for (int i = 0; i < 3; ++i) flash[i] = double(p.filmAge) * 0.18 * std::exp2(-(mono ? 2.4 : (i == 0 ? 3.0 : i == 1 ? 2.5 : 1.7)));
+        auto ev = [&](int i, double x) { return curveEval(cs[i], flash[i] > 0 ? std::log10(std::pow(10.0, x) + flash[i]) : x, rev); };
         std::vector<double> d(nNC);
         for (int i = 0; i < 3; ++i)
             for (int k = 0; k < kNCurve; ++k)
-                d[size_t(i) * kNCurve + k] = curveEval(cs[i], kNegX0 + (kNegX1 - kNegX0) * k / (kNCurve - 1), rev);
+                d[size_t(i) * kNCurve + k] = ev(i, kNegX0 + (kNegX1 - kNegX0) * k / (kNCurve - 1));
         if (p.neutralize > 0.f) {
             double fog[3], dg[3];
-            for (int i = 0; i < 3; ++i) { fog[i] = cs[i].fog; dg[i] = curveEval(cs[i], kLog10Grey, rev); }
+            for (int i = 0; i < 3; ++i) { fog[i] = flash[i] > 0 ? ev(i, kNegX0) : cs[i].fog; dg[i] = ev(i, kLog10Grey); }
             for (int k = 0; k < kNCurve; ++k) {
                 double cn[3], cm = 0;
                 for (int i = 0; i < 3; ++i) { cn[i] = (d[size_t(i) * kNCurve + k] - fog[i]) / (dg[i] - fog[i]); cm += cn[i] / 3.0; }
@@ -968,7 +978,7 @@ void Pipeline::prepare(const LookParams& pin) {
         for (int j = 0; j < 3; ++j) s[CEL_CS_INTER + i * 3 + j] = i == j ? 0.f : float(neg.inter[i][j] * p.interlayer);
     }
     s[CEL_CS_REVSIGN] = rev ? -1.f : 1.f;
-    const double pushf = std::pow(1.25, double(p.pushPull));
+    const double pushf = std::pow(1.25, double(p.pushPull)) * (1.0 + 0.6 * double(p.filmAge));   // + expired
     double gmean = 0;
     for (int i = 0; i < 3; ++i) {
         double g = (mono ? neg.gran[0] : neg.gran[i]) * p.grainAmount * pushf;

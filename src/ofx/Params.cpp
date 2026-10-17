@@ -485,6 +485,12 @@ std::vector<ParamDef> build() {
               "uneven colour casts from the missing orange mask. Use Process and Print Stock as for a negative; "
               "the Printer Lights correct the cast. Slide stocks only.",
               true);
+    b.dbl(id::filmAge, "Expired", 0.0, 0.0, 1.0, 0.01, 2,
+          "Film past its date. Base fog builds up (fastest in the blue-sensitive layer), so the shadows lift into "
+          "a coloured haze while grey stays balanced; the film loses speed and contrast and the grain gets "
+          "coarser. 0 = fresh film, 0.3 = a year or two out of date, 1 = about ten years, stored warm. On slide "
+          "film the blacks fade instead.",
+          true);
     b.label(id::negProvenance, "Stock Data", negs.empty() ? std::string() : negs[size_t(std::max(negDefault, 0))].provenance,
             "Where the selected film stock's data comes from (v1.3): a manufacturer data sheet (fitted, not measured "
             "from film), partly borrowed from a named proxy stock, a Reafilm design, or a style approximation.")

@@ -1459,6 +1459,24 @@ static void testDarkroom() {
         }
         CHECK(fin && mono, "cross ramp finite and monotonic");
     }
+    {   // expired: shadows lift (age fog under the image), grey stays balanced, the ramp stays monotonic
+        Pipeline F, A;
+        LookParams lp = lpFor(1, 5, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+        F.prepare(lp);
+        lp.filmAge = 1.f;
+        A.prepare(lp);
+        Float3 f = outGrey(F, 0.18f / 32.f), a = outGrey(A, 0.18f / 32.f), g = outGrey(A, 0.18f);
+        CHECK(a.g > f.g + 0.02f, "expired lifts the shadows (%g vs fresh %g)", a.g, f.g);
+        CHECK(std::fabs(g.r - g.g) < 0.01f && std::fabs(g.b - g.g) < 0.01f, "expired grey balanced (%g %g %g)", g.r, g.g, g.b);
+        float prev = -1.f;
+        bool mono = true;
+        for (int k = 0; k <= 60; ++k) {
+            Float3 o = outGrey(A, 0.18f * std::exp2(-8.f + 0.25f * k));
+            mono = mono && finite3(o) && o.g >= prev - 1e-4f;
+            prev = o.g;
+        }
+        CHECK(mono, "expired ramp finite and monotonic");
+    }
 }
 
 int main(int argc, char** argv) {

@@ -84,6 +84,7 @@ int main() {
         {"interlayer", "groupNegative", 0, 2, 1},
         {"negBleach", "groupNegative", 0, 1, 0},
         {"neutralize", "groupNegative", 0, 1, 0},
+        {"filmAge", "groupNegative", 0, 1, 0},
         {"printerR", "groupPrint", -12, 12, 0},
         {"printerG", "groupPrint", -12, 12, 0},
         {"printerB", "groupPrint", -12, 12, 0},

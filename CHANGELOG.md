@@ -4,6 +4,15 @@ All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.9.0] — 2026-10-17
+
+### Added
+
+- **Expired** (Negative, 0 … 1, default 0): film past its date. The age fog acts like a weak flash under
+  the image, strongest in the fast blue-sensitive layer, so the shadows lift into a coloured haze while
+  grey stays balanced; a little contrast is lost and the grain gets coarser. On slide film the blacks
+  fade. 0.3 is a year or two out of date, 1 about ten years stored warm.
+
 ## [1.8.0] — 2026-10-17
 
 ### Added

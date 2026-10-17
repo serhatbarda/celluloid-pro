@@ -184,7 +184,7 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
     return a.input == b.input && a.output == b.output && a.exposure == b.exposure && a.negStock == b.negStock &&
            a.pushPull == b.pushPull && a.interlayer == b.interlayer && a.negBleach == b.negBleach &&
            a.neutralize == b.neutralize && a.crossProcess == b.crossProcess && a.pushRated == b.pushRated &&
-           a.process == b.process &&
+           a.filmAge == b.filmAge && a.process == b.process &&
            a.printStock == b.printStock && a.printerR == b.printerR && a.printerG == b.printerG && a.printerB == b.printerB &&
            a.printExposure == b.printExposure && a.printBleach == b.printBleach && a.hdrPeakNits == b.hdrPeakNits &&
            a.cameraEmulation == b.cameraEmulation && a.emulationStrength == b.emulationStrength &&
@@ -514,7 +514,8 @@ core::LookParams ReafilmEffect::lookAt(double t) const {
         lp.neutralize = float(num(id::neutralize, t));
         lp.pushRated = flag(id::pushUnder, t);   // rated speed: a push was shot under, a pull over
     }
-    lp.crossProcess = flag(id::crossProcess, t);   // else: LookParams defaults = standard development (0 / 1 / 0 / 0)
+    lp.crossProcess = flag(id::crossProcess, t);
+    lp.filmAge = float(num(id::filmAge, t));   // else: LookParams defaults = standard development (0 / 1 / 0 / 0)
     lp.process = core::Process(clampIdx(choice(id::process, t), int(core::Process::Count)));
     lp.printStock = clampIdx(choice(id::printStock, t), int(core::printStockNames().size()));
     if (flag(id::printEnable, t)) {
@@ -1261,6 +1262,7 @@ void ReafilmEffect::refreshEnabledness(double t) {
     setEnabled(id::neutralize, colour && devOn && !mono);
     setEnabled(id::pushUnder, colour && devOn);
     setEnabled(id::crossProcess, colour && slide);
+    setEnabled(id::filmAge, colour);
     setEnabled(id::process, colour && !reversal);
     setEnabled(id::printStock, colour && !reversal && !scan);
     setEnabled(id::printEnable, colour && !reversal);
@@ -1361,7 +1363,7 @@ void ReafilmEffect::refreshEnabledness(double t) {
         setEnabled(id::alexaColour, colour && !alexaStage && sc != StageChoice::PrintOnly && acOn);
         if (alexaStage) {
             for (const char* p : {id::negStock, id::developmentEnable, id::pushPull, id::interlayer, id::negBleach,
-                                  id::neutralize, id::pushUnder, id::crossProcess, id::process, id::printStock, id::printEnable, id::printerR, id::printerG,
+                                  id::neutralize, id::pushUnder, id::crossProcess, id::filmAge, id::process, id::printStock, id::printEnable, id::printerR, id::printerG,
                                   id::printerB, id::printExposure, id::printBleach, id::printCrossover, id::printLabEnable,
                                   id::projectionWhite, id::printAim, id::printContrast, id::printRender, id::rolloffEnable,
                                   id::rolloffStart, id::rolloffSoftness, id::dyeSatEnable, id::dyeSaturation, id::dyeRichness,
