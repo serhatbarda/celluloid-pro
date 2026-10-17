@@ -13,7 +13,7 @@ designs.
 
 | | |
 |---|---|
-| Plug-in | `de.serhatbarda.CelluloidPro` · "Reafilm Pro" · OpenFX group "Reafilm" · version 1.3.0 |
+| Plug-in | `de.serhatbarda.CelluloidPro` · "Reafilm Pro" · OpenFX group "Reafilm" · version 1.4.0 |
 | Stocks | 11 negatives (incl. reversal and black & white) · 5 prints · Lab Scan process |
 | Looks | 14 curated presets (2 with film damage) |
 | Cameras | Fujifilm F-Log2 C (primary), F-Log2, F-Log, ARRI LogC3/LogC4, Sony S-Log3, Panasonic V-Log, Canon Log 3, Blackmagic Film Gen 5, DaVinci Intermediate, ACEScct, Linear Rec.2020 |
@@ -142,7 +142,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
       -DCEL_ENABLE_METAL=ON -DCEL_ENABLE_OPENCL=ON
 cmake --build build --parallel
 bash installers/ci/verify_bundle.sh build/ReafilmPro.ofx.bundle macos
-installers/macos/build_pkg.sh --bundle build/ReafilmPro.ofx.bundle --version 1.3.0 --out dist
+installers/macos/build_pkg.sh --bundle build/ReafilmPro.ofx.bundle --version 1.4.0 --out dist
 ```
 
 For a quick local test, copy the bundle to `/Library/OFX/Plugins/` and restart Resolve.
@@ -158,7 +158,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ^
       -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
       -DCEL_ENABLE_CUDA=ON -DCEL_ENABLE_OPENCL=ON
 cmake --build build --parallel
-powershell -File installers\windows\build_installer.ps1 -BundleDir build\ReafilmPro.ofx.bundle -Version 1.3.0 -OutDir dist
+powershell -File installers\windows\build_installer.ps1 -BundleDir build\ReafilmPro.ofx.bundle -Version 1.4.0 -OutDir dist
 ```
 
 The plug-in DLL links the MSVC runtime and the CUDA runtime statically; OpenCL is loaded at run time
@@ -257,7 +257,7 @@ configured with `CEL_DEV_LICENSE=ON`.
 
 ## Status
 
-Version 1.3.0. Built and tested on the Linux workbench (unit tests, CPU and POCL/OpenCL parity,
+Version 1.4.0. Built and tested on the Linux workbench (unit tests, CPU and POCL/OpenCL parity,
 end-to-end render tests through the real bundle) and in CI on macOS and Windows (including Metal
 execution on the macOS runner's virtual GPU). Not yet verified: CUDA execution on NVIDIA hardware,
 real-GPU performance (the < 8 ms UHD target is an estimate, not a measurement), and use inside

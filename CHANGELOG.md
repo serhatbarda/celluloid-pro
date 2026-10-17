@@ -6,6 +6,8 @@ unchanged in a newer one.
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-17
+
 ### Changed
 
 - **Before / After Wipe**: the "before" side is now a plain Rec.709 view of the camera (the neutral ALEXA
