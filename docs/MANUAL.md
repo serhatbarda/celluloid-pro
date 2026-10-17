@@ -586,16 +586,7 @@ Fujifilm Eterna-CP 3513DI: neutral and gentle, made for digital intermediates.
 - **LUT Size** (`lutSize`; default: 33) — Lattice size of the exported 3D LUT. 33 is the usual choice; 65 is the most accurate (larger file); 17 for devices with small LUT memory.
   - Options: 17 · 33 · 65
 - **Folder** (`lutPath`; folder; default empty) — Folder the LUT is written to (created if needed). Leave empty for the default folder `<Documents>/Reafilm` LUTs of the user who exports. File name: `Reafilm_<input>_<negative>_<print>_<output>.cube`. Add this folder to Resolve's LUT list (Project Settings > Color Management > Open LUT Folder) to use the LUTs elsewhere.
-- **Export LUT** (`lutExport`; button) — Licensed version only. Writes the current colour settings (Color Only: input space, exposure, stocks, development, print, output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, cameras or other applications. The LUT expects the selected camera log as input (Linear Rec.2020: the file carries a log2 shaper).
-
-### License
-
-*Activation.*
-
-- **License Status** (`licenseStatus`; read-only) — Current license state. The trial includes every feature except LUT export; renders carry a small watermark until a license key is activated.
-- **License Key** (`licenseKey`; text field) — Paste the license key you received by e-mail (starts with CELL1-), then press Activate. The key is stored for your user account, not in the project; the field is cleared after activation.
-- **Activate** (`licenseActivate`; button) — Verifies the pasted key and activates Reafilm Pro on this computer.
-- **Deactivate** (`licenseRemove`; button) — Removes the license from this computer (for example before moving it to another machine). Renders return to trial mode.
+- **Export LUT** (`lutExport`; button) — Writes the current colour settings (Color Only: input space, exposure, stocks, development, print, output; no grain or other texture) as a .cube 3D LUT for on-set monitoring, cameras or other applications. The LUT expects the selected camera log as input (Linear Rec.2020: the file carries a log2 shaper).
 
 ### About
 
