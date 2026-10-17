@@ -304,10 +304,14 @@ static void testSmoothness() {
                 std::nth_element(sorted.begin(), sorted.begin() + sorted.size() / 2, sorted.end());
                 double med = sorted[sorted.size() / 2];
                 for (int ch = 0; ch < 3; ++ch) {
+                    // near-black skip relative to the ramp's own floor: a reflection print (photo paper, v1.7)
+                    // bottoms out near 0.09 instead of film's ~0, its flat D-max approach is not a tone scale
+                    float lo = 1e9f;
+                    for (int k = 0; k < N; ++k) lo = std::min(lo, o[size_t(k) * 3 + ch]);
                     double w = 0;
                     for (int k = Wn; k < N - 1 - Wn; ++k) {
                         float v = o[size_t(k) * 3 + ch];
-                        if (v < 0.03f || v > 0.95f || amax[size_t(k)] < 0.15 * med || amax[size_t(k)] <= 0) continue;
+                        if (v < std::max(lo, 0.f) + 0.03f || v > 0.95f || amax[size_t(k)] < 0.15 * med || amax[size_t(k)] <= 0) continue;
                         w = std::max(w, std::fabs(sl[ch][size_t(k)] - sm[ch][size_t(k)]) / amax[size_t(k)]);
                     }
                     CHECK(w <= 0.05, "slope ripple %.3f > 0.05: neg %d print %d ramp %s channel %d", w, n, p, r.name, ch);
@@ -966,7 +970,7 @@ static void testBehaviour() {
     // name lists
     CHECK(inputSpaceNames().size() == size_t(InputSpace::Count), "input names");
     CHECK(outputSpaceNames().size() == size_t(OutputSpace::Count), "output names");
-    CHECK(negativeStocks().size() == 26 && printStockNames().size() == 11, "stock counts");
+    CHECK(negativeStocks().size() == 26 && printStockNames().size() == 15, "stock counts");
     // v1.2 appended the data-sheet stocks; the shipped-default look is 250D 5207 + P6
     CHECK(negativeStocks()[12].name == "Kodak Vision3 250D 5207" && printStockNames()[8] == "P6 Modern Print", "v1.2 stocks appended");
     CHECK(negativeStocks()[19].name == "Kodak Vision2 500T 5218" && negativeStocks()[21].name == "Kodak Double-X 5222" &&
@@ -976,6 +980,8 @@ static void testBehaviour() {
     CHECK(printStockNames()[7] == "Fujifilm Eterna-CP 3513DI (v1.2 legacy curve)" && printStockNames()[9] == "Fujifilm Eterna-CP 3521XD" &&
               printStockNames()[10] == "Fujifilm Eterna-CP 3513DI",
           "v1.3 prints appended");
+    CHECK(printStockNames()[11] == "Kodak Endura Premier (paper)" && printStockNames()[14] == "Fujifilm Crystal Archive (paper)",
+          "v1.7 photo papers appended");
     CHECK(negativeStocks()[1].name == "CN 200T Studio Tungsten" && printStockNames()[0] == "P1 Standard Projection", "defaults");
 }
 

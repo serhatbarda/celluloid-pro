@@ -289,10 +289,10 @@ int main() {
     check(count("printStock") == int(core::printStockNames().size()), "printStock options != printStockNames()");
     check(count("lookPreset") == int(lookPresets().size()) + 1, "lookPreset options != presets + Custom");
     check(count("negStock") == 26, "SPEC §4.6: 26 negative stocks (v1.3: 11 designed + 15 data-sheet / style)");
-    check(count("printStock") == 11, "SPEC §4.6: 11 print stocks (6 designed + 5 data-sheet)");
+    check(count("printStock") == 15, "SPEC §4.6: 15 print stocks (6 designed + 5 data-sheet film + 4 photo papers)");
     // real film only: the visible lists hold the data-sheet stocks (plus the Kodachrome style), every stock maps to one
     check(count("filmStock") == 15 && int(realNegStocks().size()) == 15, "Film Stock: 15 real negatives");
-    check(count("printFilm") == 4 && int(realPrintStocks().size()) == 4, "Print Stock: 4 real prints");
+    check(count("printFilm") == 8 && int(realPrintStocks().size()) == 8, "Print Stock: 8 real prints (4 film, 4 paper)");
     for (int i = 0; i < int(core::negativeStocks().size()); ++i)
         check(realNegFor(i) >= 0 && realNegFor(i) < 15 && (core::negativeStocks()[size_t(i)].monochrome ==
               core::negativeStocks()[size_t(realNegStocks()[size_t(realNegFor(i))])].monochrome) &&

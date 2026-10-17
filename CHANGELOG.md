@@ -4,6 +4,17 @@ All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.7.0] — 2026-10-17
+
+### Added
+
+- **Photo papers** (Print Stock menu, appended): Kodak Endura Premier, Kodak Portra Endura, Kodak Supra
+  Endura and Fujifilm Crystal Archive - RA-4 colour papers, as a darkroom print of the negative.
+  Fitted to the Kodak E-4070 / E-4021 and Fujifilm Crystal Archive data sheets (proxies noted in
+  docs/STOCKS.md 5c.4). Viewed by reflection: the paper white is the display white and the blacks are
+  softer than a projection print. Existing stocks and the calibration are unchanged.
+- Look preset **Portra Darkroom Print** (appended): Portra 400 printed on Portra Endura, 35 mm stills grain.
+
 ## [1.6.0] — 2026-10-17
 
 ### Added

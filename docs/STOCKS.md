@@ -560,6 +560,10 @@ Stock Data, and in the table below (`reference/datasheets/build_lab.py`):
 | 8 | P6 Modern Print | designed | Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the default-look target). |
 | 9 | Fujifilm Eterna-CP 3521XD | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal. |
 | 10 | Fujifilm Eterna-CP 3513DI | partial data sheet + proxy | Partial data sheet: Fujifilm KB-0707E (characteristic curves only, corrected in v1.3); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal. |
+| 11 | Kodak Endura Premier (paper) | data sheet | Data sheet: Kodak E-4070 (2017): spectral sensitivity, Status A curves, spectral dye density. RA-4 nominal; a reflection print: the paper white is the display white. Fresh stock at the nominal process; fitted to the published curves, not measured from film. |
+| 12 | Kodak Portra Endura (paper) | partial data sheet + proxy | Data sheet: Kodak E-4021 (2003): Status A curves; spectral data from ENDURA Premier (same dye family, the E-4021 spectral figures are not traceable). RA-4 nominal. |
+| 13 | Kodak Supra Endura (paper) | partial data sheet + proxy | Data sheet: Kodak E-4021 (2003): Status A curves; spectral data from ENDURA Premier (same dye family, the E-4021 spectral figures are not traceable). RA-4 nominal. |
+| 14 | Fujifilm Crystal Archive (paper) | partial data sheet + proxy | Partial data sheet: Fujifilm CRYSTAL ARCHIVE bulletin: spectral sensitivity, spectral dye density; no curves published -> Kodak ENDURA Premier curves (proxy). RA-4 nominal. |
 
 ### 5c.3 v1.3 data-sheet stocks
 
@@ -620,6 +624,21 @@ and 50D 5203 vs 200T 5213 1.93. Kodak's camera-stop curves of 5207 and 5219 agre
 to +8 stops, and the owner's two reference renderings of them (fv_250d_2383, fv_500t_2383) are 1.66
 apart on the same chart. The fitted 5219 already has the lower gamma and softer toe; the rest is
 grain, which this metric does not see.
+
+### 5c.4 v1.7 photo papers
+
+v1.7 appends four RA-4 colour papers as prints 11-14. A paper is a reflection print, so the print
+model sets grey at 0.65 reflection density above the paper base (greyY 0.224 instead of 2383's
+projection grey) and the paper white maps to display white. Blacks bottom out near 0.09 display
+(the paper's maximum density), softer than a projection print. No existing stock or calibration
+changed; the golden values of the older stocks are identical.
+
+| # | Paper | Data | Note |
+|---|---|---|---|
+| P11 | Kodak Endura Premier | E-4070: sensitivity, Status A curves, dyes (vector); shoulder p <= 6 | |
+| P12 | Kodak Portra Endura | E-4021 p.8: curves; Endura Premier spectral data | portrait paper, lower contrast |
+| P13 | Kodak Supra Endura | E-4021 p.8: curves; Endura Premier spectral data | higher saturation |
+| P14 | Fujifilm Crystal Archive | FCA35N p.4: sensitivity, dyes; Endura Premier curves (proxy) | no curves published |
 
 ## 6. Editing the stocks
 

@@ -68,6 +68,16 @@ PRT = {
                                   'data borrowed from Kodak 2383 (proxy). ECP-2 nominal.'),
     'Fujifilm Eterna-CP 3513DI': ('partial', 'Partial data sheet: Fujifilm KB-0707E (characteristic curves only, corrected in '
                                   'v1.3); spectral data borrowed from Kodak 2383 (proxy). ECP-2 nominal.'),
+    'Kodak Endura Premier (paper)': ('datasheet', 'Data sheet: Kodak E-4070 (2017): spectral sensitivity, Status A curves, '
+                                     'spectral dye density. RA-4 nominal; a reflection print: the paper white is the display '
+                                     'white. ' + FRESH),
+    'Kodak Portra Endura (paper)': ('partial', 'Data sheet: Kodak E-4021 (2003): Status A curves; spectral data from ENDURA '
+                                    'Premier (same dye family, the E-4021 spectral figures are not traceable). RA-4 nominal.'),
+    'Kodak Supra Endura (paper)': ('partial', 'Data sheet: Kodak E-4021 (2003): Status A curves; spectral data from ENDURA '
+                                   'Premier (same dye family, the E-4021 spectral figures are not traceable). RA-4 nominal.'),
+    'Fujifilm Crystal Archive (paper)': ('partial', 'Partial data sheet: Fujifilm CRYSTAL ARCHIVE bulletin: spectral sensitivity, '
+                                         'spectral dye density; no curves published -> Kodak ENDURA Premier curves (proxy). '
+                                         'RA-4 nominal.'),
     'P6 Modern Print': ('designed', 'Designed: Kodak 2383 spectral data (H-1-2383) with our own tone curves (fitted to the '
                         'default-look target).'),
 }

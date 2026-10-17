@@ -427,6 +427,23 @@ const std::vector<LookPreset>& lookPresets() {
                 {"vignette", "0.1"},
             },
         },
+        {
+            "Portra Darkroom Print",
+            "Portra 400 printed in the darkroom on Portra Endura paper: the print's own soft contrast and paper-white "
+            "highlights, gentle skin, softer paper blacks and fine 35 mm stills grain - a hand print, not a scan.",
+            {
+                {"negStock", "Kodak Portra 400"},
+                {"process", "Print"},
+                {"printStock", "Kodak Portra Endura (paper)"},
+                {"halationAmount", "0.3"},
+                {"bloomAmount", "0.15"},
+                {"grainEnable", "true"},
+                {"grainFormat", "35 mm Stills"},
+                {"grainAmount", "0.7"},
+                {"grainColour", "0.8"},
+                {"acutanceAmount", "0.25"},
+            },
+        },
     });
     return table;
 }

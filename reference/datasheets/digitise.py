@@ -120,6 +120,33 @@ VEC = {
     ],
     # v1.3: VISION Color Intermediate 2242 (H-1-5242t, 2008): sensitometric curves (Status M, ECN-2), used for the
     # release-print duplication chain (negative -> master positive -> duplicate negative -> print)
+    # v1.7 photo papers (reflection prints, Process RA-4, Status A reflection density). Kodak E-4070 (2017):
+    # ENDURA Premier, full data; E-4021 (2003) p.9: PORTRA ENDURA / SUPRA ENDURA characteristic curves.
+    'kodak_endura': [
+        ('e4070.pdf', 3, 'ENDURA Premier characteristic curves (Status A)', (364.7, 72.5, 549.2, 257.2),
+         dict(x=(-3, 0), y=(0, 3)), dict(R=8, G=9, B=10), 'hd'),
+        ('e4070.pdf', 3, 'ENDURA Premier spectral-sensitivity curves', (350.6, 315.7, 551.1, 467.3),
+         dict(x=(250, 750), y=(-2, 2)), dict(Y=17, M=18, C=19), 'sens'),
+        ('e4070.pdf', 4, 'ENDURA Premier spectral-dye-density curves (diffuse)', (88.8, 50.6, 273.3, 234.9),
+         dict(x=(400, 700), y=(0, 2.5)), dict(C=15, M=16, Y=17), 'dye'),
+    ],
+    'kodak_portraendura': [
+        ('e4021.pdf', 8, 'PORTRA ENDURA characteristic curves (Status A)', (362.6, 172.4, 547.1, 356.9),
+         dict(x=(-3, 0), y=(0, 3)), dict(R=75, G=76, B=77), 'hd'),
+    ],
+    'kodak_supraendura': [
+        ('e4021.pdf', 8, 'SUPRA ENDURA characteristic curves (Status A)', (362.6, 425.4, 547.1, 609.9),
+         dict(x=(-3, 0), y=(0, 3)), dict(R=94, G=93, B=92), 'hd'),
+    ],
+    # Fujifilm CRYSTAL ARCHIVE paper product information bulletin (FCA35N) p.5: spectral sensitivity (log scale, one
+    # decade = the 59 pt grid step) and peak-normalised spectral dye density; both figures are single paths, the
+    # curves are item ranges (drawing, first item, end item). No characteristic curves are published there.
+    'fuji_crystalarchive': [
+        ('fca35n.pdf', 4, 'CRYSTAL ARCHIVE spectral sensitivity (x from the grid lines)', (75.8, 104.4, 285.3, 282.8),
+         dict(x=(375.8, 725.7), y=(0, 3.024)), dict(Y=(11, 0, 15), M=(11, 15, 27), C=(11, 27, 99)), 'sens'),
+        ('fca35n.pdf', 4, 'CRYSTAL ARCHIVE spectral dye density (x from the grid lines)', (334.8, 106.0, 542.4, 253.5),
+         dict(x=(376.8, 723.2), y=(0.004, 1.244)), dict(C=(15, 0, 7), M=(15, 7, 13), Y=(15, 13, 99)), 'dye'),
+    ],
     'kodak_2242': [
         ('2242-TI.pdf', 3, 'Sensitometric Curves (Status M; x ticks -2 .. 4 log H)', (350.6, 84.4, 535.1, 268.9),
          dict(x=(-2, 4), y=(0, 3)), dict(R=2, G=3, B=4), 'hd'),
@@ -244,7 +271,12 @@ def run_vec(folder, stock):
         D = vx.drawings(os.path.join(folder, pdf), page)
         for name, idx in curves.items():
             pts = []
-            for i in (idx if isinstance(idx, (list, tuple)) else [idx]):
+            if isinstance(idx, tuple):   # (drawing, first item, end item): one curve of a multi-curve path
+                dr = dict(D[idx[0]], items=D[idx[0]]['items'][idx[1]:idx[2]])
+                for seg in vx.path_points(dr):
+                    pts += seg
+                idx = []
+            for i in (idx if isinstance(idx, list) else [idx]):
                 for seg in vx.path_points(D[i]):
                     pts += seg
             xy = vx.to_data(np.array(pts), frame, axes)

@@ -193,6 +193,41 @@ PRT13 = [
 ]
 
 
+# v1.7 photo papers (reflection prints), appended 11-14. Template = 2383 (lab model, hue hold, mono tone); the
+# operating point: an 18 % grey card printed to ~0.65 reflection density above the paper white (the usual RA-4 aim
+# of ~0.75 absolute on a 0.10 D-min), so greyY = 10^-0.65 and the paper white is the display white.
+PAPER_GREY = 0.224
+PRT17 = [
+    ('Kodak Endura Premier (paper)', 'kodak_endura',
+     'ENDURA Premier: modern Kodak RA-4 colour paper: bright white, deep D-max, wide gamut, natural skin.',
+     'Kodak E-4070 (2017): characteristic curves (Status A), spectral sensitivity, spectral dye density'),
+    ('Kodak Portra Endura (paper)', 'kodak_portraendura',
+     'PORTRA ENDURA: Kodak portrait paper: low contrast, gentle skin tones, open highlights.',
+     'Kodak E-4021 (2003) p.9: characteristic curves (Status A); spectral data -> ENDURA Premier (same dye family)'),
+    ('Kodak Supra Endura (paper)', 'kodak_supraendura',
+     'SUPRA ENDURA: Kodak colour paper with higher contrast and saturation than Portra: punchy wedding / commercial print.',
+     'Kodak E-4021 (2003) p.9: characteristic curves (Status A); spectral data -> ENDURA Premier (same dye family)'),
+    ('Fujifilm Crystal Archive (paper)', 'fuji_crystalarchive',
+     'CRYSTAL ARCHIVE: Fujifilm colour paper: clean whites, cooler greens and cyans, the minilab print look.',
+     'Fujifilm CRYSTAL ARCHIVE bulletin (FCA35N): spectral sensitivity, spectral dye density; curves -> ENDURA Premier'),
+]
+
+
+def main_v17():
+    """append the v1.7 photo papers (by name; existing entries are left alone)"""
+    path = os.path.join(REF, 'stocks.json')
+    J = json.load(open(path))
+    F = json.load(open(os.path.join(HERE, 'fits.json')))
+    pbyname = {p['name']: p for p in J['prints']}
+    for name, key, desc, src in PRT17:
+        t = copy.deepcopy(pbyname['Kodak Vision 2383'])
+        f = F[key]
+        t.update(name=name, description=desc, source=src, greyY=PAPER_GREY, sensitivity=sens(f), dyes=dyes(f), curves=curves(f))
+        put(J['prints'], t)
+    json.dump(J, open(path, 'w'), indent=1)
+    print('prints:', len(J['prints']), [p['name'] for p in J['prints']][11:])
+
+
 def main_v13():
     """append the v1.3 stocks (by name; existing entries are left alone)"""
     path = os.path.join(REF, 'stocks.json')
@@ -239,4 +274,7 @@ def main_v13():
 
 if __name__ == '__main__':
     import sys
-    main_v13() if '--v13' in sys.argv else main()
+    if '--v17' in sys.argv:
+        main_v17()
+    else:
+        main_v13() if '--v13' in sys.argv else main()

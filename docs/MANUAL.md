@@ -273,6 +273,7 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Double-X Silver Print* — Double-X 5222 pushed a stop through the IP / IN release chain onto 2383: hard silver contrast, split toning (cool shadows, warm highlights), a Black Magic glow, coarse Super 35 grain, light dust and an Academy frame.
   - *Eterna 500 Skip Bleach* — ETERNA 500 with a partial bleach bypass on the 3521XD print, 1.85 flat: steely, desaturated colour with retained silver, dense blacks, a hard edge, Glimmerglass sparkle and gritty grain.
   - *Reala Green Day* — Fujifilm Reala 500D on the gentle Eterna-CP 3513DI print, scanned on the telecine: the Fuji greens and clean skin, a minty shadow tone, airy highlights under a white Pro-Mist and soft Super 35 grain.
+  - *Portra Darkroom Print* — Portra 400 printed in the darkroom on Portra Endura paper: the print's own soft contrast and paper-white highlights, gentle skin, softer paper blacks and fine 35 mm stills grain - a hand print, not a scan.
 - **Preset Status** (`lookPresetStatus`; read-only; shows “Custom” until a preset is chosen) — Which look preset the current settings come from. "(modified)" means you have changed at least one look setting since applying it.
 - **Mode** (`mode`; default: Full)
   - *Full* — complete film emulation (colour + halation, bloom, grain, lens and gate effects).
@@ -391,6 +392,11 @@ Resolve's keyframe editor. Read-only rows are status lines.
 Kodak Vision Premier 2393: higher D-max, denser blacks, more saturated.
 Fujifilm Eterna-CP 3521XD: deep blacks, rich contrast.
 Fujifilm Eterna-CP 3513DI: neutral and gentle, made for digital intermediates.
+  - Photo papers (RA-4 colour prints, viewed by reflection: the paper white is the display white, softer blacks than projected film):
+Kodak Endura Premier: modern, bright and wide-gamut.
+Kodak Portra Endura: low-contrast portrait paper.
+Kodak Supra Endura: punchier contrast and colour.
+Fujifilm Crystal Archive: clean whites, the minilab print look.
 - **Enable Print Timing** (`printEnable`; default on) — Switches the lab timing controls below (Printer Red / Green / Blue, Print Density, Print Bleach Bypass) on or off without losing their values. Off = the automatically grey-balanced light at 0 points and normal print processing. Process and Print Stock always stay active - they are the look.
 - **Printer Red** (`printerR`; -12 … 12; default 0; keyframable) — Red printer light. More red light (+) adds cyan to the print: the image gets LESS red / more cyan. Fewer points (-) warm it towards red. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.
 - **Printer Green** (`printerG`; -12 … 12; default 0; keyframable) — Green printer light. More green light (+) adds magenta to the print: the image gets LESS green / more magenta. Fewer points (-) push it towards green. Printer points as in a film lab: 1 point = 0.025 log exposure on that print layer, 0 = the stock's automatically grey-balanced light.

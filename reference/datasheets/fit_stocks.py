@@ -225,6 +225,12 @@ def fit_print(stock, xmap, dyes_from, fog=0.05, sens_from=None, pmax=12.0):
 
 def main():
     plots = sys.argv[sys.argv.index('--plots') + 1] if '--plots' in sys.argv else None
+    if '--v17' in sys.argv:
+        # v1.7 photo papers only, every other entry of fits.json stays as it is
+        F = json.load(open(os.path.join(HERE, 'fits.json')))
+        fit_v17(F)
+        json.dump(F, open(os.path.join(HERE, 'fits.json'), 'w'), indent=1)
+        return
     if '--v13' in sys.argv:
         # refit only what v1.3 added, keep every other entry of fits.json as it is
         F = json.load(open(os.path.join(HERE, 'fits.json')))
@@ -329,6 +335,26 @@ def fit_v13(F, ref):
     g, v = sens_curve('kodak_5222', 'G')
     F['kodak_5222'] = dict(stock='kodak_5222', sens=fit_sens({'G': (g, v)}), grey_logH=xg,
                            curves={'G': dict(c, rms=rms, dmin=fog)})
+
+
+def fit_v17(F):
+    """v1.7 photo papers (RA-4, Status A reflection density over log H in lux-seconds). x + 0.8 puts the papers'
+    mid-scale where the 2383 fit has it; the model's grey balance places the operating point either way."""
+    xm = lambda x: x + 0.8  # noqa: E731
+    # ENDURA Premier: full Kodak data (E-4070)
+    F['kodak_endura'] = fit_print('kodak_endura', xm, 'kodak_endura', pmax=6.0)
+    # PORTRA ENDURA / SUPRA ENDURA (E-4021): own curves; the sheet's spectral figures overlap too much to trace, the
+    # ENDURA family shares its imaging dyes -> ENDURA Premier spectral data
+    for k in ('kodak_portraendura', 'kodak_supraendura'):
+        F[k] = fit_print(k, xm, 'kodak_endura', sens_from='kodak_endura', pmax=6.0)
+    # CRYSTAL ARCHIVE (FCA35N): own spectral sensitivity and dyes; no curves published -> ENDURA Premier curves
+    f = fit_print('kodak_endura', xm, 'fuji_crystalarchive', sens_from='fuji_crystalarchive', pmax=6.0)
+    f.update(stock='fuji_crystalarchive', curves_from='kodak_endura')
+    F['fuji_crystalarchive'] = f
+    for k in ('kodak_endura', 'kodak_portraendura', 'kodak_supraendura', 'fuji_crystalarchive'):
+        v = F[k]
+        print(k, 'curve rms', {l: round(c['rms'], 4) for l, c in v['curves'].items()},
+              'sens rms', {l: round(c['rms'], 4) for l, c in v['sens'].items()}, 'dye rms', {l: round(c['rms'], 4) for l, c in v['dyes'].items()})
 
 
 def plot_all(F, folder):

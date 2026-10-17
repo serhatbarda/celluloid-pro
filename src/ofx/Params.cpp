@@ -37,7 +37,9 @@ const char* const kNegNearest[][2] = {
     {"RV 100 Slide", "Kodak Ektachrome E100"}, {"BW 400 Panchromatic", "Kodak Double-X 5222"},
     {"BW 100 Fine", "Kodak Double-X 5222"}};
 const char* const kRealPrintOrder[] = {"Kodak Vision 2383", "Kodak Vision Premier 2393", "Fujifilm Eterna-CP 3521XD",
-                                       "Fujifilm Eterna-CP 3513DI"};
+                                       "Fujifilm Eterna-CP 3513DI", "Kodak Endura Premier (paper)",
+                                       "Kodak Portra Endura (paper)", "Kodak Supra Endura (paper)",
+                                       "Fujifilm Crystal Archive (paper)"};
 const char* const kPrintNearest[][2] = {
     {"P1 Standard Projection", "Kodak Vision 2383"}, {"P2 Low Contrast", "Fujifilm Eterna-CP 3513DI"},
     {"P3 Rich Contrast", "Kodak Vision Premier 2393"}, {"P4 Faded Archive", "Kodak Vision 2383"},
@@ -498,7 +500,10 @@ std::vector<ParamDef> build() {
                  "sets print contrast, black density, highlight roll-off and the colour of the projected image.\n\n"
                  "Kodak Vision 2383: the standard release print.\nKodak Vision Premier 2393: higher D-max, denser "
                  "blacks, more saturated.\nFujifilm Eterna-CP 3521XD: deep blacks, rich contrast.\nFujifilm Eterna-CP "
-                 "3513DI: neutral and gentle, made for digital intermediates.",
+                 "3513DI: neutral and gentle, made for digital intermediates.\n\nPhoto papers (RA-4 colour prints, viewed "
+                 "by reflection: the paper white is the display white, softer blacks than projected film):\nKodak Endura "
+                 "Premier: modern, bright and wide-gamut.\nKodak Portra Endura: low-contrast portrait paper.\nKodak Supra "
+                 "Endura: punchier contrast and colour.\nFujifilm Crystal Archive: clean whites, the minilab print look.",
                  false)
             .persistent = false;
     }
