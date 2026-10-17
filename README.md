@@ -32,6 +32,7 @@ loading: the plug-in identifier and all parameters are unchanged, and license ke
 Documentation:
 
 - [docs/MANUAL.md](docs/MANUAL.md) — user manual (installed in the plug-in bundle).
+- [docs/QUICKSTART.md](docs/QUICKSTART.md) — one-page quick start (incl. Blackmagic BRAW, stills, monitoring LUTs).
 - [docs/STOCKS.md](docs/STOCKS.md) — colour model and stock designs.
 - [docs/LOOKS.md](docs/LOOKS.md) — look presets.
 - [tools/licensegen/README.md](tools/licensegen/README.md) — license keys, signing and shop integration

@@ -230,7 +230,9 @@ std::vector<ParamDef> build() {
              "the camera log intact for this node, or convert to the matching log space before this node. "
              "Wrong settings show up as overly flat or harsh, colour-shifted images. For footage without a log "
              "profile (camcorders, phones, JPEG stills) pick Rec.709 video or sRGB: the clipped highlights are "
-             "expanded back to about +4.5 stops so the film still has a shoulder to roll into.",
+             "expanded back to about +4.5 stops so the film still has a shoulder to roll into. Blackmagic BRAW: in "
+             "the Camera Raw panel choose Color Science Gen 5, Gamut Blackmagic Design, Gamma Blackmagic Design "
+             "Film, then pick Blackmagic Film Gen 5 here.",
              false);
     b.boolean(id::stillPhoto, "Still Photo", false,
               "For a single photograph (RAW debayered by Resolve, or a JPEG with the sRGB input) instead of "

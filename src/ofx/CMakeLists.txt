@@ -4,7 +4,7 @@
 #     Contents/Info.plist
 #     Contents/<MacOS | Win64 | Linux-x86-64>/ReafilmPro.ofx
 #     Contents/Resources/de.serhatbarda.CelluloidPro.png     (host icon, OFX convention)
-#     Contents/Resources/MANUAL.md, Licenses/*                 (docs, third-party notices)
+#     Contents/Resources/MANUAL.md, QUICKSTART.md, Licenses/*                 (docs, third-party notices)
 
 # ---- bundle architecture directory (OFX spec "Packaging OFX Plug-ins") ----------------------
 if(APPLE)
@@ -115,6 +115,7 @@ if(NOT EXISTS "${PROJECT_SOURCE_DIR}/docs/MANUAL.md")
 endif()
 cel_bundle_copy("${PROJECT_SOURCE_DIR}/resources/${CEL_PLUGIN_IDENTIFIER}.png" "${CEL_BUNDLE_RES}/${CEL_PLUGIN_IDENTIFIER}.png")
 cel_bundle_copy("${PROJECT_SOURCE_DIR}/docs/MANUAL.md" "${CEL_BUNDLE_RES}/MANUAL.md")
+cel_bundle_copy("${PROJECT_SOURCE_DIR}/docs/QUICKSTART.md" "${CEL_BUNDLE_RES}/QUICKSTART.md")
 cel_bundle_copy("${CEL_OPENFX_DIR}/Support/LICENSE" "${CEL_BUNDLE_RES}/Licenses/OpenFX-Support-LICENSE.txt")
 cel_bundle_copy("${CEL_OPENFX_DIR}/LICENSE.md" "${CEL_BUNDLE_RES}/Licenses/OpenFX-LICENSE.txt")
 cel_bundle_copy("${PROJECT_SOURCE_DIR}/third_party/monocypher/LICENCE.md" "${CEL_BUNDLE_RES}/Licenses/Monocypher-LICENCE.txt")

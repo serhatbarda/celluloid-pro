@@ -6,6 +6,11 @@ unchanged in a newer one.
 
 ## [Unreleased]
 
+### Added
+
+- `docs/QUICKSTART.md`: one-page quick start - node placement, input / look / output, monitoring LUTs,
+  Blackmagic Pocket 6K BRAW setup and stills (RAW, JPEG). The Camera Log hint names the BRAW settings.
+
 ## [1.5.0] — 2026-10-17
 
 ### Added
