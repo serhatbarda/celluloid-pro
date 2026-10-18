@@ -135,6 +135,14 @@ struct TextureParams {
     // ---- v1.6 Film Edge (appended): perforations and edge print in the rebate outside the gate
     int   filmEdge           = 0;     // FilmEdge
     int   frameNumber        = 12;    // printed on the edge, 0 .. 99
+    // ---- v1.10 Light Leaks (appended): light reaching the negative through the camera body / roll ends
+    bool  leakEnabled        = false;
+    float leakAmount         = 1.f;   // 0 .. 2 brightness
+    float leakFrequency      = 0.3f;  // 0 .. 1 how often a leak appears (moving pictures)
+    float leakSize           = 1.f;   // 0.3 .. 2 size of the glows
+    bool  leakRollEnd        = true;  // occasional roll-end flash that floods the frame
+    int   leakSeed           = 1;
+    bool  leakStill          = false; // Still Photo: one leak, always present, picked by the seed
 };
 // v1.6 Film Edge: the film strip around the gate (OFX choice order, append only)
 enum class FilmEdge : int { Off = 0, Still35, Motion35, Medium120, Count };

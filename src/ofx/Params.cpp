@@ -1060,6 +1060,31 @@ std::vector<ParamDef> build() {
     b.integer(id::breathSeed, "Breath Seed", 0, 0, 9999,
               "Changes the random sequence. Give different shots different seeds.", false);
 
+    // ---------------------------------------------------------------- [Light Leaks] (v1.10)
+    b.beginGroup(id::gLightLeaks, "Light Leaks", false,
+                 "Stray light on the negative: warm glows from the frame edges and roll-end flashes.");
+    b.boolean(id::leakEnable, "Enable Light Leaks", false,
+              "Light that reached the film through a worn camera door or at the end of a roll: red-orange to yellow "
+              "glows reaching in from the edges of the frame. The light is added before the film, so the film burns it "
+              "like any over-exposure (it halates and grains like light). Moving pictures: leaks come and go (a fast rise, "
+              "a slow fade, a little flicker). Still Photo: one leak, always there, picked by the Seed. Off (the default) "
+              "adds nothing.",
+              true);
+    b.dbl(id::leakAmount, "Leak Amount", 1.0, 0.0, 2.0, 0.01, 2,
+          "Brightness of the leaks. 1 = a strong leak that burns out where it is brightest; 0.3 = a faint warm haze.", true);
+    b.dbl(id::leakFrequency, "Leak Frequency", 0.3, 0.0, 1.0, 0.01, 2,
+          "How often a leak appears (moving pictures; about every 3 seconds at 24 fps there is this chance of one, in "
+          "two overlapping lanes). 0 = never, 1 = nearly always one on screen.",
+          true);
+    b.dbl(id::leakSize, "Leak Size", 1.0, 0.3, 2.0, 0.01, 2,
+          "Size of the glows (1 = about a third to most of the frame height).", true);
+    b.boolean(id::leakRollEnd, "Roll-End Flashes", true,
+              "Now and then (more often at a higher Frequency) a short, bright flash floods the frame from one edge, "
+              "like the fogged frames at the start or end of a roll.",
+              true);
+    b.integer(id::leakSeed, "Leak Seed", 1, 1, 9999,
+              "Picks where, when and in which colour the leaks appear. Give different shots different seeds.", false);
+
     // ---------------------------------------------------------------- [Output]
     const std::vector<std::string> outputs = core::outputSpaceNames();
     b.beginGroup(id::gOutput, "Output", true, "Display encoding of the result.");

@@ -255,6 +255,10 @@ struct WeaveOffset { double dx = 0, dy = 0, rot = 0; };   // px @1920, radians
 WeaveOffset weaveOffset(double time, float amount, float speed);
 // Lab & Gate: the weave of a WeaveStyle (Projector = weaveOffset above, bit-identical)
 WeaveOffset weaveOffset(double time, float amount, float speed, int style);
+// v1.10 Light Leaks: up to three soft glows (scene-linear light added before the film) at frame `time`.
+// g[i] = {cx, cy (px), 1/radius along x, 1/radius along y (1/px), r, g, b}
+struct LightLeak { int n = 0; float g[3][7] = {}; };
+LightLeak lightLeakAt(const TextureParams& tp, int w, int h);
 
 // ---- film gate (Lab & Gate; kernel tx_gate in TextureKernels.h) ----------------------------
 constexpr int kGateAspectCount = 11;   // v1.6: + 1.50 (35 mm stills), 1.00 (6x6), 1.25 (6x7)

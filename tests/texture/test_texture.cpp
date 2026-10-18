@@ -449,6 +449,29 @@ void testAcutanceVignetteWeave() {
         Img oh = textured(Img(400, 200, 1.f, 1.f, 1.f), th);
         CHECK(std::fabs(oh.at(0, 0)[1] - (1.0 + expect) / 2.0) < 1e-4, "vignette amount mixes linearly");
     }
+    // v1.10 light leaks: off = nothing; still = always one, deterministic; moving: comes and goes, warm, frequency 0 = never
+    {
+        TextureParams lp; lp.leakEnabled = true;
+        CHECK(cel::tex::lightLeakAt(TextureParams{}, 1920, 1080).n == 0, "leaks off by default");
+        TextureParams ls = lp; ls.leakStill = true;
+        for (int seed = 1; seed < 20; ++seed) {
+            ls.leakSeed = seed;
+            cel::tex::LightLeak a = cel::tex::lightLeakAt(ls, 1920, 1080), b = cel::tex::lightLeakAt(ls, 1920, 1080);
+            CHECK(a.n >= 1 && a.n == b.n && a.g[0][0] == b.g[0][0], "still leak present and deterministic (seed %d)", seed);
+            CHECK(a.g[0][4] >= a.g[0][5] && a.g[0][5] >= a.g[0][6] && a.g[0][6] > 0.f, "leak warm (seed %d)", seed);
+        }
+        int on = 0, off = 0, zero = 0;
+        for (int f = 0; f < 2400; ++f) {
+            lp.time = f;
+            cel::tex::LightLeak k = cel::tex::lightLeakAt(lp, 1920, 1080);
+            (k.n ? on : off)++;
+            TextureParams lz = lp; lz.leakFrequency = 0.f;
+            zero += cel::tex::lightLeakAt(lz, 1920, 1080).n;
+        }
+        std::printf("  light leaks (frequency 0.3): on screen %.0f%% of 2400 frames\n", 100.0 * on / 2400);
+        CHECK(on > 100 && off > 600, "leaks come and go (%d on, %d off)", on, off);
+        CHECK(zero == 0, "frequency 0 = no leaks");
+    }
     // weave: 48-frame sequence
     {
         double s2y = 0, s2x = 0, maxy = 0, sd = 0, sdFast = 0, sdSlow = 0;

@@ -4,6 +4,17 @@ All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.10.0] — 2026-10-18
+
+### Added
+
+- **Light Leaks** (new group, off by default): stray light on the negative, from a worn camera door or the
+  end of a roll. Red-orange to yellow glows reach in from the frame edges; the light is added before the
+  film, so it burns out, halates and grains like real light. On moving pictures the leaks come and go (a fast
+  rise, a slow fade, a little flicker) at the chosen Frequency, with occasional Roll-End Flashes that flood
+  the frame for a few frames. With Still Photo on there is one leak, always present, chosen by the Seed.
+  Controls: Amount, Frequency, Size, Roll-End Flashes, Seed.
+
 ## [1.9.0] — 2026-10-17
 
 ### Added

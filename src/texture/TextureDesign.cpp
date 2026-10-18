@@ -769,4 +769,81 @@ double toneMapToDisplay(double x, bool sdr) {
     return std::pow(q / (1.0 + q), 2.4);
 }
 
+// ---- v1.10 light leaks -------------------------------------------------------------------------------
+// Light reaching the negative through a worn camera door or at the end of a roll: warm (red-orange to
+// yellow) glows reaching in from the frame edges, added to the scene light so the film burns them like
+// any over-exposure. Moving pictures: two lanes of 3 s windows (at 24 fps), each holding one leak with
+// probability `frequency` (fast rise, slow fade, a little flicker, the glow growing as it brightens),
+// and a rare roll-end flash that floods the frame for a few frames. Still Photo: one leak, always there,
+// picked by the seed. Deterministic in (seed, frame).
+namespace {
+void leakGlow(LightLeak& L, uint32_t k, double env, const TextureParams& tp, int w, int h) {
+    if (L.n >= 3 || !(env > 1e-3)) return;
+    const double H = double(h), W = double(w), sz = std::min(2.0, std::max(0.3, double(tp.leakSize)));
+    const double e = hash01(k ^ 0x51ed270bU);
+    const int edge = e < 0.38 ? 0 : e < 0.76 ? 1 : e < 0.88 ? 2 : 3;   // mostly the sides (the camera door)
+    const double along = 0.1 + 0.8 * hash01(k ^ 0x2f8a6c9dU), out = (0.05 + 0.2 * hash01(k ^ 0x9b4e31a7U)) * H;
+    const double grow = 0.75 + 0.25 * env;
+    const double ra = sz * (0.35 + 0.55 * hash01(k ^ 0x7c15f0e3U)) * H * grow;   // along the edge
+    const double rb = sz * (0.25 + 0.30 * hash01(k ^ 0xd3a9b671U)) * H * grow;   // into the frame
+    float* g = L.g[L.n++];
+    if (edge < 2) { g[0] = float(edge == 0 ? -out : W + out); g[1] = float(along * H); g[2] = float(1.0 / rb); g[3] = float(1.0 / ra); }
+    else          { g[0] = float(along * W); g[1] = float(edge == 2 ? -out : H + out); g[2] = float(1.0 / ra); g[3] = float(1.0 / rb); }
+    const double a = std::min(2.0, std::max(0.0, double(tp.leakAmount))) * (1.5 + 3.5 * hash01(k ^ 0x46b1e5c3U)) * env;
+    g[4] = float(a);
+    g[5] = float(a * (0.18 + 0.42 * hash01(k ^ 0xa0761d65U)));
+    g[6] = float(a * (0.02 + 0.08 * hash01(k ^ 0xe7037ed1U)));
+}
+// rise over `att` frames, then an exponential fade to the end of `dur`
+double leakEnvelope(double f, double dur, double att) {
+    if (f < 0.0 || f >= dur) return 0.0;
+    if (f < att) { double u = (f + 1.0) / att; return u * u * (3.0 - 2.0 * u); }
+    double u = (f - att) / std::max(1.0, dur - att);
+    return std::exp(-3.0 * u) * (1.0 - u * u * u);
+}
+} // namespace
+
+LightLeak lightLeakAt(const TextureParams& tp, int w, int h) {
+    LightLeak L;
+    if (!tp.leakEnabled || !(tp.leakAmount > 0.f) || w <= 0 || h <= 0) return L;
+    const uint32_t seed = hashU32(uint32_t(tp.leakSeed) * 0x9e3779b1U ^ 0x6c8e9cf5U);
+    if (tp.leakStill) {
+        leakGlow(L, hashU32(seed ^ 1u), 1.0, tp, w, h);
+        if (hash01(seed ^ 0x3c6ef372U) < 0.5) leakGlow(L, hashU32(seed ^ 2u), 0.6, tp, w, h);
+        return L;
+    }
+    if (!std::isfinite(tp.time)) return L;
+    const double t = std::max(-2.0e9, std::min(2.0e9, std::floor(tp.time + 0.5)));
+    const double fq = std::min(1.0, std::max(0.0, double(tp.leakFrequency)));
+    const double flick = 1.0 + 0.12 * std::max(-2.0, std::min(2.0, hashGauss(hashU32(uint32_t(int32_t(t)) ^ seed))));
+    const double Wn = 72.0;
+    for (int lane = 0; lane < 2; ++lane) {
+        const double u = t + lane * 0.5 * Wn;
+        const int32_t win = int32_t(std::floor(u / Wn));
+        const uint32_t k = hashU32(uint32_t(win) * 0x85ebca6bU ^ seed ^ (lane ? 0xc2b2ae35U : 0u));
+        if (!(hash01(k) < fq)) continue;
+        const double dur = 14.0 + 42.0 * hash01(k ^ 0x27d4eb2fU), att = 2.0 + 3.0 * hash01(k ^ 0x165667b1U);
+        const double start = std::floor((Wn - dur) * hash01(k ^ 0xd35a2d97U));
+        leakGlow(L, k, leakEnvelope(u - win * Wn - start, dur, att) * flick, tp, w, h);
+    }
+    if (tp.leakRollEnd) {   // roll-end flash: rare, short, floods the frame
+        const double Wr = 240.0;
+        const int32_t win = int32_t(std::floor(t / Wr));
+        const uint32_t k = hashU32(uint32_t(win) * 0x8da6b343U ^ seed ^ 0x1b56c4e9U);
+        if (hash01(k) < 0.35 * fq) {
+            const double dur = 6.0 + 10.0 * hash01(k ^ 0x27d4eb2fU);
+            const double start = std::floor((Wr - dur) * hash01(k ^ 0xd35a2d97U));
+            const double env = leakEnvelope(t - win * Wr - start, dur, 2.0) * flick;
+            const int before = L.n;
+            leakGlow(L, k, env, tp, w, h);
+            if (L.n > before) {   // a wide, bright flood from that edge
+                float* g = L.g[before];
+                g[2] *= 0.3f; g[3] *= 0.3f;
+                for (int c = 4; c < 7; ++c) g[c] *= 3.f;
+            }
+        }
+    }
+    return L;
+}
+
 }} // namespace cel::tex

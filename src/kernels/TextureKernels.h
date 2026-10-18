@@ -878,6 +878,30 @@ CEL_DEVICE void cel_k_tx_gate(CEL_KERNEL_PARAMS) {
     cel_store(out, a->outStride, x, y, o);
 }
 
+/* v1.10 Light Leaks: in0 = the image; i[0] = glow count (0..3), i[1] = 1 display-referred (Texture Only:
+ * a screen blend, never above 1 for SDR values), else scene-linear light added. Glow j at f[7j..7j+6]:
+ * centre (px), inverse radii x / y (1/px), rgb intensity; profile exp(-d^2) plus a faint 1/(1+d^2) tail. */
+CEL_DEVICE void cel_k_tx_leak(CEL_KERNEL_PARAMS) {
+    CEL_TX_ABI_USE();
+    CelF4 v = cel_txh_clean4(cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y));
+    float px = (float)x + 0.5f, py = (float)y + 0.5f, lr = 0.0f, lg = 0.0f, lb = 0.0f;
+    int n = a->i[0] < 3 ? a->i[0] : 3;
+    for (int j = 0; j < n; ++j) {
+        float dx = (px - a->f[7 * j]) * a->f[7 * j + 2], dy = (py - a->f[7 * j + 1]) * a->f[7 * j + 3];
+        float d2 = dx * dx + dy * dy;
+        float s = cel_exp2(-1.44269504f * d2) + 0.04f / (1.0f + d2);
+        lr += s * a->f[7 * j + 4]; lg += s * a->f[7 * j + 5]; lb += s * a->f[7 * j + 6];
+    }
+    if (a->i[1] != 0) {
+        v.x += (1.0f - cel_txh_min(v.x, 1.0f)) * (1.0f - cel_exp2(-0.577f * lr));
+        v.y += (1.0f - cel_txh_min(v.y, 1.0f)) * (1.0f - cel_exp2(-0.577f * lg));
+        v.z += (1.0f - cel_txh_min(v.z, 1.0f)) * (1.0f - cel_exp2(-0.577f * lb));
+    } else {
+        v = cel_f4(v.x + lr, v.y + lg, v.z + lb, v.w);
+    }
+    cel_store(out, a->outStride, x, y, v);
+}
+
 /* film damage (v1.1): tx_params, tx_damage */
 #include "DamageKernels.h"
 

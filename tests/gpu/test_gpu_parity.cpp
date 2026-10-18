@@ -207,6 +207,11 @@ std::vector<Case> makeCases(bool all) {
         add("film edge " + std::to_string(e), [e](Case& c) { fullTexture(c.fs); c.fs.tex.gateEnabled = true;
             c.fs.tex.gateAspect = e == 1 ? 8 : (e == 2 ? 1 : 9); c.fs.tex.gateOverscan = 0.2f;
             c.fs.tex.filmEdge = e; c.fs.tex.frameNumber = 7 + 11 * e; });
+    // v1.10 light leaks: a still leak (scene light) and a texture-only one (screen blend)
+    add("light leak, still", [](Case& c) { fullTexture(c.fs); c.fs.tex.leakEnabled = true; c.fs.tex.leakStill = true;
+        c.fs.tex.leakSeed = 3; });
+    add("light leak, texture only", [](Case& c) { c.fs.tex.leakEnabled = true; c.fs.tex.leakStill = true; c.fs.tex.leakSeed = 7;
+        c.fs.mode = core::Mode::TextureOnly; c.scene = Scene::Display; });
     add("film edge, texture only", [](Case& c) { c.fs.tex.gateEnabled = true; c.fs.tex.gateAspect = 8;
         c.fs.tex.gateOverscan = 0.2f; c.fs.tex.filmEdge = 1; c.fs.mode = core::Mode::TextureOnly; c.scene = Scene::Display; });
     add("printer gate 1.85 + damage, soft 8", [](Case& c) { fullTexture(c.fs); filmDamage(c.fs, c.w, c.h, false);

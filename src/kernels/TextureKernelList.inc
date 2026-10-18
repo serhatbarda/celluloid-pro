@@ -20,3 +20,4 @@ CEL_KERNEL(tx_damage)        /* film damage field: dust, scratches, hair (Damage
 CEL_KERNEL(tx_hb_prefilter_down) /* v1.2 fusion: glow source + 2x downsample (tx_hb_prefilter -> tx_pyr_down in one pass) */
 CEL_KERNEL(tx_diag)          /* v1.3 diagnostic views: module contribution (with vs without), halation mask, wipe */
 CEL_KERNEL(tx_gate)          /* Lab & Gate: film gate (frame line, rounded corners, soft edge, gate hair): camera mask / printer-gate density / mask view */
+CEL_KERNEL(tx_leak)          /* v1.10 Light Leaks: up to three warm glows from the frame edges, added to the scene light */

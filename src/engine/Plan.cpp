@@ -321,6 +321,20 @@ int addImageTexture(Builder& B, int img, const tex::TextureParams& tp, bool dr, 
             cur = o;
         }
     }
+    // ---- v1.10 Light Leaks: stray light on the negative, added to the scene light after the weave and the
+    // gate (it moves with the film, and the clean gate border stays clean); it then halates and grains like light
+    {
+        const tex::LightLeak lk = tex::lightLeakAt(tp, w, h);
+        if (lk.n > 0) {
+            int o = B.buffer(w, h);
+            PassDesc& p = B.pass(KID_tx_leak, o, {cur});
+            for (int j = 0; j < lk.n; ++j)
+                for (int c = 0; c < 7; ++c) p.args.f[7 * j + c] = lk.g[j][c];
+            p.args.i[0] = lk.n;
+            p.args.i[1] = dr ? 1 : 0;
+            cur = o;
+        }
+    }
     const bool hal = halOn(tp), bloom = bloomOn(tp);
     // Texture-Only: acutance and glow work in the film-like pseudo scene (log exposure semantics
     // and display-referred thresholds); the way back goes through the same curve, which for SDR

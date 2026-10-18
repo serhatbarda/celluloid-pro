@@ -658,6 +658,12 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     tp.gateHairSeed = int(std::lround(num(id::gateHairSeed, t)));
     tp.filmEdge = std::min(std::max(choice(id::filmEdge, t), 0), int(tex::FilmEdge::Count) - 1);   // v1.6
     tp.frameNumber = int(std::lround(num(id::frameNumber, t)));
+    tp.leakEnabled = flag(id::leakEnable, t);   // v1.10 Light Leaks
+    tp.leakAmount = float(num(id::leakAmount, t));
+    tp.leakFrequency = float(num(id::leakFrequency, t));
+    tp.leakSize = float(num(id::leakSize, t));
+    tp.leakRollEnd = flag(id::leakRollEnd, t);
+    tp.leakSeed = int(std::lround(num(id::leakSeed, t)));
     tp.grainEnabled = flag(id::grainEnable, t) && fs.look.grainAmount > 0.f;
     tp.grainFormat = tex::GrainFormat(std::min(std::max(choice(id::grainFormat, t), 0), int(tex::GrainFormat::Count) - 1));
     tp.grainSize = float(num(id::grainSize, t)) * grainScale;
@@ -718,6 +724,7 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
 
     if (fs.mode == core::Mode::ColorOnly) {   // colour pipeline only: exactly what a LUT contains
         tp.gateEnabled = false;   // Lab & Gate: the gate is a texture (never in a LUT)
+        tp.leakEnabled = false;
         tp.grainEnabled = false;
         fs.look.grainAmount = 0.f;
         tp.damageEnabled = false;
@@ -726,6 +733,7 @@ engine::FrameSettings ReafilmEffect::frameSettingsAt(double t, int fullWidthPx) 
     const bool still = flag(id::stillPhoto, t);   // v1.5: one photograph, nothing that varies over time
     if (still) {
         tp.time = 0.0;   // grain, dust and hair frozen to one frame (the seeds still pick which one)
+        tp.leakStill = true;   // v1.10: one leak, always there
         tp.weaveAmount = 0.f;
         tp.blurEnabled = false;
     }
@@ -765,7 +773,8 @@ void ReafilmEffect::getClipPreferences(OFX::ClipPreferencesSetter& prefs) {
     const bool blur = flag(id::filmBlurEnable, 0.0);
     const bool breath = flag(id::breathEnable, 0.0) && effectiveMode(0.0) != core::Mode::TextureOnly;   // v1.3
     const bool still = flag(id::stillPhoto, 0.0);   // v1.5
-    prefs.setOutputFrameVarying(texture && !still && (animatedGrain || weave || damage || blur || breath));
+    const bool leak = flag(id::leakEnable, 0.0) && num(id::leakAmount) > 0.0 && num(id::leakFrequency) > 0.0;   // v1.10
+    prefs.setOutputFrameVarying(texture && !still && (animatedGrain || weave || damage || blur || breath || leak));
 }
 
 void ReafilmEffect::render(const OFX::RenderArguments& args) {
@@ -1413,6 +1422,10 @@ void ReafilmEffect::refreshEnabledness(double t) {
             setEnabled(p, gateOn);
         setEnabled(id::gateHairSeed, gateOn && flag(id::gateHair, t));
         setEnabled(id::frameNumber, gateOn && choice(id::filmEdge, t) != 0);   // v1.6
+        const bool leakOn = texture && flag(id::leakEnable, t);   // v1.10 Light Leaks
+        setEnabled(id::leakEnable, texture);
+        for (const char* p : {id::leakAmount, id::leakSize, id::leakSeed}) setEnabled(p, leakOn);
+        for (const char* p : {id::leakFrequency, id::leakRollEnd}) setEnabled(p, leakOn && !flag(id::stillPhoto, t));
     }
     for (const char* p : {id::grainAmount, id::grainSize, id::grainSoftness, id::grainAnimated, id::grainSeed,
                           id::grainShadows, id::grainMids, id::grainHighlights})

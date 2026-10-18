@@ -160,6 +160,10 @@ int main() {
         {"breathPrinter", "groupFilmBreath", 0, 3, 0.5},
         {"breathPeriod", "groupFilmBreath", 4, 240, 24},
         {"breathSeed", "groupFilmBreath", 0, 9999, 0},
+        {"leakAmount", "groupLightLeaks", 0, 2, 1},   // v1.10
+        {"leakFrequency", "groupLightLeaks", 0, 1, 0.3},
+        {"leakSize", "groupLightLeaks", 0.3, 2, 1},
+        {"leakSeed", "groupLightLeaks", 1, 9999, 1},
         // v1.3 P1 extras (neutral defaults)
         {"sceneWbTemperature", "groupInput", 2000, 15000, 6500},
         {"sceneWbTint", "groupInput", -100, 100, 0},
@@ -256,6 +260,8 @@ int main() {
                                                          "breathPeriod", "breathSeed"}},
         // v1.3 P1 extras: new modules, OFF by default, not part of looks
         {"sceneWbEnable", "groupInput", false, false, {"sceneWbTemperature", "sceneWbTint"}},
+        // v1.10 Light Leaks: new module, OFF by default
+        {"leakEnable", "groupLightLeaks", false, true, {"leakAmount", "leakFrequency", "leakSize", "leakRollEnd", "leakSeed"}},
         {"falseColourEnable", "groupOutput", false, false, {}},
     };
     auto position = [&](const std::string& pid) {

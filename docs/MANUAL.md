@@ -576,6 +576,17 @@ Fujifilm Crystal Archive: clean whites, the minilab print look.
 - **Breath Period** (`breathPeriod`; 4 … 240; default 24) — Typical length of one slow change in frames. Short = restless, long = slow drift.
 - **Breath Seed** (`breathSeed`; 0 … 9999; default 0; keyframable) — Changes the random sequence. Give different shots different seeds.
 
+### Light Leaks
+
+*Stray light on the negative: warm glows from the frame edges and roll-end flashes.*
+
+- **Enable Light Leaks** (`leakEnable`; default off) — Light that reached the film through a worn camera door or at the end of a roll: red-orange to yellow glows reaching in from the edges of the frame. The light is added before the film, so the film burns it like any over-exposure (it halates and grains like light). Moving pictures: leaks come and go (a fast rise, a slow fade, a little flicker). Still Photo: one leak, always there, picked by the Seed. Off (the default) adds nothing.
+- **Leak Amount** (`leakAmount`; 0 … 2; default 1; keyframable) — Brightness of the leaks. 1 = a strong leak that burns out where it is brightest; 0.3 = a faint warm haze.
+- **Leak Frequency** (`leakFrequency`; 0 … 1; default 0.3; keyframable) — How often a leak appears (moving pictures; about every 3 seconds at 24 fps there is this chance of one, in two overlapping lanes). 0 = never, 1 = nearly always one on screen.
+- **Leak Size** (`leakSize`; 0.3 … 2; default 1; keyframable) — Size of the glows (1 = about a third to most of the frame height).
+- **Roll-End Flashes** (`leakRollEnd`; default on) — Now and then (more often at a higher Frequency) a short, bright flash floods the frame from one edge, like the fogged frames at the start or end of a roll.
+- **Leak Seed** (`leakSeed`; 1 … 9999; default 1; keyframable) — Picks where, when and in which colour the leaks appear. Give different shots different seeds.
+
 ### Output
 
 *Display encoding of the result.*

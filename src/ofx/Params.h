@@ -250,6 +250,14 @@ constexpr const char* breathDevelopment = "breathDevelopment";
 constexpr const char* breathPrinter = "breathPrinter";
 constexpr const char* breathPeriod = "breathPeriod";
 constexpr const char* breathSeed = "breathSeed";
+// ---- v1.10 Light Leaks
+constexpr const char* gLightLeaks = "groupLightLeaks";
+constexpr const char* leakEnable = "leakEnable";
+constexpr const char* leakAmount = "leakAmount";
+constexpr const char* leakFrequency = "leakFrequency";
+constexpr const char* leakSize = "leakSize";
+constexpr const char* leakRollEnd = "leakRollEnd";
+constexpr const char* leakSeed = "leakSeed";
 // ---- v1.3 P1 extras: user presets, scene white balance, false colour, bloom threshold ----------
 constexpr const char* userPresetName = "userPresetName";
 constexpr const char* userPresetSave = "userPresetSave";
