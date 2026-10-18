@@ -1120,6 +1120,13 @@ std::vector<ParamDef> build() {
               "to +3, yellow +3 to +4.5, orange +4.5 to +6, red above +6. Never saved in user presets and never "
               "written into exported LUTs.",
               false);
+    b.boolean(id::exposureZebras, "Enable Exposure Zebras (diagnostic)", false,
+              "DIAGNOSTIC OVERLAY - switch off before rendering. Stripes over the picture where THIS look loses detail: "
+              "blue where the shadows print as solid black, red where the highlights burn out to white. The limits come "
+              "from the chosen film, print and output, so they show what the film does to your exposure (raise Exposure "
+              "when blue spreads over shadow detail you want, lower it when red covers faces or skies). Print and ALEXA "
+              "stages only. Never saved in user presets and never written into exported LUTs.",
+              false);
     // v1.3: diagnostic views of the texture as a whole (the modules have their own Show controls)
     b.boolean(id::textureDiffShow, "Show Texture Difference (diagnostic)", false,
               "DIAGNOSTIC VIEW - switch off before rendering. Shows the final picture minus the picture with every texture module off, 4x stronger, "

@@ -202,7 +202,7 @@ bool userPresetStores(const ParamDef& d) {
         d.type != PType::String)
         return false;
     if (d.group == id::gLicense) return false;
-    return d.id != id::lutPath && d.id != id::userPresetName && d.id != id::falseColourEnable &&
+    return d.id != id::lutPath && d.id != id::userPresetName && d.id != id::falseColourEnable && d.id != id::exposureZebras &&
            !isDiagnosticViewParam(d.id);
 }
 

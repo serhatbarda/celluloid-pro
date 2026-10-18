@@ -1010,6 +1010,16 @@ CEL_DEVICE CelF3 celc_display_finish_px(CEL_GLOBAL const float* s, CelF3 lin, Ce
     return celc_display_finish_dmg(s, lin, noise, hasNoise, cel_f4(0.0f, 0.0f, 0.0f, 0.0f), 0);
 }
 
+/* v1.11 Exposure Zebras (diagnostic): diagonal stripes (8 px) over the finished pixel where its display
+ * luminance is within this look's crushed-black (blue) or burnt-white (red) range (CEL_CS_ZEBRA_LO / _HI) */
+CEL_DEVICE CelF3 celc_zebra(CEL_GLOBAL const float* s, CelF3 o, int x, int y) {
+    float Y = celc_dot3(s, CEL_CS_LUM, celc_display_decode_px(s, o));
+    int lo = Y < s[CEL_CS_ZEBRA_LO], hi = Y > s[CEL_CS_ZEBRA_HI];
+    if ((!lo && !hi) || (((x + y) >> 3) & 1)) return o;
+    CelF3 c = celc_display_encode(s, lo ? cel_f3(0.05f, 0.25f, 1.0f) : cel_f3(1.0f, 0.05f, 0.05f));
+    return cel_f3(0.3f * o.x + 0.7f * c.x, 0.3f * o.y + 0.7f * c.y, 0.3f * o.z + 0.7f * c.z);
+}
+
 /* ------------------------------------------------------------------------- kernels */
 CEL_DEVICE void cel_k_decode(CEL_KERNEL_PARAMS) {
     CelF4 p = cel_load(in0, a->inStride[0], a->inW[0], a->inH[0], x, y);
@@ -1054,6 +1064,7 @@ CEL_DEVICE void cel_k_color(CEL_KERNEL_PARAMS) {
     CelF4 dmg = cel_f4(0.0f, 0.0f, 0.0f, 0.0f);
     if (a->inStride[3] != 0) dmg = cel_load(in3, a->inStride[3], a->inW[3], a->inH[3], x, y);
     CelF3 r = celc_scene_to_output_dmg(state, sc, nz, hasNoise, dmg);
+    if (state[CEL_CS_ZEBRA] > 0.5f) r = celc_zebra(state, r, x, y);   /* v1.11 diagnostic overlay (off = 0) */
     cel_store(out, a->outStride, x, y, cel_f4(r.x, r.y, r.z, alpha));
 }
 

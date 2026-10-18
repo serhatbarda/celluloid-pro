@@ -1413,6 +1413,32 @@ static void testAlexa() {
 }
 
 // ----------------------------------------------------------------------- v1.8 darkroom
+static void testZebras() {
+    std::printf("[exposure zebras]\n");
+    LookParams lp = lpFor(1, 5, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+    Pipeline P;
+    P.prepare(lp);
+    CHECK(P.state()[CEL_CS_ZEBRA] == 0.f, "zebras off by default");
+    lp.exposureZebras = true;
+    P.prepare(lp);
+    const float* s = P.state().data();
+    CHECK(s[CEL_CS_ZEBRA] == 1.f, "zebras on");
+    const float lo = s[CEL_CS_ZEBRA_LO], hi = s[CEL_CS_ZEBRA_HI];
+    auto Y = [&](float sc) {
+        CelF3 o = celc_scene_to_output(s, cel_f3(sc, sc, sc), cel_f3(0, 0, 0), 0);
+        return celc_dot3(s, CEL_CS_LUM, celc_display_decode_px(s, o));
+    };
+    std::printf("  print: crushed below Y %.5f, burnt above Y %.4f\n", lo, hi);
+    CHECK(lo < Y(0.18f * std::exp2(-3.f)) && Y(0.18f * std::exp2(4.f)) < hi, "zebras leave -3 .. +4 stops clear");
+    CHECK(Y(0.18f * std::exp2(-12.f)) < lo && Y(0.18f * std::exp2(12.f)) > hi, "zebras mark -12 / +12 stops");
+    // never in the colour itself: the rendering of a pixel is unchanged (the overlay is positional, in the kernel)
+    Pipeline P0;
+    lp.exposureZebras = false;
+    P0.prepare(lp);
+    Float3 a = P.sceneToOutput({0.05f, 0.1f, 0.2f}, {0, 0, 0}), b = P0.sceneToOutput({0.05f, 0.1f, 0.2f}, {0, 0, 0});
+    CHECK(a.r == b.r && a.g == b.g && a.b == b.b, "zebras do not change the colour rendering");
+}
+
 static void testDarkroom() {
     std::printf("[darkroom: shot under / over, cross process]\n");
     for (Process pr : {Process::NegativeToPrint, Process::NegativeScan}) {
@@ -1507,6 +1533,7 @@ int main(int argc, char** argv) {
     testAlexa();
     testP1Extras();
     testDarkroom();
+    testZebras();
     testGolden(golden);
     testCube(tmp);
     testCubeAccuracy(tmp);

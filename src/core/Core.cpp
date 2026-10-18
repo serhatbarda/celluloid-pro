@@ -149,7 +149,7 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.latitudeSoftness == b.latitudeSoftness && a.latitudeReconstruct == b.latitudeReconstruct &&
            a.latitudeDesaturate == b.latitudeDesaturate && a.latitudeClip == b.latitudeClip &&
            a.sceneWbOn == b.sceneWbOn && a.sceneWbKelvin == b.sceneWbKelvin && a.sceneWbTint == b.sceneWbTint &&   // v1.3 P1
-           a.falseColour == b.falseColour &&
+           a.falseColour == b.falseColour && a.exposureZebras == b.exposureZebras &&
            sameTimer(a, b) && a.headCyan == b.headCyan && a.headMagenta == b.headMagenta &&   // Lab & Gate
            a.headYellow == b.headYellow && a.headPreserve == b.headPreserve;
 }
@@ -1287,6 +1287,33 @@ void Pipeline::prepare(const LookParams& pin) {
     if (toneOn) buildToneTable(s, p, int(oTN));
     if (alexa) buildAlexa(s, p, int(oAL));
     s[CEL_CS_GAIN] = gain;
+    if (p.exposureZebras && !p.falseColour && (int(s[CEL_CS_STAGE]) == 0 || int(s[CEL_CS_STAGE]) == 4)) {
+        // v1.11 Exposure Zebras: where this look's tone curve goes flat. Grey is swept from 14 stops under to
+        // 14 over; detail is lost where the output code value changes by less than 0.01 per stop (about a tenth of
+        // the mid-tone contrast of a print). The limits are the display-linear luminances at the first and last
+        // stop still steeper than that.
+        auto at = [&](float st, float* code) {
+            const float sc = 0.18f * std::exp2(st);
+            CelF3 o = celc_scene_to_output(s, cel_f3(sc, sc, sc), cel_f3(0, 0, 0), 0);
+            *code = celc_dot3(s, CEL_CS_LUM, o);
+            return celc_dot3(s, CEL_CS_LUM, celc_display_decode_px(s, o));
+        };
+        const float step = 0.1f, minSlope = 0.01f;
+        float lo = -1.f, hi = -1.f, c0 = 0.f, c1 = 0.f, y0 = at(-14.f, &c0);
+        for (float st = -14.f + step; st <= 14.f + 1e-3f; st += step) {
+            const float y1 = at(st, &c1);
+            if ((c1 - c0) / step >= minSlope) {
+                if (lo < 0.f) lo = y0;
+                hi = y1;
+            }
+            c0 = c1; y0 = y1;
+        }
+        if (lo >= 0.f && hi > lo) {
+            s[CEL_CS_ZEBRA] = 1.f;
+            s[CEL_CS_ZEBRA_LO] = lo;
+            s[CEL_CS_ZEBRA_HI] = hi;
+        }
+    }
 
     C.exp = exp; C.dye = dye; C.proj = proj;
     C.last = p;

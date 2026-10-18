@@ -4,6 +4,15 @@ All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.11.0] — 2026-10-18
+
+### Added
+
+- **Exposure Zebras** (Output, diagnostic, off by default): stripes over the real picture where this look loses
+  detail. Blue: the shadows print as solid black. Red: the highlights burn out to white. The limits come from
+  the chosen film, print and output (where the tone curve goes flat), so they show what the film does with your
+  exposure rather than what the camera clipped. Print and ALEXA stages; never stored in presets or LUTs.
+
 ## [1.10.0] — 2026-10-18
 
 ### Added

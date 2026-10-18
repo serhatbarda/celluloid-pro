@@ -263,6 +263,7 @@ int main() {
         // v1.10 Light Leaks: new module, OFF by default
         {"leakEnable", "groupLightLeaks", false, true, {"leakAmount", "leakFrequency", "leakSize", "leakRollEnd", "leakSeed"}},
         {"falseColourEnable", "groupOutput", false, false, {}},
+        {"exposureZebras", "groupOutput", false, false, {}},   // v1.11 diagnostic overlay
     };
     auto position = [&](const std::string& pid) {
         for (size_t i = 0; i < defs.size(); ++i)
@@ -408,6 +409,7 @@ int main() {
         }
         check(!findParam("lutPath") || !userPresetStores(*findParam("lutPath")), "user presets do not store lutPath");
         check(!userPresetStores(*findParam("falseColourEnable")), "user presets do not store False Colour");
+    check(!userPresetStores(*findParam("exposureZebras")), "user presets do not store Exposure Zebras");
         check(!userPresetStores(*findParam("licenseKey")), "user presets do not store the license key");
         check(userPresetStores(*findParam("inputSpace")) && userPresetStores(*findParam("sceneWbEnable")),
               "user presets store input and module switches");

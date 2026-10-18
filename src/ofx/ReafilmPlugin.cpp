@@ -205,7 +205,7 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.latitudeClip == b.latitudeClip &&
            // v1.3 P1 extras
            a.sceneWbOn == b.sceneWbOn && a.sceneWbKelvin == b.sceneWbKelvin && a.sceneWbTint == b.sceneWbTint &&
-           a.falseColour == b.falseColour &&
+           a.falseColour == b.falseColour && a.exposureZebras == b.exposureZebras &&
            // Lab & Gate colour timer
            a.headCyan == b.headCyan && a.headMagenta == b.headMagenta && a.headYellow == b.headYellow &&
            a.headPreserve == b.headPreserve && a.printBlack == b.printBlack && a.printWhite == b.printWhite &&
@@ -505,6 +505,7 @@ core::LookParams ReafilmEffect::lookAt(double t) const {
         lp.sceneWbKelvin = float(num(id::sceneWbTemperature, t));
         lp.sceneWbTint = float(num(id::sceneWbTint, t));
     }
+    lp.exposureZebras = flag(id::exposureZebras, t);   // v1.11 diagnostic overlay
     lp.falseColour = flag(id::falseColourEnable, t);   // v1.3 P1 diagnostic view (never in LUT export)
     lp.negStock = clampIdx(choice(id::negStock, t), int(negStocks().size()));
     if (flag(id::developmentEnable, t)) {
@@ -1133,6 +1134,7 @@ void ReafilmEffect::saveUserPreset(double t) {
     sendMessage(OFX::Message::eMessageMessage, "",
                 "User preset \"" + name + "\" " + (replaced ? "replaced" : "saved") + ":\n" + path +
                     (flag(id::falseColourEnable, t) ? "\n(False Colour is a diagnostic view and is not stored.)" : "") +
+                    (flag(id::exposureZebras, t) ? "\n(Exposure Zebras are a diagnostic overlay and are not stored.)" : "") +
                     (diagnosticViewOn(t) ? "\n(Show / Before-After views are diagnostic and are not stored.)" : ""));
 }
 
@@ -1390,6 +1392,7 @@ void ReafilmEffect::refreshEnabledness(double t) {
         setEnabled(id::sceneWbTemperature, wb && flag(id::sceneWbEnable, t));
         setEnabled(id::sceneWbTint, wb && flag(id::sceneWbEnable, t));
         setEnabled(id::falseColourEnable, colour);
+        setEnabled(id::exposureZebras, colour && !flag(id::falseColourEnable, t));
     }
     // texture
     for (const char* p : {id::halationEnable, id::bloomEnable, id::grainEnable, id::acutanceEnable, id::weaveEnable,
@@ -1563,6 +1566,7 @@ void ReafilmEffect::exportLut(double t) {
     lp.grainAmount = 0.f;   // a LUT is the Color Only pipeline
     const bool falseColourOn = lp.falseColour;
     lp.falseColour = false;   // v1.3 P1: the diagnostic view is never baked into a LUT
+    lp.exposureZebras = false;
 
     std::string dir = normalizeUserPath(str(id::lutPath));
     if (dir.empty()) dir = defaultLutDirectory();

@@ -160,6 +160,9 @@ struct LookParams {
     // v1.8 Expired: film past its date, 0 .. 1 (base fog strongest in the fast blue layer, speed and contrast
     // loss, coarser grain); 1 = a roll some ten years out of date, stored warm
     float filmAge = 0.f;
+    // v1.11 Exposure Zebras (diagnostic overlay, never in looks, presets or LUTs): stripes over the rendering where
+    // this look prints the shadows as solid black (blue) or the highlights as paper white (red)
+    bool  exposureZebras = false;
 };
 
 // v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 5c.1

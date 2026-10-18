@@ -194,6 +194,7 @@ std::vector<Case> makeCases(bool all) {
     add("scene white balance 3200 K tint +60", [](Case& c) {
         fullTexture(c.fs); c.fs.look.sceneWbOn = true; c.fs.look.sceneWbKelvin = 3200.0f; c.fs.look.sceneWbTint = 60.0f; });
     add("false colour", [](Case& c) { fullTexture(c.fs); c.fs.look.falseColour = true; });
+    add("exposure zebras", [](Case& c) { fullTexture(c.fs); c.fs.look.exposureZebras = true; c.scene = Scene::Torture; });   // v1.11
     add("false colour, PQ, torture", [](Case& c) {
         c.fs.look.falseColour = true; c.fs.look.output = OS::Rec2100_PQ; c.scene = Scene::Torture; });
     add("render scale 0.5 (pixelScale)", [](Case& c) { fullTexture(c.fs); c.fs.tex.pixelScale *= 0.5f; });

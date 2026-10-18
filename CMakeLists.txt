@@ -23,7 +23,7 @@ endif()
 cmake_policy(SET CMP0091 NEW)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "MSVC runtime")
 
-project(ReafilmPro VERSION 1.10.0 LANGUAGES C CXX)
+project(ReafilmPro VERSION 1.11.0 LANGUAGES C CXX)
 # Languages must be enabled in the top-level directory: CMake generates the per-language rules
 # (e.g. CMAKE_OBJCXX_COMPILE_OBJECT) only for languages enabled here, so an enable_language()
 # inside src/gpu or tests/gpu alone breaks the generate step on macOS.
