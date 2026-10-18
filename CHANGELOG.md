@@ -4,6 +4,15 @@ All notable changes to Reafilm Pro (called Celluloid Pro before 1.3.0). Versions
 parameter identifiers and choice orders are permanent, so projects saved with an older version open
 unchanged in a newer one.
 
+## [1.12.0] — 2026-10-18
+
+### Added
+
+- **Scanner** (Negative, Process = Lab Scan, default Neutral): the lab scanner's own rendering, in the style of
+  the two classic minilab scanners. Frontier Style: punchier, richer colour, teal-green shadows and warm, creamy
+  highlights. Noritsu Style: neutral colour, softer contrast and more open highlights. Grey stays neutral in
+  every style; Neutral is the scan as before.
+
 ## [1.11.0] — 2026-10-18
 
 ### Added

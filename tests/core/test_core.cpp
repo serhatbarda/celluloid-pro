@@ -1413,6 +1413,37 @@ static void testAlexa() {
 }
 
 // ----------------------------------------------------------------------- v1.8 darkroom
+static void testScanLooks() {
+    std::printf("[scanner looks]\n");
+    LookParams lp = lpFor(1, 5, Process::NegativeScan, OutputSpace::Rec709_G24);
+    Pipeline P0, P;
+    P0.prepare(lp);
+    const Float3 g0 = outGrey(P0, 0.18f);
+    for (int k = 1; k < int(ScanLook::Count); ++k) {
+        LookParams l = lp;
+        l.scanLook = k;
+        P.prepare(l);
+        const Float3 g = outGrey(P, 0.18f);
+        CHECK(std::fabs(g.g - g0.g) < 0.004f && std::fabs(g.r - g.g) < 0.004f && std::fabs(g.b - g.g) < 0.004f,
+              "scan look %d: grey stays grey (%g %g %g vs %g)", k, g.r, g.g, g.b, g0.g);
+        float prev = -1.f;
+        bool mono = true;
+        for (int st = -8; st <= 8; ++st) {
+            const Float3 o = outGrey(P, 0.18f * std::exp2(float(st)));
+            mono = mono && o.g >= prev;
+            prev = o.g;
+        }
+        CHECK(mono, "scan look %d: grey ramp monotonic", k);
+    }
+    LookParams pr = lpFor(1, 5, Process::NegativeToPrint, OutputSpace::Rec709_G24);
+    Pipeline A, B;
+    A.prepare(pr);
+    pr.scanLook = 1;
+    B.prepare(pr);
+    Float3 a = A.sceneToOutput({0.05f, 0.1f, 0.2f}, {0, 0, 0}), b = B.sceneToOutput({0.05f, 0.1f, 0.2f}, {0, 0, 0});
+    CHECK(a.r == b.r && a.g == b.g && a.b == b.b, "scan look ignored on the print process");
+}
+
 static void testZebras() {
     std::printf("[exposure zebras]\n");
     LookParams lp = lpFor(1, 5, Process::NegativeToPrint, OutputSpace::Rec709_G24);
@@ -1534,6 +1565,7 @@ int main(int argc, char** argv) {
     testP1Extras();
     testDarkroom();
     testZebras();
+    testScanLooks();
     testGolden(golden);
     testCube(tmp);
     testCubeAccuracy(tmp);

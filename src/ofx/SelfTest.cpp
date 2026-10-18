@@ -293,6 +293,8 @@ int main() {
     check(count("outputSpace") == int(core::OutputSpace::Count), "outputSpace options != OutputSpace::Count");
     check(count("mode") == int(core::Mode::Count), "mode options != Mode::Count");
     check(count("process") == int(core::Process::Count), "process options != Process::Count");
+    check(count("scanLook") == int(core::ScanLook::Count), "scanLook options != ScanLook::Count");   // v1.12
+    check(defLabel("scanLook") == "Neutral", "scanLook default must be Neutral");
     check(count("grainFormat") == int(tex::GrainFormat::Count), "grainFormat options != GrainFormat::Count");
     check(count("breathProfile") == int(tex::BreathProfile::Count), "breathProfile options != BreathProfile::Count");
     check(count("negStock") == int(core::negativeStocks().size()), "negStock options != negativeStocks()");

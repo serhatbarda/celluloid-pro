@@ -266,7 +266,8 @@ constexpr const char* sceneWbEnable = "sceneWbEnable";
 constexpr const char* sceneWbTemperature = "sceneWbTemperature";
 constexpr const char* sceneWbTint = "sceneWbTint";
 constexpr const char* falseColourEnable = "falseColourEnable";
-constexpr const char* exposureZebras = "exposureZebras";       // v1.11 diagnostic overlay
+constexpr const char* exposureZebras = "exposureZebras";
+constexpr const char* scanLook = "scanLook";                   // v1.12, append only (core::ScanLook)       // v1.11 diagnostic overlay
 constexpr const char* bloomThreshold = "bloomThreshold";
 constexpr const char* bloomKeepHighlights = "bloomKeepHighlights";
 // ---- v1.3 reference look: lens diffusion filter, digital sharpening removal ----------------------

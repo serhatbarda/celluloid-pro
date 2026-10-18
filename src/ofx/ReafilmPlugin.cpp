@@ -205,7 +205,7 @@ bool sameLook(const core::LookParams& a, const core::LookParams& b) {
            a.latitudeClip == b.latitudeClip &&
            // v1.3 P1 extras
            a.sceneWbOn == b.sceneWbOn && a.sceneWbKelvin == b.sceneWbKelvin && a.sceneWbTint == b.sceneWbTint &&
-           a.falseColour == b.falseColour && a.exposureZebras == b.exposureZebras &&
+           a.falseColour == b.falseColour && a.exposureZebras == b.exposureZebras && a.scanLook == b.scanLook &&
            // Lab & Gate colour timer
            a.headCyan == b.headCyan && a.headMagenta == b.headMagenta && a.headYellow == b.headYellow &&
            a.headPreserve == b.headPreserve && a.printBlack == b.printBlack && a.printWhite == b.printWhite &&
@@ -527,6 +527,7 @@ core::LookParams ReafilmEffect::lookAt(double t) const {
         lp.printBleach = float(num(id::printBleach, t));
     }   // else: grey-balanced light at 0 points, normal print processing
     lp.printCrossover = float(num(id::printCrossover, t));   // part of the print stock's rendering (not timing)
+    lp.scanLook = clampIdx(choice(id::scanLook, t), int(core::ScanLook::Count));   // v1.12 (Lab Scan only)
     if (flag(id::printLabEnable, t)) {   // v1.3 print lab; off = contact print, nominal aim, D65 (v1.2)
         lp.projectionWhite = clampIdx(choice(id::projectionWhite, t), int(core::ProjectionWhite::Count));
         lp.printAim = clampIdx(choice(id::printAim, t), int(core::PrintAim::Count));
@@ -1283,6 +1284,7 @@ void ReafilmEffect::refreshEnabledness(double t) {
     setEnabled(id::printExposure, colour && printOn && !reversal);
     setEnabled(id::printBleach, colour && printOn && !reversal && !scan);
     setEnabled(id::printCrossover, colour && !reversal && !scan && !mono);
+    setEnabled(id::scanLook, colour && !reversal && scan);   // v1.12
     {   // v1.3 print lab + stock provenance labels
         const bool labOn = flag(id::printLabEnable, t), printing = colour && !reversal && !scan;
         setEnabled(id::printLabEnable, printing);
@@ -1374,7 +1376,7 @@ void ReafilmEffect::refreshEnabledness(double t) {
         setEnabled(id::alexaColour, colour && !alexaStage && sc != StageChoice::PrintOnly && acOn);
         if (alexaStage) {
             for (const char* p : {id::negStock, id::developmentEnable, id::pushPull, id::interlayer, id::negBleach,
-                                  id::neutralize, id::pushUnder, id::crossProcess, id::filmAge, id::process, id::printStock, id::printEnable, id::printerR, id::printerG,
+                                  id::neutralize, id::pushUnder, id::crossProcess, id::filmAge, id::process, id::scanLook, id::printStock, id::printEnable, id::printerR, id::printerG,
                                   id::printerB, id::printExposure, id::printBleach, id::printCrossover, id::printLabEnable,
                                   id::projectionWhite, id::printAim, id::printContrast, id::printRender, id::rolloffEnable,
                                   id::rolloffStart, id::rolloffSoftness, id::dyeSatEnable, id::dyeSaturation, id::dyeRichness,

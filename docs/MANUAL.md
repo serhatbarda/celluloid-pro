@@ -390,6 +390,8 @@ Resolve's keyframe editor. Read-only rows are status lines.
   - *Print* — the negative is printed onto print stock and projected - the classic cinema look with dense blacks and rich colour.
   - *Lab Scan* — the negative is scanned and inverted by a lab scanner - a flatter, more neutral rendering that keeps the negative's character without print-stock contrast.
   - Reversal (slide) stocks are direct positives and ignore this setting.
+- **Scanner** (`scanLook`; default: Neutral) — The lab scanner's own rendering (Process = Lab Scan). Neutral: the plain balanced inversion. Frontier Style: the look of a Fujifilm Frontier minilab scan - punchier, richer colour, teal-green shadows and warm, creamy highlights. Noritsu Style: the look of a Noritsu scan - neutral colour, softer contrast and more open highlights.
+  - Options: Neutral · Frontier Style · Noritsu Style
 - **Print Stock** (`printFilm`; default: Kodak Vision 2383) — The print film the negative is printed on (Process = Print), from the manufacturer's data sheet. It sets print contrast, black density, highlight roll-off and the colour of the projected image.
   - *Kodak Vision 2383* — the standard release print.
 Kodak Vision Premier 2393: higher D-max, denser blacks, more saturated.

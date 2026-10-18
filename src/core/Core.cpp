@@ -83,6 +83,7 @@ void colourHeadPoints(int negStock, int printStock, float cyan, float magenta, f
     colourHeadLogH(std::min(std::max(negStock, 0), st::numNegatives() - 1), std::min(std::max(printStock, 0), st::numPrints() - 1), cmy, hd);
     for (int j = 0; j < 3; ++j) out[j] = float(hd[j] / kPoint);
 }
+std::vector<std::string> scanLookNames() { return {"Neutral", "Frontier Style", "Noritsu Style"}; }
 std::vector<std::string> printRenderNames() { return {"Contact Print", "Release Print (IP / IN)", "Telecine / Scan"}; }
 
 // ------------------------------------------------------------------------- pipeline
@@ -114,7 +115,7 @@ static bool sameTimer(const LookParams& a, const LookParams& b) {
 static bool sameFilm(const LookParams& a, const LookParams& b) {
     return a.negStock == b.negStock && a.pushPull == b.pushPull && a.interlayer == b.interlayer &&
            a.negBleach == b.negBleach && a.neutralize == b.neutralize && a.crossProcess == b.crossProcess &&
-           a.pushRated == b.pushRated && a.filmAge == b.filmAge && a.process == b.process && a.printStock == b.printStock &&
+           a.pushRated == b.pushRated && a.filmAge == b.filmAge && a.process == b.process && a.scanLook == b.scanLook && a.printStock == b.printStock &&
            a.printBleach == b.printBleach && a.printCrossover == b.printCrossover &&
            a.projectionWhite == b.projectionWhite && a.printAim == b.printAim && a.printRender == b.printRender &&
            a.printContrast == b.printContrast &&   // v1.3 print lab
@@ -149,7 +150,7 @@ static bool sameParams(const LookParams& a, const LookParams& b) {
            a.latitudeSoftness == b.latitudeSoftness && a.latitudeReconstruct == b.latitudeReconstruct &&
            a.latitudeDesaturate == b.latitudeDesaturate && a.latitudeClip == b.latitudeClip &&
            a.sceneWbOn == b.sceneWbOn && a.sceneWbKelvin == b.sceneWbKelvin && a.sceneWbTint == b.sceneWbTint &&   // v1.3 P1
-           a.falseColour == b.falseColour && a.exposureZebras == b.exposureZebras &&
+           a.falseColour == b.falseColour && a.exposureZebras == b.exposureZebras && a.scanLook == b.scanLook &&
            sameTimer(a, b) && a.headCyan == b.headCyan && a.headMagenta == b.headMagenta &&   // Lab & Gate
            a.headYellow == b.headYellow && a.headPreserve == b.headPreserve;
 }
@@ -208,6 +209,7 @@ static LookParams sanitize(LookParams p) {
     if (p.projectionWhite < 0 || p.projectionWhite >= int(ProjectionWhite::Count)) p.projectionWhite = 0;
     if (p.printAim < 0 || p.printAim >= int(PrintAim::Count)) p.printAim = 0;
     if (p.printRender < 0 || p.printRender >= int(PrintRender::Count)) p.printRender = 0;
+    if (p.scanLook < 0 || p.scanLook >= int(ScanLook::Count)) p.scanLook = 0;
     p.printContrast = std::isfinite(p.printContrast) ? clampf(p.printContrast, -1.f, 1.f) : 0.f;
     // v1.3 Tone: ranges clamped; a neutral control normalises its companions to the defaults, so every neutral
     // setting is the same cache key (and the same, untouched state)
@@ -1060,11 +1062,28 @@ void Pipeline::prepare(const LookParams& pin) {
         }
         s[CEL_CS_SC_OFF] = float(oSC);
         s[CEL_CS_SC_N] = float(kNCurve);
+        // v1.12 scanner look: contrast (log slope about grey, highlights separately), saturation of the lab
+        // correction (rows of the saturation matrix sum to 1: neutrals stay neutral) and a per-channel tint of the
+        // shadows / highlights in display density that is zero at grey
+        struct ScanStyle { double contrast, hiContrast, sat, sh[3], hl[3]; };
+        static const ScanStyle kStyles[int(ScanLook::Count)] = {
+            {1.00, 1.00, 1.00, {0, 0, 0}, {0, 0, 0}},
+            {1.12, 1.02, 1.25, {0.06, 0.0, 0.025}, {-0.02, 0.0, 0.05}},       // Frontier: teal shadows, creamy highlights
+            {0.94, 0.88, 1.05, {0.0, 0.006, 0.0}, {0.004, 0.0, -0.006}},      // Noritsu: soft, open, near neutral
+        };
+        const ScanStyle& sty = kStyles[std::min(std::max(p.scanLook, 0), int(ScanLook::Count) - 1)];
+        spec::Mat3 Sat;
+        {
+            const double lw[3] = {0.2627, 0.6780, 0.0593}, k = mono ? 1.0 : sty.sat;
+            for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) Sat.m[i][j] = (1.0 - k) * lw[j] + (i == j ? k : 0.0);
+        }
         spec::Mat3 Ms;
         if (!mono) for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) Ms.m[i][j] = neg.scanMatrix[i][j];
+        if (!mono && sty.sat != 1.0) Ms = Sat * Ms;
         putMat(s, CEL_CS_MSCAN, Ms);
         spec::Mat3 Ms2;
         for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) Ms2.m[i][j] = mono ? 0.0 : neg.scanRoot[i][j];
+        if (!mono && sty.sat != 1.0) Ms2 = Sat * Ms2;
         putMat(s, CEL_CS_MSCAN2, Ms2);
         double tgt = -std::log10(sc.greyY), lo = -5.0, hi = 5.0;
         for (int it = 0; it < 80; ++it) {
@@ -1074,8 +1093,11 @@ void Pipeline::prepare(const LookParams& pin) {
         double ws = 0.5 * (lo + hi);
         for (int k = 0; k < kNCurve; ++k) {
             double w = kScnW0 + (kScnW1 - kScnW0) * k / (kNCurve - 1);
-            float v = float(dev(ws - w, sc.gamma, sc.k, sc.R, sc.p));
-            for (int j = 0; j < 3; ++j) s[oPC + size_t(j) * kNCurve + k] = v;
+            const double wc = w * (w > 0.0 ? sty.contrast * sty.hiContrast : sty.contrast);
+            const double v = dev(ws - wc, sc.gamma, sc.k, sc.R, sc.p);
+            const double tS = std::tanh(std::max(0.0, -w) / 0.7), tH = std::tanh(std::max(0.0, w) / 0.7);
+            for (int j = 0; j < 3; ++j)
+                s[oPC + size_t(j) * kNCurve + k] = mono ? float(v) : float(v + sty.sh[j] * tS + sty.hl[j] * tH);
         }
         s[CEL_CS_PC_OFF] = float(oPC); s[CEL_CS_PC_N] = float(kNCurve);
         s[CEL_CS_PC_U0] = float(kScnW0); s[CEL_CS_PC_U1] = float(kScnW1);

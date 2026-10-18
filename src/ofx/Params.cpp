@@ -506,6 +506,12 @@ std::vector<ParamDef> build() {
              "more neutral rendering that keeps the negative's character without print-stock contrast.\n"
              "Reversal (slide) stocks are direct positives and ignore this setting.",
              true);
+    b.choice(id::scanLook, "Scanner", core::scanLookNames(), 0,
+             "The lab scanner's own rendering (Process = Lab Scan).\nNeutral: the plain balanced inversion.\nFrontier "
+             "Style: the look of a Fujifilm Frontier minilab scan - punchier, richer colour, teal-green shadows and "
+             "warm, creamy highlights.\nNoritsu Style: the look of a Noritsu scan - neutral colour, softer contrast and "
+             "more open highlights.",
+             true);
     b.choice(id::printStock, "Print Stock (all)", prints, printDefault < 0 ? 0 : printDefault,
              "The print film the negative is printed on (Process = Print). It sets print contrast, black density, "
              "highlight roll-off and the colour of the projected image.",

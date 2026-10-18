@@ -163,6 +163,8 @@ struct LookParams {
     // v1.11 Exposure Zebras (diagnostic overlay, never in looks, presets or LUTs): stripes over the rendering where
     // this look prints the shadows as solid black (blue) or the highlights as paper white (red)
     bool  exposureZebras = false;
+    // v1.12 Lab Scan scanner look (ScanLook; Lab Scan process only): the lab scanner's own tone and colour rendering
+    int   scanLook = 0;
 };
 
 // v1.3 print lab choices (ORDER IS THE OFX CHOICE-PARAM ORDER, append only); model in docs/STOCKS.md 5c.1
@@ -178,6 +180,15 @@ enum class PrintAim : int {
     Soft,                // low in the lab's tolerance: less contrast and D-max
     Count
 };
+// v1.12 Lab Scan scanner looks (ORDER = append only)
+enum class ScanLook : int {
+    Neutral = 0,         // the plain balanced inversion (as before)
+    Frontier,            // Fujifilm Frontier style: punchy, warm highlights, teal-green shadows, rich colour
+    Noritsu,             // Noritsu style: neutral, softer contrast, open highlights
+    Count
+};
+std::vector<std::string> scanLookNames();
+
 enum class PrintRender : int {
     ContactPrint = 0,    // printed from the camera negative, projected (default)
     ReleasePrint,        // printed from a duplicate negative (negative -> IP -> IN -> print), projected
